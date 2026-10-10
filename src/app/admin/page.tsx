@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
-import { bookingStore, RealtimeSyncPayload } from "@/lib/bookingStore";
+import { bookingStore, RealtimeSyncPayload, getInquirySignature } from "@/lib/bookingStore";
 import { BookingInquiry, InquiryStatus, Villa, VillaMaintenanceInfo } from "@/types";
 import {
   LuxuryDatePicker,
@@ -84,7 +84,7 @@ export default function AdminPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
-  const [inquiries, setInquiries] = useState<BookingInquiry[]>([]);
+  const [inquiries, setInquiries] = useState<BookingInquiry[]>(() => bookingStore.getInquiries());
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [villaFilter, setVillaFilter] = useState<string>("all");
@@ -110,7 +110,7 @@ export default function AdminPage() {
   });
 
   // Maintenance State & Dialog
-  const [maintenanceMap, setMaintenanceMap] = useState<Record<string, VillaMaintenanceInfo>>({});
+  const [maintenanceMap, setMaintenanceMap] = useState<Record<string, VillaMaintenanceInfo>>(() => bookingStore.getMaintenanceMap());
   const [maintenanceDialogVilla, setMaintenanceDialogVilla] = useState<Villa | null>(null);
   const [maintenanceNoteInput, setMaintenanceNoteInput] = useState("");
 
@@ -211,27 +211,20 @@ export default function AdminPage() {
       }
     });
 
-    // Fallback heartbeat poller (every 2.5 seconds)
+    // Periodic background sync using stable signature comparison (prevents flickering)
     const poller = setInterval(() => {
       const latest = bookingStore.getInquiries();
-      setMaintenanceMap(bookingStore.getMaintenanceMap());
+      setMaintenanceMap((prev) => {
+        const cur = bookingStore.getMaintenanceMap();
+        return JSON.stringify(prev) !== JSON.stringify(cur) ? cur : prev;
+      });
       setInquiries((prev) => {
-        if (latest.length !== prev.length || JSON.stringify(latest) !== JSON.stringify(prev)) {
-          if (latest.length > prev.length && prev.length > 0) {
-            playLuxuryChime();
-            const newest = latest[0];
-            showNotification(
-              `🛎️ New Booking Received: ${newest.guestName}`,
-              `Reserved ${newest.villaName}`
-            );
-            setNewlyArrivedId(newest.id);
-            setTimeout(() => setNewlyArrivedId(null), 12000);
-          }
+        if (getInquirySignature(prev) !== getInquirySignature(latest)) {
           return latest;
         }
         return prev;
       });
-    }, 2500);
+    }, 3500);
 
     return () => {
       unsubscribe();
@@ -907,9 +900,21 @@ export default function AdminPage() {
         {/* Inquiries Table / Cards */}
         {filteredInquiries.length === 0 ? (
           <div className="bg-white rounded-3xl p-12 text-center border border-neutral-200">
-            <p className="text-neutral-400 text-sm">
-              No reservation inquiries match your current filters.
+            <p className="text-neutral-500 text-sm mb-4">
+              {inquiries.length === 0
+                ? "No reservations logged yet."
+                : "No reservation inquiries match your current filters."}
             </p>
+            {inquiries.length === 0 && (
+              <button
+                type="button"
+                onClick={handleResetSample}
+                className="inline-flex items-center gap-2 bg-[#14171A] hover:bg-[#C2A476] text-white py-2.5 px-5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Load Sample Inquiries</span>
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-4">

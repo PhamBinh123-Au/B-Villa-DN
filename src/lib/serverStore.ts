@@ -144,7 +144,10 @@ function readFromFile(): ServerData | null {
   try {
     if (fs.existsSync(LOCAL_DATA_FILE)) {
       const content = fs.readFileSync(LOCAL_DATA_FILE, "utf-8");
-      return JSON.parse(content) as ServerData;
+      const parsed = JSON.parse(content) as ServerData;
+      if (parsed && Array.isArray(parsed.inquiries) && parsed.inquiries.length > 0) {
+        return parsed;
+      }
     }
   } catch {
     // continue to tmp
@@ -154,7 +157,10 @@ function readFromFile(): ServerData | null {
   try {
     if (fs.existsSync(TMP_DATA_FILE)) {
       const content = fs.readFileSync(TMP_DATA_FILE, "utf-8");
-      return JSON.parse(content) as ServerData;
+      const parsed = JSON.parse(content) as ServerData;
+      if (parsed && Array.isArray(parsed.inquiries) && parsed.inquiries.length > 0) {
+        return parsed;
+      }
     }
   } catch {
     // fallback
@@ -188,19 +194,23 @@ export const serverStore = {
   async getData(): Promise<ServerData> {
     // 1. If KV is configured, check KV
     const kvData = await fetchFromKv();
-    if (kvData && kvData.inquiries) {
+    if (kvData && Array.isArray(kvData.inquiries) && kvData.inquiries.length > 0) {
       globalThis.__luxury_server_store__ = kvData;
       return kvData;
     }
 
     // 2. Check in-memory global
-    if (globalThis.__luxury_server_store__) {
+    if (
+      globalThis.__luxury_server_store__ &&
+      Array.isArray(globalThis.__luxury_server_store__.inquiries) &&
+      globalThis.__luxury_server_store__.inquiries.length > 0
+    ) {
       return globalThis.__luxury_server_store__;
     }
 
     // 3. Check disk file
     const diskData = readFromFile();
-    if (diskData && diskData.inquiries) {
+    if (diskData && Array.isArray(diskData.inquiries) && diskData.inquiries.length > 0) {
       globalThis.__luxury_server_store__ = diskData;
       return diskData;
     }
