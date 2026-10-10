@@ -263,9 +263,9 @@ export default function AdminPage() {
     }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm(`Are you sure you want to delete inquiry #${id}? This will release the booked dates on the public website.`)) {
-      bookingStore.deleteInquiry(id);
+      await bookingStore.deleteInquiryAsync(id);
       reloadInquiries();
       showNotification(`Inquiry #${id} removed`, "Dates released on public website calendar.");
     }

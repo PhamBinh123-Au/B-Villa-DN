@@ -107,6 +107,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
+        deletedIds: updatedData.deletedIds,
         allInquiries: updatedData.inquiries,
         version: updatedData.version,
       },

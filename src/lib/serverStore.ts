@@ -4,6 +4,7 @@ import { BookingInquiry, InquiryStatus, VillaMaintenanceInfo } from "@/types";
 
 export interface ServerData {
   inquiries: BookingInquiry[];
+  deletedIds: string[];
   maintenance: Record<string, VillaMaintenanceInfo>;
   version: number;
   lastUpdated: number;
@@ -85,6 +86,7 @@ declare global {
 function getInitialData(): ServerData {
   return {
     inquiries: [...INITIAL_SAMPLE_INQUIRIES],
+    deletedIds: [],
     maintenance: {},
     version: 1,
     lastUpdated: Date.now(),
@@ -140,12 +142,11 @@ async function saveToKv(data: ServerData): Promise<void> {
 }
 
 function readFromFile(): ServerData | null {
-  // Try local data file first
   try {
     if (fs.existsSync(LOCAL_DATA_FILE)) {
       const content = fs.readFileSync(LOCAL_DATA_FILE, "utf-8");
       const parsed = JSON.parse(content) as ServerData;
-      if (parsed && Array.isArray(parsed.inquiries) && parsed.inquiries.length > 0) {
+      if (parsed && Array.isArray(parsed.inquiries)) {
         return parsed;
       }
     }
@@ -153,12 +154,11 @@ function readFromFile(): ServerData | null {
     // continue to tmp
   }
 
-  // Try /tmp fallback
   try {
     if (fs.existsSync(TMP_DATA_FILE)) {
       const content = fs.readFileSync(TMP_DATA_FILE, "utf-8");
       const parsed = JSON.parse(content) as ServerData;
-      if (parsed && Array.isArray(parsed.inquiries) && parsed.inquiries.length > 0) {
+      if (parsed && Array.isArray(parsed.inquiries)) {
         return parsed;
       }
     }
@@ -172,17 +172,15 @@ function readFromFile(): ServerData | null {
 function saveToFile(data: ServerData): void {
   const serialized = JSON.stringify(data, null, 2);
 
-  // Try local data dir
   try {
     if (!fs.existsSync(LOCAL_DATA_DIR)) {
       fs.mkdirSync(LOCAL_DATA_DIR, { recursive: true });
     }
     fs.writeFileSync(LOCAL_DATA_FILE, serialized, "utf-8");
   } catch {
-    // Local write might fail in read-only serverless environment
+    // Read-only serverless environment
   }
 
-  // Also write to /tmp for serverless
   try {
     fs.writeFileSync(TMP_DATA_FILE, serialized, "utf-8");
   } catch {
@@ -201,7 +199,6 @@ function deduplicateInquiries(list: BookingInquiry[]): BookingInquiry[] {
     if (seenIds.has(inq.id)) continue;
     seenIds.add(inq.id);
 
-    // Active reservation slot check: prevent duplicate spam on the exact same dates
     if (inq.status !== "cancelled" && inq.checkIn && inq.checkOut && inq.villaId) {
       const slotKey = `${inq.villaId}:${inq.checkIn}:${inq.checkOut}`;
       if (seenSlots.has(slotKey)) {
@@ -222,19 +219,18 @@ export const serverStore = {
 
     // 1. If KV is configured, check KV
     const kvData = await fetchFromKv();
-    if (kvData && Array.isArray(kvData.inquiries) && kvData.inquiries.length > 0) {
+    if (kvData && Array.isArray(kvData.inquiries)) {
       result = kvData;
     } else if (
       globalThis.__luxury_server_store__ &&
-      Array.isArray(globalThis.__luxury_server_store__.inquiries) &&
-      globalThis.__luxury_server_store__.inquiries.length > 0
+      Array.isArray(globalThis.__luxury_server_store__.inquiries)
     ) {
       // 2. Check in-memory global
       result = globalThis.__luxury_server_store__;
     } else {
       // 3. Check disk file
       const diskData = readFromFile();
-      if (diskData && Array.isArray(diskData.inquiries) && diskData.inquiries.length > 0) {
+      if (diskData && Array.isArray(diskData.inquiries)) {
         result = diskData;
       } else {
         // 4. Default to initial sample data
@@ -243,8 +239,14 @@ export const serverStore = {
       }
     }
 
-    // Clean and deduplicate inquiries
-    result.inquiries = deduplicateInquiries(result.inquiries);
+    if (!Array.isArray(result.deletedIds)) {
+      result.deletedIds = [];
+    }
+
+    // Filter out deleted IDs and deduplicate
+    const delSet = new Set(result.deletedIds);
+    result.inquiries = deduplicateInquiries(result.inquiries).filter((i) => !delSet.has(i.id));
+
     globalThis.__luxury_server_store__ = result;
     return result;
   },
@@ -252,7 +254,13 @@ export const serverStore = {
   async setData(updater: (current: ServerData) => ServerData): Promise<ServerData> {
     const current = await this.getData();
     const updated = updater(current);
-    updated.inquiries = deduplicateInquiries(updated.inquiries);
+
+    if (!Array.isArray(updated.deletedIds)) {
+      updated.deletedIds = current.deletedIds || [];
+    }
+
+    const delSet = new Set(updated.deletedIds);
+    updated.inquiries = deduplicateInquiries(updated.inquiries).filter((i) => !delSet.has(i.id));
     updated.version = (current.version || 0) + 1;
     updated.lastUpdated = Date.now();
 
@@ -278,7 +286,7 @@ export const serverStore = {
     if (requestedId) {
       const existing = data.inquiries.find((i) => i.id === requestedId);
       if (existing) {
-        return existing; // idempotent return of existing inquiry
+        return existing;
       }
     }
 
@@ -314,6 +322,8 @@ export const serverStore = {
 
     await this.setData((curr) => ({
       ...curr,
+      // If was previously marked deleted, unmark it
+      deletedIds: (curr.deletedIds || []).filter((dId) => dId !== newInquiry.id),
       inquiries: [newInquiry, ...curr.inquiries.filter((i) => i.id !== newInquiry.id)],
     }));
 
@@ -355,6 +365,7 @@ export const serverStore = {
   async deleteInquiry(id: string): Promise<void> {
     await this.setData((curr) => ({
       ...curr,
+      deletedIds: Array.from(new Set([...(curr.deletedIds || []), id])),
       inquiries: curr.inquiries.filter((i) => i.id !== id),
     }));
   },

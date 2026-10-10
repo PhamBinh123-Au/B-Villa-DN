@@ -2,6 +2,7 @@ import { BookingInquiry, InquiryStatus, VillaMaintenanceInfo } from "@/types";
 
 const STORAGE_KEY = "danang_villa_booking_inquiries_v1";
 const MAINTENANCE_STORAGE_KEY = "danang_villa_maintenance_v1";
+const DELETED_STORAGE_KEY = "danang_villa_deleted_ids_v1";
 export const SYNC_CHANNEL_NAME = "danang_villa_realtime_bookings";
 export const LOCAL_EVENT_NAME = "danang_realtime_booking_event";
 
@@ -108,7 +109,6 @@ function broadcastSync(payload: RealtimeSyncPayload) {
 
 /**
  * Deduplicate inquiries by ID and active booking slot (villaId + checkIn + checkOut)
- * Strictly eliminates duplicate spam
  */
 export function deduplicateInquiries(list: BookingInquiry[]): BookingInquiry[] {
   if (!Array.isArray(list)) return [];
@@ -121,7 +121,6 @@ export function deduplicateInquiries(list: BookingInquiry[]): BookingInquiry[] {
     if (seenIds.has(inq.id)) continue;
     seenIds.add(inq.id);
 
-    // Active reservation slot check: prevent duplicate spam on the exact same dates
     if (inq.status !== "cancelled" && inq.checkIn && inq.checkOut && inq.villaId) {
       const slotKey = `${inq.villaId}:${inq.checkIn}:${inq.checkOut}`;
       if (seenSlots.has(slotKey)) {
@@ -157,7 +156,7 @@ export function getMaintenanceSignature(map: Record<string, VillaMaintenanceInfo
 
 /**
  * Pure READ-ONLY background synchronization between client and server
- * Never creates bookings or POST requests in a loop
+ * Never resurrects deleted inquiries, never loops POST requests
  */
 async function syncWithServer(): Promise<void> {
   if (typeof window === "undefined" || isSyncing) return;
@@ -173,15 +172,25 @@ async function syncWithServer(): Promise<void> {
     if (!res.ok) return;
 
     const data = await res.json();
-    const serverInquiries: BookingInquiry[] = Array.isArray(data.inquiries) && data.inquiries.length > 0
-      ? deduplicateInquiries(data.inquiries)
-      : [];
+
+    // 1. Ingest tombstoned deleted IDs from server
+    if (Array.isArray(data.deletedIds)) {
+      data.deletedIds.forEach((dId: string) => bookingStore.addDeletedId(dId));
+    }
+    const currentDeletedSet = bookingStore.getDeletedIds();
+
+    const rawServerInquiries: BookingInquiry[] = Array.isArray(data.inquiries) ? data.inquiries : [];
+    const serverInquiries = deduplicateInquiries(rawServerInquiries).filter(
+      (i) => !currentDeletedSet.has(i.id)
+    );
     const serverMaintenance: Record<string, VillaMaintenanceInfo> = data.maintenance || {};
 
-    const localInquiries = bookingStore.getInquiries();
+    const localInquiries = bookingStore.getInquiries().filter(
+      (i) => !currentDeletedSet.has(i.id)
+    );
     const localMaintenance = bookingStore.getMaintenanceMap();
 
-    // 1. MERGE INQUIRIES SAFELY
+    // 2. MERGE INQUIRIES SAFELY (Excluding any deleted IDs)
     const mergedMap = new Map<string, BookingInquiry>();
 
     // Server authoritative items first
@@ -189,7 +198,7 @@ async function syncWithServer(): Promise<void> {
       mergedMap.set(item.id, item);
     });
 
-    // Local items: keep locally created items without spamming
+    // Local items: keep locally created items without resurrecting deleted items
     localInquiries.forEach((localItem) => {
       if (!mergedMap.has(localItem.id)) {
         mergedMap.set(localItem.id, localItem);
@@ -199,21 +208,20 @@ async function syncWithServer(): Promise<void> {
       }
     });
 
-    let mergedInquiries = deduplicateInquiries(Array.from(mergedMap.values()));
-    if (mergedInquiries.length === 0) {
-      mergedInquiries = [...SAMPLE_INITIAL_INQUIRIES];
-    }
+    const mergedInquiries = deduplicateInquiries(Array.from(mergedMap.values())).filter(
+      (i) => !currentDeletedSet.has(i.id)
+    );
 
     // Sort: newest created first
     mergedInquiries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    // 2. MERGE MAINTENANCE
+    // 3. MERGE MAINTENANCE
     const mergedMaintenance: Record<string, VillaMaintenanceInfo> = {
       ...localMaintenance,
       ...serverMaintenance,
     };
 
-    // 3. COMPARE SIGNATURES (Prevents flickering re-renders)
+    // 4. COMPARE SIGNATURES (Prevents flickering re-renders)
     const localSig = getInquirySignature(localInquiries);
     const mergedSig = getInquirySignature(mergedInquiries);
 
@@ -227,7 +235,7 @@ async function syncWithServer(): Promise<void> {
     const newlyArrivedRemote: BookingInquiry[] = [];
     if (initialSyncDone) {
       serverInquiries.forEach((i) => {
-        if (!knownInquiryIds.has(i.id)) {
+        if (!knownInquiryIds.has(i.id) && !currentDeletedSet.has(i.id)) {
           newlyArrivedRemote.push(i);
         }
       });
@@ -298,6 +306,34 @@ if (typeof window !== "undefined") {
 
 export const bookingStore = {
   syncWithServer,
+
+  getDeletedIds(): Set<string> {
+    if (typeof window === "undefined") return new Set();
+    try {
+      const data = localStorage.getItem(DELETED_STORAGE_KEY);
+      if (!data) return new Set();
+      const parsed = JSON.parse(data);
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return new Set();
+    }
+  },
+
+  addDeletedId(id: string): void {
+    if (typeof window === "undefined" || !id) return;
+    try {
+      const set = this.getDeletedIds();
+      set.add(id);
+      localStorage.setItem(DELETED_STORAGE_KEY, JSON.stringify(Array.from(set)));
+    } catch {}
+  },
+
+  clearDeletedIds(): void {
+    if (typeof window === "undefined") return;
+    try {
+      localStorage.removeItem(DELETED_STORAGE_KEY);
+    } catch {}
+  },
 
   getMaintenanceMap(): Record<string, VillaMaintenanceInfo> {
     if (typeof window === "undefined") return {};
@@ -386,24 +422,22 @@ export const bookingStore = {
     if (typeof window === "undefined") return [...SAMPLE_INITIAL_INQUIRIES];
     try {
       const data = localStorage.getItem(STORAGE_KEY);
-      if (!data) {
+      // ONLY seed on first install when the key has never been written
+      if (data === null) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_INITIAL_INQUIRIES));
         return [...SAMPLE_INITIAL_INQUIRIES];
       }
       const parsed = JSON.parse(data);
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_INITIAL_INQUIRIES));
-        return [...SAMPLE_INITIAL_INQUIRIES];
-      }
-      const clean = deduplicateInquiries(parsed);
+      if (!Array.isArray(parsed)) return [];
+      const delSet = this.getDeletedIds();
+      const clean = deduplicateInquiries(parsed).filter((i) => !delSet.has(i.id));
       if (clean.length !== parsed.length) {
-        // Automatically save cleaned list if duplicates were pruned
         localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
       }
       return clean;
     } catch (err) {
       console.error("Failed to read inquiries from storage", err);
-      return [...SAMPLE_INITIAL_INQUIRIES];
+      return [];
     }
   },
 
@@ -582,7 +616,6 @@ export const bookingStore = {
 
     const merged = { ...target, ...updatedFields };
 
-    // Strictly validate that update does not create an overlap with another reservation
     if (merged.status !== "cancelled") {
       const conflict = this.hasDateConflict(merged.checkIn, merged.checkOut, merged.villaId, id);
       if (conflict) {
@@ -638,15 +671,22 @@ export const bookingStore = {
   async deleteInquiryAsync(id: string): Promise<void> {
     this.deleteInquiry(id);
     try {
-      await fetch(`/api/bookings?id=${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/bookings?id=${encodeURIComponent(id)}`, {
         method: "DELETE",
       });
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.deletedIds)) {
+          data.deletedIds.forEach((dId: string) => this.addDeletedId(dId));
+        }
+      }
     } catch (err) {
       console.warn("Server delete failed:", err);
     }
   },
 
   deleteInquiry(id: string): void {
+    this.addDeletedId(id);
     const inquiries = this.getInquiries();
     const updated = inquiries.filter((item) => item.id !== id);
     if (typeof window !== "undefined") {
@@ -665,6 +705,7 @@ export const bookingStore = {
   },
 
   async resetSampleDataAsync(): Promise<void> {
+    this.clearDeletedIds();
     this.resetSampleData();
     try {
       await fetch("/api/bookings/reset", {
@@ -677,6 +718,7 @@ export const bookingStore = {
 
   resetSampleData(): void {
     if (typeof window !== "undefined") {
+      this.clearDeletedIds();
       localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_INITIAL_INQUIRIES));
       knownInquiryIds = new Set(SAMPLE_INITIAL_INQUIRIES.map((i) => i.id));
       broadcastSync({
@@ -780,7 +822,7 @@ export const bookingStore = {
     }
 
     const handleStorage = (event: StorageEvent) => {
-      if (event.key === STORAGE_KEY || event.key === MAINTENANCE_STORAGE_KEY) {
+      if (event.key === STORAGE_KEY || event.key === MAINTENANCE_STORAGE_KEY || event.key === DELETED_STORAGE_KEY) {
         callback({
           action: "UPDATE",
           timestamp: Date.now(),
