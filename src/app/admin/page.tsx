@@ -278,7 +278,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleSaveEdit = (e: React.FormEvent) => {
+  const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingInquiry) return;
 
@@ -314,19 +314,19 @@ export default function AdminPage() {
     };
 
     try {
-      bookingStore.updateInquiry(editingInquiry.id, updatedWithVillaName);
+      await bookingStore.updateInquiryAsync(editingInquiry.id, updatedWithVillaName);
       reloadInquiries();
       setEditingInquiry(null);
       showNotification(
         `Reservation #${editingInquiry.id} Updated!`,
-        "Public website calendar has been refreshed immediately."
+        "Public website calendar has been refreshed immediately across all devices."
       );
     } catch (err: any) {
       alert(err.message || "Failed to update reservation.");
     }
   };
 
-  const handleCreateManualBooking = (e: React.FormEvent) => {
+  const handleCreateManualBooking = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!newBookingData.checkIn || !newBookingData.checkOut) {
@@ -357,7 +357,7 @@ export default function AdminPage() {
     const villaName = villaMatch ? villaMatch.name : "Villa Residence";
 
     try {
-      bookingStore.addInquiry({
+      await bookingStore.addInquiryAsync({
         ...newBookingData,
         villaName,
       });
@@ -373,11 +373,11 @@ export default function AdminPage() {
     }
   };
 
-  const handleResetSample = () => {
+  const handleResetSample = async () => {
     if (confirm("Reset booking inquiries to initial sample data?")) {
-      bookingStore.resetSampleData();
+      await bookingStore.resetSampleDataAsync();
       reloadInquiries();
-      showNotification("Reset to sample inquiries completed!");
+      showNotification("Reset to sample inquiries completed across all devices!");
     }
   };
 

@@ -93,7 +93,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       ? bookingStore.hasDateConflict(checkIn, checkOut, currentVilla.id)
       : undefined;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (isUnderMaintenance) {
@@ -123,7 +123,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     setIsSubmitting(true);
 
     try {
-      const newInquiry = bookingStore.addInquiry({
+      const newInquiry = await bookingStore.addInquiryAsync({
         villaId: currentVilla.id,
         villaName: currentVilla.name,
         guestName,

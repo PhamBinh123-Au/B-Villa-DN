@@ -78,6 +78,10 @@ export interface RealtimeSyncPayload {
   timestamp: number;
 }
 
+let isSyncing = false;
+let initialSyncDone = false;
+let knownInquiryIds = new Set<string>();
+
 function broadcastSync(payload: RealtimeSyncPayload) {
   if (typeof window === "undefined") return;
 
@@ -102,7 +106,108 @@ function broadcastSync(payload: RealtimeSyncPayload) {
   }
 }
 
+/**
+ * Background bidirectional sync between client browser and Next.js server API
+ */
+async function syncWithServer(): Promise<void> {
+  if (typeof window === "undefined" || isSyncing) return;
+  isSyncing = true;
+
+  try {
+    const res = await fetch("/api/bookings", {
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache" },
+    });
+
+    if (!res.ok) return;
+
+    const data = await res.json();
+    const serverInquiries: BookingInquiry[] = Array.isArray(data.inquiries) ? data.inquiries : [];
+    const serverMaintenance: Record<string, VillaMaintenanceInfo> = data.maintenance || {};
+
+    const localInquiries = bookingStore.getInquiries();
+    const localMaintenance = bookingStore.getMaintenanceMap();
+
+    const localInquiriesJson = JSON.stringify(localInquiries);
+    const serverInquiriesJson = JSON.stringify(serverInquiries);
+    const localMaintJson = JSON.stringify(localMaintenance);
+    const serverMaintJson = JSON.stringify(serverMaintenance);
+
+    if (!initialSyncDone) {
+      initialSyncDone = true;
+      knownInquiryIds = new Set(serverInquiries.map((i) => i.id));
+      localStorage.setItem(STORAGE_KEY, serverInquiriesJson);
+      localStorage.setItem(MAINTENANCE_STORAGE_KEY, serverMaintJson);
+
+      if (localInquiriesJson !== serverInquiriesJson || localMaintJson !== serverMaintJson) {
+        broadcastSync({ action: "UPDATE", timestamp: Date.now() });
+      }
+      return;
+    }
+
+    // Identify brand new inquiries sent from another device (e.g., mobile phone or other browser)
+    const newInquiries = serverInquiries.filter((i) => !knownInquiryIds.has(i.id));
+
+    // Update known set
+    serverInquiries.forEach((i) => knownInquiryIds.add(i.id));
+
+    const inquiriesChanged = localInquiriesJson !== serverInquiriesJson;
+    const maintenanceChanged = localMaintJson !== serverMaintJson;
+
+    if (inquiriesChanged) {
+      localStorage.setItem(STORAGE_KEY, serverInquiriesJson);
+    }
+    if (maintenanceChanged) {
+      localStorage.setItem(MAINTENANCE_STORAGE_KEY, serverMaintJson);
+    }
+
+    if (newInquiries.length > 0) {
+      // Broadcast ADD for newest arrival to trigger sound chime & real-time toast
+      broadcastSync({
+        action: "ADD",
+        inquiry: newInquiries[0],
+        timestamp: Date.now(),
+      });
+    } else if (inquiriesChanged) {
+      broadcastSync({
+        action: "UPDATE",
+        timestamp: Date.now(),
+      });
+    }
+
+    if (maintenanceChanged) {
+      broadcastSync({
+        action: "MAINTENANCE_UPDATE",
+        timestamp: Date.now(),
+      });
+    }
+  } catch (err) {
+    console.debug("Server sync skipped:", err);
+  } finally {
+    isSyncing = false;
+  }
+}
+
+// Background poller on client
+if (typeof window !== "undefined") {
+  setTimeout(() => {
+    syncWithServer();
+  }, 100);
+
+  // Poll every 1.5s for instant multi-device synchronization
+  setInterval(() => {
+    syncWithServer();
+  }, 1500);
+
+  window.addEventListener("focus", () => syncWithServer());
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) syncWithServer();
+  });
+}
+
 export const bookingStore = {
+  syncWithServer,
+
   getMaintenanceMap(): Record<string, VillaMaintenanceInfo> {
     if (typeof window === "undefined") return {};
     try {
@@ -146,10 +251,46 @@ export const bookingStore = {
         reason: info.reason,
         timestamp: Date.now(),
       });
+
+      // Fire and forget server sync
+      fetch("/api/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villaId, isMaintenance, reason: info.reason }),
+      }).catch(() => {});
     } catch (err) {
       console.error("Failed to update villa maintenance in storage", err);
     }
   },
+
+  async setVillaMaintenanceAsync(villaId: string, isMaintenance: boolean, reason?: string): Promise<VillaMaintenanceInfo> {
+    const info: VillaMaintenanceInfo = {
+      villaId,
+      isMaintenance,
+      reason: reason || (isMaintenance ? "Scheduled luxury maintenance & seasonal care" : undefined),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      const res = await fetch("/api/maintenance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villaId, isMaintenance, reason: info.reason }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.allMaintenance && typeof window !== "undefined") {
+          localStorage.setItem(MAINTENANCE_STORAGE_KEY, JSON.stringify(data.allMaintenance));
+        }
+      }
+    } catch (err) {
+      console.warn("Server maintenance call failed, applying locally", err);
+    }
+
+    this.setVillaMaintenance(villaId, isMaintenance, reason);
+    return info;
+  },
+
   getInquiries(): BookingInquiry[] {
     if (typeof window === "undefined") return [];
     try {
@@ -162,6 +303,66 @@ export const bookingStore = {
     } catch (err) {
       console.error("Failed to read inquiries from storage", err);
       return [];
+    }
+  },
+
+  async addInquiryAsync(
+    inquiryData: Omit<BookingInquiry, "id" | "createdAt" | "status"> & { status?: InquiryStatus }
+  ): Promise<BookingInquiry> {
+    const status = inquiryData.status || "pending";
+
+    // Strictly check if villa is currently under maintenance
+    if (inquiryData.villaId && this.isVillaUnderMaintenance(inquiryData.villaId)) {
+      throw new Error(
+        `Reservation Prohibited: Villa is currently under scheduled maintenance. Reservations are temporarily closed for this property.`
+      );
+    }
+
+    // Strictly validate against overlapping reservations for the same villa
+    if (status !== "cancelled" && inquiryData.villaId && inquiryData.checkIn && inquiryData.checkOut) {
+      const conflict = this.hasDateConflict(inquiryData.checkIn, inquiryData.checkOut, inquiryData.villaId);
+      if (conflict) {
+        throw new Error(
+          `Overlapping Booking Prohibited: Villa is already reserved from ${conflict.checkIn} to ${conflict.checkOut} (#${conflict.id} - ${conflict.guestName}). Please choose non-overlapping dates.`
+        );
+      }
+    }
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inquiryData),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Failed to submit reservation (${res.status})`);
+      }
+
+      const data = await res.json();
+      const created: BookingInquiry = data.inquiry;
+
+      // Update local storage
+      const inquiries = this.getInquiries();
+      const updated = [created, ...inquiries.filter((i) => i.id !== created.id)];
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        knownInquiryIds.add(created.id);
+        broadcastSync({
+          action: "ADD",
+          inquiry: created,
+          timestamp: Date.now(),
+        });
+      }
+
+      return created;
+    } catch (err: any) {
+      if (err.message && (err.message.includes("Overlapping") || err.message.includes("Prohibited") || err.message.includes("reserved"))) {
+        throw err;
+      }
+      // Offline fallback
+      return this.addInquiry(inquiryData);
     }
   },
 
@@ -198,13 +399,57 @@ export const bookingStore = {
     const updated = [newInquiry, ...inquiries];
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      knownInquiryIds.add(newInquiry.id);
       broadcastSync({
         action: "ADD",
         inquiry: newInquiry,
         timestamp: Date.now(),
       });
+
+      // Fire and forget server sync
+      fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(inquiryData),
+      }).catch(() => {});
     }
     return newInquiry;
+  },
+
+  async updateInquiryAsync(id: string, updatedFields: Partial<BookingInquiry>): Promise<void> {
+    const inquiries = this.getInquiries();
+    const target = inquiries.find((item) => item.id === id);
+    if (!target) return;
+
+    const merged = { ...target, ...updatedFields };
+
+    if (merged.status !== "cancelled") {
+      const conflict = this.hasDateConflict(merged.checkIn, merged.checkOut, merged.villaId, id);
+      if (conflict) {
+        throw new Error(
+          `Overlapping Booking Prohibited: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}).`
+        );
+      }
+    }
+
+    try {
+      const res = await fetch("/api/bookings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedFields }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Failed to update reservation (${res.status})`);
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes("Overlapping")) {
+        throw err;
+      }
+    }
+
+    this.updateInquiry(id, updatedFields);
   },
 
   updateInquiry(id: string, updatedFields: Partial<BookingInquiry>): void {
@@ -241,6 +486,12 @@ export const bookingStore = {
         inquiry: updatedInquiry,
         timestamp: Date.now(),
       });
+
+      fetch("/api/bookings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...updatedFields }),
+      }).catch(() => {});
     }
   },
 
@@ -264,26 +515,58 @@ export const bookingStore = {
     this.updateInquiry(id, { status });
   },
 
+  async deleteInquiryAsync(id: string): Promise<void> {
+    try {
+      await fetch(`/api/bookings?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+    } catch (err) {
+      console.warn("Server delete failed, applying locally:", err);
+    }
+    this.deleteInquiry(id);
+  },
+
   deleteInquiry(id: string): void {
     const inquiries = this.getInquiries();
     const updated = inquiries.filter((item) => item.id !== id);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      knownInquiryIds.delete(id);
       broadcastSync({
         action: "DELETE",
         id,
         timestamp: Date.now(),
       });
+
+      fetch(`/api/bookings?id=${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      }).catch(() => {});
     }
+  },
+
+  async resetSampleDataAsync(): Promise<void> {
+    try {
+      await fetch("/api/bookings/reset", {
+        method: "POST",
+      });
+    } catch (err) {
+      console.warn("Server reset failed, applying locally:", err);
+    }
+    this.resetSampleData();
   },
 
   resetSampleData(): void {
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_INITIAL_INQUIRIES));
+      knownInquiryIds = new Set(SAMPLE_INITIAL_INQUIRIES.map((i) => i.id));
       broadcastSync({
         action: "RESET",
         timestamp: Date.now(),
       });
+
+      fetch("/api/bookings/reset", {
+        method: "POST",
+      }).catch(() => {});
     }
   },
 
