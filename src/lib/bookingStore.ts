@@ -107,6 +107,36 @@ function broadcastSync(payload: RealtimeSyncPayload) {
 }
 
 /**
+ * Deduplicate inquiries by ID and active booking slot (villaId + checkIn + checkOut)
+ * Strictly eliminates duplicate spam
+ */
+export function deduplicateInquiries(list: BookingInquiry[]): BookingInquiry[] {
+  if (!Array.isArray(list)) return [];
+  const seenIds = new Set<string>();
+  const seenSlots = new Set<string>();
+  const clean: BookingInquiry[] = [];
+
+  for (const inq of list) {
+    if (!inq || !inq.id) continue;
+    if (seenIds.has(inq.id)) continue;
+    seenIds.add(inq.id);
+
+    // Active reservation slot check: prevent duplicate spam on the exact same dates
+    if (inq.status !== "cancelled" && inq.checkIn && inq.checkOut && inq.villaId) {
+      const slotKey = `${inq.villaId}:${inq.checkIn}:${inq.checkOut}`;
+      if (seenSlots.has(slotKey)) {
+        continue; // duplicate overlapping booking
+      }
+      seenSlots.add(slotKey);
+    }
+
+    clean.push(inq);
+  }
+
+  return clean;
+}
+
+/**
  * Stable signature helpers to detect genuine data changes and eliminate flickering re-renders
  */
 export function getInquirySignature(list: BookingInquiry[]): string {
@@ -126,7 +156,8 @@ export function getMaintenanceSignature(map: Record<string, VillaMaintenanceInfo
 }
 
 /**
- * Robust non-destructive bidirectional sync between client browser and Next.js server API
+ * Pure READ-ONLY background synchronization between client and server
+ * Never creates bookings or POST requests in a loop
  */
 async function syncWithServer(): Promise<void> {
   if (typeof window === "undefined" || isSyncing) return;
@@ -143,47 +174,32 @@ async function syncWithServer(): Promise<void> {
 
     const data = await res.json();
     const serverInquiries: BookingInquiry[] = Array.isArray(data.inquiries) && data.inquiries.length > 0
-      ? data.inquiries
+      ? deduplicateInquiries(data.inquiries)
       : [];
     const serverMaintenance: Record<string, VillaMaintenanceInfo> = data.maintenance || {};
 
     const localInquiries = bookingStore.getInquiries();
     const localMaintenance = bookingStore.getMaintenanceMap();
 
-    // 1. NON-DESTRUCTIVE UNION MERGE FOR INQUIRIES
-    // Local inquiries that haven't reached the server yet are PRESERVED! Never deleted!
+    // 1. MERGE INQUIRIES SAFELY
     const mergedMap = new Map<string, BookingInquiry>();
 
-    // Put server inquiries first
+    // Server authoritative items first
     serverInquiries.forEach((item) => {
       mergedMap.set(item.id, item);
     });
 
-    // Merge local inquiries: preserve local entries and push unsynced items to server
-    const unsyncedLocals: BookingInquiry[] = [];
+    // Local items: keep locally created items without spamming
     localInquiries.forEach((localItem) => {
       if (!mergedMap.has(localItem.id)) {
         mergedMap.set(localItem.id, localItem);
-        unsyncedLocals.push(localItem);
       } else {
         const serverItem = mergedMap.get(localItem.id)!;
-        // Merge fields, keeping the local edits if newer
         mergedMap.set(localItem.id, { ...serverItem, ...localItem });
       }
     });
 
-    // If any local inquiry was missing on the server, push it in the background
-    if (unsyncedLocals.length > 0) {
-      unsyncedLocals.forEach((inq) => {
-        fetch("/api/bookings", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(inq),
-        }).catch(() => {});
-      });
-    }
-
-    let mergedInquiries = Array.from(mergedMap.values());
+    let mergedInquiries = deduplicateInquiries(Array.from(mergedMap.values()));
     if (mergedInquiries.length === 0) {
       mergedInquiries = [...SAMPLE_INITIAL_INQUIRIES];
     }
@@ -269,10 +285,10 @@ if (typeof window !== "undefined") {
     syncWithServer();
   }, 100);
 
-  // Poll smoothly every 2.5s
+  // Poll smoothly every 3.5s
   setInterval(() => {
     syncWithServer();
-  }, 2500);
+  }, 3500);
 
   window.addEventListener("focus", () => syncWithServer());
   document.addEventListener("visibilitychange", () => {
@@ -379,7 +395,12 @@ export const bookingStore = {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(SAMPLE_INITIAL_INQUIRIES));
         return [...SAMPLE_INITIAL_INQUIRIES];
       }
-      return parsed as BookingInquiry[];
+      const clean = deduplicateInquiries(parsed);
+      if (clean.length !== parsed.length) {
+        // Automatically save cleaned list if duplicates were pruned
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
+      }
+      return clean;
     } catch (err) {
       console.error("Failed to read inquiries from storage", err);
       return [...SAMPLE_INITIAL_INQUIRIES];
@@ -408,37 +429,62 @@ export const bookingStore = {
       }
     }
 
-    // Immediately save locally so client has 0ms latency and NEVER loses the booking
-    const localInquiry = this.addInquiry(inquiryData);
+    // 1. Generate unique inquiry with deterministic ID once
+    const newInquiry: BookingInquiry = {
+      ...inquiryData,
+      id: `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      status,
+      createdAt: new Date().toISOString(),
+    };
 
+    // 2. Submit single POST request to server
     try {
       const res = await fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(inquiryData),
+        body: JSON.stringify(newInquiry),
       });
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        // If server detected overlap conflict, rollback local
-        if (errJson.error && (errJson.error.includes("Overlapping") || errJson.error.includes("Prohibited"))) {
-          this.deleteInquiry(localInquiry.id);
-          throw new Error(errJson.error);
-        }
-      } else {
-        const data = await res.json();
-        if (data.inquiry) {
-          knownInquiryIds.add(data.inquiry.id);
-        }
+        throw new Error(errJson.error || `Failed to submit reservation (${res.status})`);
       }
+
+      const data = await res.json();
+      const confirmedInquiry: BookingInquiry = data.inquiry || newInquiry;
+
+      // 3. Save locally only after server accepts
+      const inquiries = this.getInquiries();
+      const updated = deduplicateInquiries([confirmedInquiry, ...inquiries.filter((i) => i.id !== confirmedInquiry.id)]);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        knownInquiryIds.add(confirmedInquiry.id);
+        broadcastSync({
+          action: "ADD",
+          inquiry: confirmedInquiry,
+          timestamp: Date.now(),
+        });
+      }
+
+      return confirmedInquiry;
     } catch (err: any) {
       if (err.message && (err.message.includes("Overlapping") || err.message.includes("Prohibited") || err.message.includes("reserved"))) {
         throw err;
       }
-      console.warn("Background server booking POST failed, local reservation saved safely:", err);
+      // Offline fallback: save locally if server unreachable
+      const inquiries = this.getInquiries();
+      const updated = deduplicateInquiries([newInquiry, ...inquiries.filter((i) => i.id !== newInquiry.id)]);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+        knownInquiryIds.add(newInquiry.id);
+        broadcastSync({
+          action: "ADD",
+          inquiry: newInquiry,
+          timestamp: Date.now(),
+        });
+      }
+      return newInquiry;
     }
-
-    return localInquiry;
   },
 
   addInquiry(
@@ -471,7 +517,7 @@ export const bookingStore = {
       createdAt: new Date().toISOString(),
     };
 
-    const updated = [newInquiry, ...inquiries.filter((i) => i.id !== newInquiry.id)];
+    const updated = deduplicateInquiries([newInquiry, ...inquiries.filter((i) => i.id !== newInquiry.id)]);
     if (typeof window !== "undefined") {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
       knownInquiryIds.add(newInquiry.id);
@@ -481,7 +527,7 @@ export const bookingStore = {
         timestamp: Date.now(),
       });
 
-      // Fire and forget server sync in background
+      // Fire single background sync to server
       fetch("/api/bookings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -556,7 +602,7 @@ export const bookingStore = {
     });
 
     if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(deduplicateInquiries(updated)));
       broadcastSync({
         action: "UPDATE",
         id,
@@ -604,7 +650,7 @@ export const bookingStore = {
     const inquiries = this.getInquiries();
     const updated = inquiries.filter((item) => item.id !== id);
     if (typeof window !== "undefined") {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(deduplicateInquiries(updated)));
       knownInquiryIds.delete(id);
       broadcastSync({
         action: "DELETE",

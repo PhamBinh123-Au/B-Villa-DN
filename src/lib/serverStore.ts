@@ -190,41 +190,69 @@ function saveToFile(data: ServerData): void {
   }
 }
 
+function deduplicateInquiries(list: BookingInquiry[]): BookingInquiry[] {
+  if (!Array.isArray(list)) return [];
+  const seenIds = new Set<string>();
+  const seenSlots = new Set<string>();
+  const clean: BookingInquiry[] = [];
+
+  for (const inq of list) {
+    if (!inq || !inq.id) continue;
+    if (seenIds.has(inq.id)) continue;
+    seenIds.add(inq.id);
+
+    // Active reservation slot check: prevent duplicate spam on the exact same dates
+    if (inq.status !== "cancelled" && inq.checkIn && inq.checkOut && inq.villaId) {
+      const slotKey = `${inq.villaId}:${inq.checkIn}:${inq.checkOut}`;
+      if (seenSlots.has(slotKey)) {
+        continue; // duplicate overlapping booking
+      }
+      seenSlots.add(slotKey);
+    }
+
+    clean.push(inq);
+  }
+
+  return clean;
+}
+
 export const serverStore = {
   async getData(): Promise<ServerData> {
+    let result: ServerData;
+
     // 1. If KV is configured, check KV
     const kvData = await fetchFromKv();
     if (kvData && Array.isArray(kvData.inquiries) && kvData.inquiries.length > 0) {
-      globalThis.__luxury_server_store__ = kvData;
-      return kvData;
-    }
-
-    // 2. Check in-memory global
-    if (
+      result = kvData;
+    } else if (
       globalThis.__luxury_server_store__ &&
       Array.isArray(globalThis.__luxury_server_store__.inquiries) &&
       globalThis.__luxury_server_store__.inquiries.length > 0
     ) {
-      return globalThis.__luxury_server_store__;
+      // 2. Check in-memory global
+      result = globalThis.__luxury_server_store__;
+    } else {
+      // 3. Check disk file
+      const diskData = readFromFile();
+      if (diskData && Array.isArray(diskData.inquiries) && diskData.inquiries.length > 0) {
+        result = diskData;
+      } else {
+        // 4. Default to initial sample data
+        result = getInitialData();
+        saveToFile(result);
+      }
     }
 
-    // 3. Check disk file
-    const diskData = readFromFile();
-    if (diskData && Array.isArray(diskData.inquiries) && diskData.inquiries.length > 0) {
-      globalThis.__luxury_server_store__ = diskData;
-      return diskData;
-    }
-
-    // 4. Default to initial sample data
-    const initial = getInitialData();
-    globalThis.__luxury_server_store__ = initial;
-    saveToFile(initial);
-    return initial;
+    // Clean and deduplicate inquiries
+    result.inquiries = deduplicateInquiries(result.inquiries);
+    globalThis.__luxury_server_store__ = result;
+    return result;
   },
 
   async setData(updater: (current: ServerData) => ServerData): Promise<ServerData> {
     const current = await this.getData();
     const updated = updater(current);
+    updated.inquiries = deduplicateInquiries(updated.inquiries);
     updated.version = (current.version || 0) + 1;
     updated.lastUpdated = Date.now();
 
@@ -246,6 +274,14 @@ export const serverStore = {
     const status = inquiryData.status || "pending";
     const data = await this.getData();
 
+    const requestedId = (inquiryData as any).id;
+    if (requestedId) {
+      const existing = data.inquiries.find((i) => i.id === requestedId);
+      if (existing) {
+        return existing; // idempotent return of existing inquiry
+      }
+    }
+
     // Check if villa is under maintenance
     const isMaintenance = Boolean(data.maintenance[inquiryData.villaId]?.isMaintenance);
     if (isMaintenance) {
@@ -258,6 +294,7 @@ export const serverStore = {
     if (status !== "cancelled" && inquiryData.checkIn && inquiryData.checkOut) {
       const conflict = data.inquiries.find((inq) => {
         if (inq.status === "cancelled" || inq.villaId !== inquiryData.villaId) return false;
+        if (requestedId && inq.id === requestedId) return false;
         return inquiryData.checkIn < inq.checkOut && inq.checkIn < inquiryData.checkOut;
       });
 
@@ -270,14 +307,14 @@ export const serverStore = {
 
     const newInquiry: BookingInquiry = {
       ...inquiryData,
-      id: `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
+      id: requestedId || `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
       status,
-      createdAt: new Date().toISOString(),
+      createdAt: (inquiryData as any).createdAt || new Date().toISOString(),
     };
 
     await this.setData((curr) => ({
       ...curr,
-      inquiries: [newInquiry, ...curr.inquiries],
+      inquiries: [newInquiry, ...curr.inquiries.filter((i) => i.id !== newInquiry.id)],
     }));
 
     return newInquiry;
