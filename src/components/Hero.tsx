@@ -20,6 +20,12 @@ import {
   Info,
   Wrench,
 } from "lucide-react";
+import {
+  LuxuryConfirmDialog,
+  DialogVariant,
+  DetailItem,
+} from "./LuxuryConfirmDialog";
+import { formatLuxuryDate } from "./LuxuryDatePicker";
 
 interface HeroProps {
   onCheckAvailability: (query: {
@@ -101,6 +107,16 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
 
   // Version counter to force re-render when bookings change in real-time
   const [bookingsVersion, setBookingsVersion] = useState(0);
+
+  // Luxury Dialog / Notice State
+  const [heroAlert, setHeroAlert] = useState<{
+    isOpen: boolean;
+    variant: DialogVariant;
+    title: string;
+    message: string;
+    badgeText?: string;
+    details?: DetailItem[];
+  } | null>(null);
 
   const barRef = useRef<HTMLDivElement>(null);
 
@@ -206,9 +222,20 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
 
     // If selected villa is under maintenance, prohibit booking
     if (selectedVilla && isSelectedVillaUnderMaintenance) {
-      alert(
-        `Sanctuary Under Maintenance!\n\n${selectedVillaData?.name || selectedVilla} is currently undergoing scheduled maintenance. Reservations are temporarily closed for this property.\n\nPlease select another villa or contact our concierge directly.`
-      );
+      setHeroAlert({
+        isOpen: true,
+        variant: "warning",
+        badgeText: "Temporarily Closed",
+        title: "Sanctuary Under Maintenance",
+        message: `${selectedVillaData?.name || selectedVilla} is currently undergoing scheduled maintenance. Reservations are temporarily closed for this property.\n\nPlease select another villa or contact our concierge directly.`,
+        details: [
+          { label: "Villa", value: selectedVillaData?.name || selectedVilla },
+          {
+            label: "Notice",
+            value: selectedVillaMaintenanceInfo?.reason || "Scheduled refurbishment in progress.",
+          },
+        ],
+      });
       return;
     }
 
@@ -216,9 +243,20 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
     if (selectedVilla && checkIn && checkOut) {
       const conflict = bookingStore.hasDateConflict(checkIn, checkOut, selectedVilla);
       if (conflict) {
-        alert(
-          `These dates are already reserved for this villa (${conflict.checkIn} - ${conflict.checkOut}). Please select available dates marked in green/white.`
-        );
+        setHeroAlert({
+          isOpen: true,
+          variant: "warning",
+          badgeText: "Schedule Conflict",
+          title: "Dates Unavailable",
+          message: `These dates are already reserved for this villa. Please select available dates marked in green or white on the calendar.`,
+          details: [
+            { label: "Villa", value: selectedVillaData?.name || selectedVilla },
+            {
+              label: "Reserved Period",
+              value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}`,
+            },
+          ],
+        });
         return;
       }
     }
@@ -988,6 +1026,23 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
           </button>
         </div>
       </div>
+
+      {/* Luxury Notice / Alert Modal */}
+      {heroAlert && (
+        <LuxuryConfirmDialog
+          isOpen={heroAlert.isOpen}
+          variant={heroAlert.variant}
+          badgeText={heroAlert.badgeText}
+          title={heroAlert.title}
+          message={heroAlert.message}
+          details={heroAlert.details}
+          confirmText="Understood"
+          cancelText={null}
+          isAlertOnly={true}
+          onConfirm={() => setHeroAlert(null)}
+          onCancel={() => setHeroAlert(null)}
+        />
+      )}
     </section>
   );
 };

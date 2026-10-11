@@ -6,12 +6,19 @@ export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
   try {
     const data = await serverStore.getData();
-    return NextResponse.json(data, {
-      status: 200,
-      headers: {
-        "Cache-Control": "no-store, max-age=0",
+    return NextResponse.json(
+      {
+        ...data,
+        isCloudStorage: serverStore.isCloudStorage(),
+        storageType: serverStore.getStorageType(),
       },
-    });
+      {
+        status: 200,
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      }
+    );
   } catch (err: any) {
     console.error("GET /api/bookings error:", err);
     return NextResponse.json(
@@ -41,6 +48,8 @@ export async function POST(request: NextRequest) {
         allInquiries: updatedData.inquiries,
         maintenance: updatedData.maintenance,
         version: updatedData.version,
+        isCloudStorage: serverStore.isCloudStorage(),
+        storageType: serverStore.getStorageType(),
       },
       {
         status: 201,

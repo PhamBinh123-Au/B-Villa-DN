@@ -95,50 +95,149 @@ function getInitialData(): ServerData {
 
 // Check for Vercel KV / Upstash Redis env vars
 function getKvConfig() {
-  const url = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
-  if (url && token) {
+  const rawUrl =
+    process.env.KV_REST_API_URL ||
+    process.env.UPSTASH_REDIS_REST_URL ||
+    process.env.STORAGE_REST_URL;
+  const rawToken =
+    process.env.KV_REST_API_TOKEN ||
+    process.env.UPSTASH_REDIS_REST_TOKEN ||
+    process.env.STORAGE_REST_TOKEN;
+
+  if (rawUrl && rawToken) {
+    const url = rawUrl.replace(/\/+$/, "");
+    const token = rawToken.trim();
     return { url, token };
+  }
+  return null;
+}
+
+// Check for Firebase Realtime Database
+function getFirebaseUrl() {
+  const url = process.env.FIREBASE_DATABASE_URL;
+  if (url) {
+    return url.replace(/\/+$/, "");
   }
   return null;
 }
 
 async function fetchFromKv(): Promise<ServerData | null> {
   const kv = getKvConfig();
-  if (!kv) return null;
-  try {
-    const res = await fetch(`${kv.url}/get/luxury_bookings_db_v1`, {
-      headers: { Authorization: `Bearer ${kv.token}` },
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (json && json.result) {
-      const parsed = typeof json.result === "string" ? JSON.parse(json.result) : json.result;
-      return parsed as ServerData;
+  if (kv) {
+    try {
+      // 1. Primary method: POST root with ["GET", "luxury_bookings_db_v1"]
+      let res = await fetch(kv.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${kv.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(["GET", "luxury_bookings_db_v1"]),
+        cache: "no-store",
+      });
+
+      // 2. Fallback method: GET /get/luxury_bookings_db_v1
+      if (!res.ok) {
+        res = await fetch(`${kv.url}/get/luxury_bookings_db_v1`, {
+          headers: { Authorization: `Bearer ${kv.token}` },
+          cache: "no-store",
+        });
+      }
+
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.result !== undefined && json.result !== null) {
+          const parsed = typeof json.result === "string" ? JSON.parse(json.result) : json.result;
+          if (parsed && Array.isArray(parsed.inquiries)) {
+            return parsed as ServerData;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("KV read error", err);
     }
-  } catch (err) {
-    console.warn("KV read error", err);
   }
+
+  // Firebase fallback
+  const firebaseUrl = getFirebaseUrl();
+  if (firebaseUrl) {
+    try {
+      const res = await fetch(`${firebaseUrl}/luxury_bookings_db_v1.json`, {
+        cache: "no-store",
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.inquiries)) {
+          return json as ServerData;
+        }
+      }
+    } catch (err) {
+      console.warn("Firebase read error", err);
+    }
+  }
+
   return null;
 }
 
-async function saveToKv(data: ServerData): Promise<void> {
+async function saveToKv(data: ServerData): Promise<boolean> {
+  let saved = false;
   const kv = getKvConfig();
-  if (!kv) return;
-  try {
-    await fetch(`${kv.url}/set/luxury_bookings_db_v1`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${kv.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(data),
-      cache: "no-store",
-    });
-  } catch (err) {
-    console.warn("KV write error", err);
+
+  if (kv) {
+    try {
+      const payload = JSON.stringify(data);
+
+      // 1. Primary Upstash REST array command POST to root URL: ["SET", key, value]
+      const res = await fetch(kv.url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${kv.token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(["SET", "luxury_bookings_db_v1", payload]),
+        cache: "no-store",
+      });
+
+      if (res.ok) {
+        saved = true;
+      } else {
+        console.warn("KV command SET returned non-ok status:", res.status);
+        // Fallback: Path-based
+        const fallbackRes = await fetch(
+          `${kv.url}/set/luxury_bookings_db_v1/${encodeURIComponent(payload)}`,
+          {
+            headers: { Authorization: `Bearer ${kv.token}` },
+            cache: "no-store",
+          }
+        );
+        if (fallbackRes.ok) {
+          saved = true;
+        }
+      }
+    } catch (err) {
+      console.warn("KV write error", err);
+    }
   }
+
+  // Firebase fallback
+  const firebaseUrl = getFirebaseUrl();
+  if (firebaseUrl) {
+    try {
+      const res = await fetch(`${firebaseUrl}/luxury_bookings_db_v1.json`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        cache: "no-store",
+      });
+      if (res.ok) {
+        saved = true;
+      }
+    } catch (err) {
+      console.warn("Firebase write error", err);
+    }
+  }
+
+  return saved;
 }
 
 function readFromFile(): ServerData | null {
@@ -397,5 +496,68 @@ export const serverStore = {
   async getMaintenanceMap(): Promise<Record<string, VillaMaintenanceInfo>> {
     const data = await this.getData();
     return data.maintenance;
+  },
+
+  isCloudStorage(): boolean {
+    return Boolean(getKvConfig() || getFirebaseUrl());
+  },
+
+  getStorageType(): string {
+    if (getKvConfig()) return "Vercel KV / Upstash Redis";
+    if (getFirebaseUrl()) return "Google Firebase Realtime DB";
+    return "Standalone / Ephemeral (Vercel Serverless)";
+  },
+
+  async importData(
+    imported: {
+      inquiries?: BookingInquiry[];
+      maintenance?: Record<string, VillaMaintenanceInfo>;
+      deletedIds?: string[];
+    },
+    replaceAll = false
+  ): Promise<ServerData> {
+    return this.setData((curr) => {
+      const incomingInqs = Array.isArray(imported.inquiries) ? imported.inquiries : [];
+      const incomingDel = Array.isArray(imported.deletedIds) ? imported.deletedIds : [];
+      const incomingMaint = imported.maintenance || {};
+
+      if (replaceAll) {
+        return {
+          ...curr,
+          inquiries: deduplicateInquiries(incomingInqs),
+          deletedIds: incomingDel,
+          maintenance: incomingMaint,
+          version: (curr.version || 0) + 1,
+          lastUpdated: Date.now(),
+        };
+      }
+
+      // Merge intelligently
+      const mergedDel = Array.from(new Set([...(curr.deletedIds || []), ...incomingDel]));
+      const delSet = new Set(mergedDel);
+
+      const inqMap = new Map<string, BookingInquiry>();
+      curr.inquiries.forEach((i) => {
+        if (!delSet.has(i.id)) inqMap.set(i.id, i);
+      });
+      incomingInqs.forEach((i) => {
+        if (!delSet.has(i.id)) inqMap.set(i.id, i);
+      });
+
+      const mergedInqs = deduplicateInquiries(Array.from(inqMap.values()));
+      mergedInqs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      return {
+        ...curr,
+        inquiries: mergedInqs,
+        deletedIds: mergedDel,
+        maintenance: {
+          ...curr.maintenance,
+          ...incomingMaint,
+        },
+        version: (curr.version || 0) + 1,
+        lastUpdated: Date.now(),
+      };
+    });
   },
 };

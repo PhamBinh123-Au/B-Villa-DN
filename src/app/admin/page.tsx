@@ -12,6 +12,11 @@ import {
   formatLuxuryDate,
 } from "@/components/LuxuryDatePicker";
 import {
+  LuxuryConfirmDialog,
+  DialogVariant,
+  DetailItem,
+} from "@/components/LuxuryConfirmDialog";
+import {
   Shield,
   Lock,
   ArrowLeft,
@@ -39,6 +44,11 @@ import {
   AlertTriangle,
   Check,
   Wrench,
+  Cloud,
+  Download,
+  Upload,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 
 // Web Audio Luxury Chime generator (Pure synthesized browser audio)
@@ -114,11 +124,113 @@ export default function AdminPage() {
   const [maintenanceDialogVilla, setMaintenanceDialogVilla] = useState<Villa | null>(null);
   const [maintenanceNoteInput, setMaintenanceNoteInput] = useState("");
 
+  // Luxury Dialog States
+  const [inquiryToDelete, setInquiryToDelete] = useState<BookingInquiry | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+  const [adminNotice, setAdminNotice] = useState<{
+    isOpen: boolean;
+    variant: DialogVariant;
+    title: string;
+    message: string;
+    badgeText?: string;
+    details?: DetailItem[];
+  } | null>(null);
+
+  const showAdminNotice = (
+    title: string,
+    message: string,
+    variant: DialogVariant = "warning",
+    badgeText?: string,
+    details?: DetailItem[]
+  ) => {
+    setAdminNotice({
+      isOpen: true,
+      title,
+      message,
+      variant,
+      badgeText,
+      details,
+    });
+  };
+
   const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cloud Sync & Multi-Device State
+  const [isCloudStorage, setIsCloudStorage] = useState(false);
+  const [storageType, setStorageType] = useState("Checking cloud storage...");
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
+  const [syncModalTab, setSyncModalTab] = useState<"guide" | "export" | "import">("guide");
+  const [syncTokenInput, setSyncTokenInput] = useState("");
+  const [exportedToken, setExportedToken] = useState("");
+  const [copyTokenFeedback, setCopyTokenFeedback] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+
+  // Check cloud storage status
+  const checkStorageStatus = async () => {
+    try {
+      const res = await fetch("/api/bookings", { cache: "no-store" });
+      if (res.ok) {
+        const data = await res.json();
+        setIsCloudStorage(Boolean(data.isCloudStorage));
+        if (data.storageType) {
+          setStorageType(data.storageType);
+        }
+      }
+    } catch {
+      setIsCloudStorage(bookingStore.isCloudStorage());
+      setStorageType(bookingStore.getStorageType());
+    }
+  };
+
+  const handleOpenExport = () => {
+    const token = bookingStore.generateSyncToken();
+    setExportedToken(token);
+    setSyncModalTab("export");
+    setIsSyncModalOpen(true);
+  };
+
+  const handleOpenImport = () => {
+    setSyncTokenInput("");
+    setSyncModalTab("import");
+    setIsSyncModalOpen(true);
+  };
+
+  const handleCopyExportToken = () => {
+    if (!exportedToken) return;
+    navigator.clipboard.writeText(exportedToken);
+    setCopyTokenFeedback(true);
+    setTimeout(() => setCopyTokenFeedback(false), 2500);
+  };
+
+  const handleExecuteImport = async () => {
+    if (!syncTokenInput.trim()) {
+      showAdminNotice("Mã đồng bộ trống", "Vui lòng dán mã đồng bộ được sao chép từ thiết bị trước.", "warning", "Import Sync");
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+      const res = await bookingStore.importSyncToken(syncTokenInput.trim(), false);
+      if (res.success) {
+        reloadInquiries();
+        setIsSyncModalOpen(false);
+        showNotification("Đồng bộ đa thiết bị thành công!", `Đã nạp ${res.count} đơn đặt phòng và cập nhật lịch tức thì.`);
+      } else {
+        showAdminNotice("Nhập thất bại", res.message || "Mã đồng bộ không hợp lệ.", "danger", "Import Error");
+      }
+    } catch (err: any) {
+      showAdminNotice("Nhập thất bại", err.message || "Không thể nạp dữ liệu.", "danger", "Import Error");
+    } finally {
+      setIsImporting(false);
+    }
+  };
 
   // Check initial mounting & session authentication
   useEffect(() => {
     setHasMounted(true);
+    checkStorageStatus();
     if (typeof window !== "undefined") {
       const sessionAuth = sessionStorage.getItem("admin_auth_status");
       if (sessionAuth === "authenticated") {
@@ -263,11 +375,22 @@ export default function AdminPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (confirm(`Are you sure you want to delete inquiry #${id}? This will release the booked dates on the public website.`)) {
-      await bookingStore.deleteInquiryAsync(id);
+  const handleRequestDelete = (inq: BookingInquiry) => {
+    setInquiryToDelete(inq);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!inquiryToDelete) return;
+    try {
+      setIsDeleting(true);
+      await bookingStore.deleteInquiryAsync(inquiryToDelete.id);
       reloadInquiries();
-      showNotification(`Inquiry #${id} removed`, "Dates released on public website calendar.");
+      showNotification(`Inquiry #${inquiryToDelete.id} removed`, "Dates released on public website calendar.");
+      setInquiryToDelete(null);
+    } catch (err: any) {
+      showAdminNotice("Deletion Failed", err.message || "Failed to remove inquiry.", "danger");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -276,12 +399,12 @@ export default function AdminPage() {
     if (!editingInquiry) return;
 
     if (!editingInquiry.checkIn || !editingInquiry.checkOut) {
-      alert("Please select both check-in and check-out dates.");
+      showAdminNotice("Dates Required", "Please select both check-in and check-out dates.", "warning", "Validation");
       return;
     }
 
     if (editingInquiry.checkIn >= editingInquiry.checkOut) {
-      alert("Check-out date must be strictly after check-in date.");
+      showAdminNotice("Invalid Stay Duration", "Check-out date must be strictly after check-in date.", "warning", "Validation");
       return;
     }
 
@@ -294,8 +417,16 @@ export default function AdminPage() {
     );
 
     if (conflict && editingInquiry.status !== "cancelled") {
-      alert(
-        `Overlapping Booking Prohibited!\n\nThese dates conflict with reservation #${conflict.id} (${conflict.guestName}: ${conflict.checkIn} to ${conflict.checkOut}).\n\nPlease select non-overlapping dates or cancel the conflicting reservation first.`
+      showAdminNotice(
+        "Overlapping Booking Prohibited",
+        `These dates conflict with reservation #${conflict.id} (${conflict.guestName}). Overlapping bookings are strictly prohibited to avoid double reservation. Please select non-overlapping dates or cancel the conflicting booking first.`,
+        "warning",
+        "Schedule Conflict",
+        [
+          { label: "Conflicting ID", value: `#${conflict.id}` },
+          { label: "Guest Name", value: conflict.guestName },
+          { label: "Reserved Dates", value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}` },
+        ]
       );
       return;
     }
@@ -315,7 +446,7 @@ export default function AdminPage() {
         "Public website calendar has been refreshed immediately across all devices."
       );
     } catch (err: any) {
-      alert(err.message || "Failed to update reservation.");
+      showAdminNotice("Update Failed", err.message || "Failed to update reservation.", "danger");
     }
   };
 
@@ -323,12 +454,12 @@ export default function AdminPage() {
     e.preventDefault();
 
     if (!newBookingData.checkIn || !newBookingData.checkOut) {
-      alert("Please select both check-in and check-out dates.");
+      showAdminNotice("Dates Required", "Please select both check-in and check-out dates.", "warning", "Validation");
       return;
     }
 
     if (newBookingData.checkIn >= newBookingData.checkOut) {
-      alert("Check-out date must be strictly after check-in date.");
+      showAdminNotice("Invalid Stay Duration", "Check-out date must be strictly after check-in date.", "warning", "Validation");
       return;
     }
 
@@ -340,8 +471,16 @@ export default function AdminPage() {
     );
 
     if (conflict && newBookingData.status !== "cancelled") {
-      alert(
-        `Overlapping Booking Prohibited!\n\nThis villa is already reserved from ${conflict.checkIn} to ${conflict.checkOut} by ${conflict.guestName} (#${conflict.id}).\n\nOverlapping bookings are strictly prohibited. Please choose non-overlapping dates.`
+      showAdminNotice(
+        "Overlapping Booking Prohibited",
+        `This villa is already reserved by ${conflict.guestName} (#${conflict.id}). Overlapping bookings cannot be created. Please select non-overlapping dates.`,
+        "warning",
+        "Schedule Conflict",
+        [
+          { label: "Existing Reservation", value: `#${conflict.id}` },
+          { label: "Guest Name", value: conflict.guestName },
+          { label: "Reserved Dates", value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}` },
+        ]
       );
       return;
     }
@@ -362,15 +501,25 @@ export default function AdminPage() {
         `Website calendar locked for ${villaName} (${newBookingData.checkIn} - ${newBookingData.checkOut})`
       );
     } catch (err: any) {
-      alert(err.message || "Failed to create reservation.");
+      showAdminNotice("Reservation Failed", err.message || "Failed to create reservation.", "danger");
     }
   };
 
-  const handleResetSample = async () => {
-    if (confirm("Reset booking inquiries to initial sample data?")) {
+  const handleRequestResetSample = () => {
+    setIsResetConfirmOpen(true);
+  };
+
+  const handleConfirmResetSample = async () => {
+    try {
+      setIsResetting(true);
       await bookingStore.resetSampleDataAsync();
       reloadInquiries();
+      setIsResetConfirmOpen(false);
       showNotification("Reset to sample inquiries completed across all devices!");
+    } catch (err: any) {
+      showAdminNotice("Reset Failed", err.message || "Failed to reset sample data.", "danger");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -534,7 +683,24 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+            {/* Cloud Database / Device Sync Status Button */}
+            <button
+              onClick={() => {
+                setSyncModalTab(isCloudStorage ? "guide" : "guide");
+                setIsSyncModalOpen(true);
+              }}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer font-medium ${
+                isCloudStorage
+                  ? "bg-emerald-950/70 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/80 shadow-sm"
+                  : "bg-amber-950/70 text-amber-300 border-amber-500/50 hover:bg-amber-900/80 shadow-sm"
+              }`}
+              title="Click to manage multi-device synchronization and cloud database"
+            >
+              <Cloud className="w-3.5 h-3.5" />
+              <span>{isCloudStorage ? "Cloud Synced 🟢" : "Đồng bộ Đa Thiết bị ⚡"}</span>
+            </button>
+
             {/* Button to Block Dates / Add Reservation */}
             <button
               onClick={() => setIsAddModalOpen(true)}
@@ -545,7 +711,7 @@ export default function AdminPage() {
             </button>
 
             <button
-              onClick={handleResetSample}
+              onClick={handleRequestResetSample}
               className="text-xs text-neutral-400 hover:text-white px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 transition-colors flex items-center gap-1.5 cursor-pointer"
               title="Reset Sample Data"
             >
@@ -565,18 +731,80 @@ export default function AdminPage() {
 
       {/* Dashboard Content */}
       <main className="max-w-7xl mx-auto px-6 pt-8">
-        {/* Real-time notification banner */}
-        <div className="mb-6 p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between text-xs text-emerald-800">
-          <div className="flex items-center gap-2.5">
-            <Radio className="w-4 h-4 text-emerald-600 animate-pulse flex-shrink-0" />
-            <span>
-              <strong>Two-Way Live Sync Connected:</strong> When you edit dates or change status to Cancelled/Confirmed here, the public website calendar updates immediately in real-time.
-            </span>
+        {/* Cloud Synchronization Status Banner */}
+        {isCloudStorage ? (
+          <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-900 animate-fade-in">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 flex-shrink-0">
+                <Cloud className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold flex items-center gap-2">
+                  <span>🟢 Đã kết nối Cloud Database ({storageType})</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900">
+                    Tất cả thiết bị kết nối Live
+                  </span>
+                </p>
+                <p className="text-[11px] text-emerald-700 mt-0.5">
+                  Mọi đơn đặt phòng trên điện thoại, máy tính, iPad đều được đồng bộ thời gian thực và lưu vĩnh viễn trên đám mây.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleOpenExport}
+                className="px-3 py-1.5 rounded-lg bg-emerald-800 text-white text-[11px] font-semibold hover:bg-emerald-900 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Sao lưu Dữ liệu</span>
+              </button>
+            </div>
           </div>
-          <span className="font-mono text-[10px] uppercase bg-emerald-200/60 px-2 py-0.5 rounded text-emerald-900 font-bold hidden md:inline">
-            LIVE TWO-WAY
-          </span>
-        </div>
+        ) : (
+          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-300 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950 animate-fade-in shadow-sm">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 flex-shrink-0 mt-0.5 sm:mt-0">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div>
+                <p className="font-bold flex items-center gap-2">
+                  <span>⚡ Đang chạy chế độ Cục bộ (Chưa bật Vercel KV trên đám mây)</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                    Thiết bị khác chưa thấy
+                  </span>
+                </p>
+                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                  Khi dùng nhiều thiết bị (iPhone, Android, Laptop), hãy liên kết <strong>Vercel KV</strong> (miễn phí 100%) để mọi thiết bị thấy đơn của nhau tức thì.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => {
+                  setSyncModalTab("guide");
+                  setIsSyncModalOpen(true);
+                }}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-700 text-white text-[11px] font-semibold hover:bg-amber-800 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
+              >
+                <span>Hướng dẫn Bật Vercel KV (1 Click)</span>
+              </button>
+              <button
+                onClick={handleOpenExport}
+                className="px-3 py-1.5 rounded-xl border border-amber-400 bg-white text-amber-900 text-[11px] font-semibold hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Chuyển sang máy khác</span>
+              </button>
+              <button
+                onClick={handleOpenImport}
+                className="px-3 py-1.5 rounded-xl border border-amber-400 bg-white text-amber-900 text-[11px] font-semibold hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
+              >
+                <Upload className="w-3.5 h-3.5" />
+                <span>Nạp từ máy khác</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* KPI Metric Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5 mb-8">
@@ -908,7 +1136,7 @@ export default function AdminPage() {
             {inquiries.length === 0 && (
               <button
                 type="button"
-                onClick={handleResetSample}
+                onClick={handleRequestResetSample}
                 className="inline-flex items-center gap-2 bg-[#14171A] hover:bg-[#C2A476] text-white py-2.5 px-5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-md cursor-pointer"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -1036,7 +1264,7 @@ export default function AdminPage() {
 
                       {/* Delete */}
                       <button
-                        onClick={() => handleDelete(inq.id)}
+                        onClick={() => handleRequestDelete(inq)}
                         className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
                         title="Delete Inquiry & Release Dates"
                       >
@@ -1675,6 +1903,332 @@ export default function AdminPage() {
                     : "Activate Maintenance & Lock"}
                 </span>
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Inquiry Luxury Confirmation Modal */}
+      <LuxuryConfirmDialog
+        isOpen={Boolean(inquiryToDelete)}
+        variant="danger"
+        badgeText="Permanent Action"
+        title="Delete Reservation Inquiry"
+        message="Are you sure you want to permanently delete this reservation inquiry? The reserved dates will be immediately released and made available for public booking across all devices."
+        details={
+          inquiryToDelete
+            ? [
+                { label: "Inquiry ID", value: `#${inquiryToDelete.id}` },
+                { label: "Guest Name", value: inquiryToDelete.guestName },
+                { label: "Villa", value: inquiryToDelete.villaName },
+                {
+                  label: "Stay Period",
+                  value: `${formatLuxuryDate(inquiryToDelete.checkIn)} → ${formatLuxuryDate(inquiryToDelete.checkOut)}`,
+                },
+                { label: "Status", value: inquiryToDelete.status.toUpperCase() },
+              ]
+            : undefined
+        }
+        confirmText="Delete & Release Dates"
+        cancelText="Cancel"
+        isLoading={isDeleting}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setInquiryToDelete(null)}
+      />
+
+      {/* Reset Sample Inquiries Confirmation Modal */}
+      <LuxuryConfirmDialog
+        isOpen={isResetConfirmOpen}
+        variant="warning"
+        badgeText="Database Reset"
+        title="Reset to Sample Inquiries"
+        message="Are you sure you want to restore the initial sample reservations? This will overwrite recent inquiries and reset the demo schedule across all devices."
+        confirmText="Reset Database"
+        cancelText="Cancel"
+        isLoading={isResetting}
+        onConfirm={handleConfirmResetSample}
+        onCancel={() => setIsResetConfirmOpen(false)}
+      />
+
+      {/* Luxury Notice / Alert Modal */}
+      {adminNotice && (
+        <LuxuryConfirmDialog
+          isOpen={adminNotice.isOpen}
+          variant={adminNotice.variant}
+          badgeText={adminNotice.badgeText}
+          title={adminNotice.title}
+          message={adminNotice.message}
+          details={adminNotice.details}
+          confirmText="Understood"
+          cancelText={null}
+          isAlertOnly={true}
+          onConfirm={() => setAdminNotice(null)}
+          onCancel={() => setAdminNotice(null)}
+        />
+      )}
+
+      {/* Multi-Device Cloud Synchronization & Transfer Modal */}
+      {isSyncModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/80 backdrop-blur-md animate-fade-in"
+          onClick={() => setIsSyncModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-[#EAE5DC] overflow-hidden my-auto animate-scale-up"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Top gold accent line */}
+            <div className="h-1.5 w-full bg-[#C2A476]" />
+
+            <div className="p-6 sm:p-7">
+              {/* Header */}
+              <div className="flex items-start justify-between gap-4 mb-5 border-b border-neutral-100 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl bg-[#C2A476]/15 text-[#C2A476] border border-[#C2A476]/30 flex items-center justify-center flex-shrink-0">
+                    <Cloud className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-[0.2em] px-2.5 py-0.5 rounded-full bg-[#FAF8F5] border border-[#EAE5DC] text-[#93784F] inline-block mb-1">
+                      Multi-Device Architecture
+                    </span>
+                    <h3 className="font-serif text-xl sm:text-2xl font-normal text-neutral-900 leading-tight">
+                      Đồng bộ Đa Thiết bị & Cloud Database
+                    </h3>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSyncModalOpen(false)}
+                  className="p-1.5 text-neutral-400 hover:text-neutral-700 rounded-full hover:bg-neutral-100 transition-colors cursor-pointer"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Status Indicator Pill */}
+              <div
+                className={`p-3 rounded-2xl border mb-5 flex items-center justify-between text-xs ${
+                  isCloudStorage
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                    : "bg-amber-50 border-amber-200 text-amber-900"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full ${
+                      isCloudStorage ? "bg-emerald-500 animate-pulse" : "bg-amber-500"
+                    }`}
+                  />
+                  <span className="font-semibold">
+                    {isCloudStorage
+                      ? `Trạng thái: 🟢 Đã kết nối Cloud Database (${storageType})`
+                      : "Trạng thái: ⚡ Chế độ Cục bộ (Chưa kết nối Vercel KV)"}
+                  </span>
+                </div>
+                <span className="text-[11px] font-mono opacity-80">
+                  {isCloudStorage ? "Live Real-Time" : "Local Standalone"}
+                </span>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex items-center gap-1.5 p-1 bg-[#FAF8F5] rounded-2xl border border-[#EAE5DC] mb-6 text-xs font-semibold">
+                <button
+                  type="button"
+                  onClick={() => setSyncModalTab("guide")}
+                  className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer text-center ${
+                    syncModalTab === "guide"
+                      ? "bg-[#14171A] text-white shadow-sm"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  }`}
+                >
+                  1. Bật Vercel KV (Tự động 100%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleOpenExport();
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer text-center ${
+                    syncModalTab === "export"
+                      ? "bg-[#14171A] text-white shadow-sm"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  }`}
+                >
+                  2. Xuất mã sang máy khác
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSyncModalTab("import");
+                  }}
+                  className={`flex-1 py-2 px-3 rounded-xl transition-all cursor-pointer text-center ${
+                    syncModalTab === "import"
+                      ? "bg-[#14171A] text-white shadow-sm"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  }`}
+                >
+                  3. Nạp mã từ máy khác
+                </button>
+              </div>
+
+              {/* Tab 1: Vercel KV Setup Guide */}
+              {syncModalTab === "guide" && (
+                <div className="space-y-4 text-xs leading-relaxed text-neutral-600">
+                  <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-4">
+                    <h4 className="font-bold text-neutral-900 text-sm mb-1.5">
+                      💡 Tại sao khi dùng nhiều thiết bị trên Vercel cần bật Vercel KV?
+                    </h4>
+                    <p className="text-neutral-600 leading-relaxed text-[12px]">
+                      Vercel chạy trên mô hình <strong>Serverless</strong> (máy chủ không lưu file cố định). Khi bạn đặt phòng trên điện thoại và mở máy tính khác, mỗi máy kết nối đến một phiên bản máy chủ đám mây độc lập. Để dữ liệu được lưu vĩnh viễn và đồng bộ ngay lập tức, bạn chỉ cần liên kết <strong>Vercel KV</strong> (hoàn toàn miễn phí).
+                    </p>
+                  </div>
+
+                  <div className="border border-neutral-200 rounded-2xl p-4 space-y-3">
+                    <h5 className="font-bold text-neutral-900 text-xs uppercase tracking-wider text-[#C2A476]">
+                      3 Bước Kích Hoạt Miễn Phí (Chỉ Mất 30 Giây):
+                    </h5>
+
+                    <div className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-[#14171A] text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                        1
+                      </span>
+                      <div>
+                        <p className="font-semibold text-neutral-900">
+                          Mở Dashboard dự án trên Vercel
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          Truy cập <a href="https://vercel.com/dashboard" target="_blank" rel="noreferrer" className="text-[#C2A476] underline font-medium">vercel.com/dashboard</a>, chọn dự án website của bạn và bấm vào tab <strong>Storage</strong> ở menu trên cùng.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-[#14171A] text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                        2
+                      </span>
+                      <div>
+                        <p className="font-semibold text-neutral-900">
+                          Bấm &quot;Create Database&quot; &rarr; Chọn &quot;KV&quot;
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          Bấm <strong>Create Database</strong>, chọn <strong>KV</strong> (hoặc Upstash Redis), chọn vùng Singapore/Hong Kong rồi bấm <strong>Create</strong>. Vercel sẽ tự động cấp mã kết nối vào dự án!
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-start gap-3">
+                      <span className="w-5 h-5 rounded-full bg-[#14171A] text-white flex items-center justify-center font-bold text-[10px] flex-shrink-0 mt-0.5">
+                        3
+                      </span>
+                      <div>
+                        <p className="font-semibold text-neutral-900">
+                          Bấm &quot;Redeploy&quot; lại dự án
+                        </p>
+                        <p className="text-[11px] text-neutral-500">
+                          Vào tab <strong>Deployments</strong> trên Vercel, chọn bản deploy mới nhất bấm <strong>Redeploy</strong>. Ngay sau khi xong, ô trạng thái sẽ chuyển sang màu xanh 🟢 và toàn bộ thiết bị (iPhone, Android, Laptop) sẽ thấy đơn của nhau tức thì!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 2: Export Sync Token */}
+              {syncModalTab === "export" && (
+                <div className="space-y-4">
+                  <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-4">
+                    <h4 className="font-bold text-neutral-900 text-xs sm:text-sm mb-1">
+                      Mã Đồng Bộ Toàn Bộ Đơn Đặt Phòng
+                    </h4>
+                    <p className="text-neutral-500 text-[11px] leading-relaxed mb-3">
+                      Sao chép mã này để gửi sang thiết bị khác (Laptop, iPad, điện thoại khác). Thiết bị nhận chỉ cần dán mã vào mục &quot;Nạp mã&quot; là sẽ có ngay 100% lịch phòng từ máy này.
+                    </p>
+
+                    <textarea
+                      readOnly
+                      rows={5}
+                      value={exportedToken || bookingStore.generateSyncToken()}
+                      className="w-full bg-white border border-neutral-300 rounded-xl p-3 text-[11px] font-mono text-neutral-800 select-all focus:outline-none focus:border-[#C2A476] resize-none"
+                    />
+
+                    <div className="flex items-center justify-between mt-3 pt-2">
+                      <span className="text-[11px] text-neutral-500">
+                        Bao gồm: <strong>{inquiries.length} đơn đặt phòng</strong> & lịch bảo trì
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyExportToken}
+                        className="px-4 py-2.5 rounded-xl bg-[#14171A] hover:bg-neutral-800 text-white text-xs font-semibold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer shadow-md"
+                      >
+                        {copyTokenFeedback ? (
+                          <>
+                            <Check className="w-4 h-4 text-emerald-400" />
+                            <span className="text-emerald-400">Đã sao chép!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-4 h-4 text-[#C2A476]" />
+                            <span>Sao chép mã</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tab 3: Import Sync Token */}
+              {syncModalTab === "import" && (
+                <div className="space-y-4">
+                  <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-4">
+                    <h4 className="font-bold text-neutral-900 text-xs sm:text-sm mb-1">
+                      Nạp Mã Đồng Bộ Từ Thiết Bị Khác
+                    </h4>
+                    <p className="text-neutral-500 text-[11px] leading-relaxed mb-3">
+                      Dán mã đồng bộ mà bạn vừa sao chép từ thiết bị trước vào đây. Toàn bộ đơn đặt phòng sẽ được hợp nhất ngay lập tức vào thiết bị này.
+                    </p>
+
+                    <textarea
+                      rows={5}
+                      placeholder="Dán mã đồng bộ bắt đầu bằng eyJ... vào đây..."
+                      value={syncTokenInput}
+                      onChange={(e) => setSyncTokenInput(e.target.value)}
+                      className="w-full bg-white border border-neutral-300 rounded-xl p-3 text-[11px] font-mono text-neutral-800 focus:outline-none focus:border-[#C2A476] resize-none"
+                    />
+
+                    <div className="flex items-center justify-end gap-2.5 mt-4">
+                      <button
+                        type="button"
+                        onClick={() => setIsSyncModalOpen(false)}
+                        className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-xs font-medium cursor-pointer"
+                      >
+                        Đóng
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isImporting || !syncTokenInput.trim()}
+                        onClick={handleExecuteImport}
+                        className="px-5 py-2.5 rounded-xl bg-[#C2A476] hover:bg-[#aa8c5b] text-white text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 shadow-md"
+                      >
+                        {isImporting ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Đang nạp dữ liệu...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-3.5 h-3.5" />
+                            <span>Nạp & Cập Nhật Lịch Ngay</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

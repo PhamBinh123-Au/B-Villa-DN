@@ -12,6 +12,11 @@ import {
   addDays,
 } from "./LuxuryDatePicker";
 import {
+  LuxuryConfirmDialog,
+  DialogVariant,
+  DetailItem,
+} from "./LuxuryConfirmDialog";
+import {
   X,
   Calendar,
   Users,
@@ -54,6 +59,31 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   const [specialRequests, setSpecialRequests] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedInquiryId, setSubmittedInquiryId] = useState<string | null>(null);
+  const [modalAlert, setModalAlert] = useState<{
+    isOpen: boolean;
+    variant: DialogVariant;
+    title: string;
+    message: string;
+    badgeText?: string;
+    details?: DetailItem[];
+  } | null>(null);
+
+  const showModalAlert = (
+    title: string,
+    message: string,
+    variant: DialogVariant = "warning",
+    badgeText?: string,
+    details?: DetailItem[]
+  ) => {
+    setModalAlert({
+      isOpen: true,
+      title,
+      message,
+      variant,
+      badgeText,
+      details,
+    });
+  };
 
   const modalSelectRef = useRef<HTMLDivElement>(null);
 
@@ -97,25 +127,45 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     e.preventDefault();
 
     if (isUnderMaintenance) {
-      alert(
-        `Reservation Prohibited: ${currentVilla.name} is currently undergoing scheduled maintenance. Reservations are temporarily closed for this property. Please choose another villa.`
+      showModalAlert(
+        "Villa Under Maintenance",
+        `${currentVilla.name} is currently undergoing scheduled maintenance. Reservations are temporarily paused for this property. Please choose another villa or contact our concierge directly.`,
+        "warning",
+        "Maintenance in Progress"
       );
       return;
     }
 
     if (!checkIn || !checkOut) {
-      alert("Please select both check-in and check-out dates.");
+      showModalAlert(
+        "Dates Required",
+        "Please select both check-in and check-out dates before submitting your reservation inquiry.",
+        "warning",
+        "Missing Dates"
+      );
       return;
     }
 
     if (checkIn >= checkOut) {
-      alert("Check-out date must be strictly after check-in date.");
+      showModalAlert(
+        "Invalid Stay Duration",
+        "Check-out date must be strictly after check-in date. Please re-select your stay dates.",
+        "warning",
+        "Date Error"
+      );
       return;
     }
 
     if (conflict) {
-      alert(
-        `Overlapping Booking Error: ${currentVilla.name} is already reserved from ${conflict.checkIn} to ${conflict.checkOut}. Please choose other available dates.`
+      showModalAlert(
+        "Dates Already Booked",
+        `${currentVilla.name} is already reserved for the chosen timeframe. Please select dates marked in white/green on the calendar.`,
+        "warning",
+        "Schedule Conflict",
+        [
+          { label: "Villa", value: currentVilla.name },
+          { label: "Booked Dates", value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}` },
+        ]
       );
       return;
     }
@@ -139,7 +189,12 @@ export const BookingModal: React.FC<BookingModalProps> = ({
       setSubmittedInquiryId(newInquiry.id);
     } catch (err: any) {
       console.error(err);
-      alert(err.message || "An error occurred while saving your inquiry. Please try again.");
+      showModalAlert(
+        "Submission Failed",
+        err.message || "An error occurred while saving your inquiry. Please try again.",
+        "danger",
+        "Error"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -551,6 +606,23 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           )}
         </div>
       </div>
+
+      {/* Luxury Notice / Error Alert Modal */}
+      {modalAlert && (
+        <LuxuryConfirmDialog
+          isOpen={modalAlert.isOpen}
+          variant={modalAlert.variant}
+          badgeText={modalAlert.badgeText}
+          title={modalAlert.title}
+          message={modalAlert.message}
+          details={modalAlert.details}
+          confirmText="Understood"
+          cancelText={null}
+          isAlertOnly={true}
+          onConfirm={() => setModalAlert(null)}
+          onCancel={() => setModalAlert(null)}
+        />
+      )}
     </div>
   );
 };

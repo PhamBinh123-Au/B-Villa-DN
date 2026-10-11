@@ -1,68 +1,17 @@
 {
-  "inquiries": [
-    {
-      "id": "INQ-9480",
-      "villaId": "b1-villa-4pn",
-      "villaName": "B1 Villa • 4 Bedrooms",
-      "guestName": "David Sterling",
-      "email": "david.sterling@sanctuary.co",
-      "phone": "+84 905 111 222",
-      "checkIn": "2026-10-18",
-      "checkOut": "2026-10-23",
-      "adults": 6,
-      "children": 2,
-      "specialRequests": "VIP arrival. Early check-in requested.",
-      "status": "confirmed",
-      "createdAt": "2026-10-09T10:00:00.000Z"
-    },
-    {
-      "id": "INQ-9481",
-      "villaId": "b1-villa-4pn",
-      "villaName": "B1 Villa • 4 Bedrooms",
-      "guestName": "Alexander Wright",
-      "email": "alexander.wright@luxurytravel.co",
-      "phone": "+44 7700 900123",
-      "checkIn": "2026-11-15",
-      "checkOut": "2026-11-20",
-      "adults": 6,
-      "children": 2,
-      "specialRequests": "Requesting early check-in at 12:00 PM and airport chauffeur pickup.",
-      "status": "confirmed",
-      "createdAt": "2026-10-08T14:20:00.000Z"
-    },
-    {
-      "id": "INQ-9482",
-      "villaId": "b2-villa-4pn",
-      "villaName": "B2 Villa • 4 Bedrooms",
-      "guestName": "Elena Rostova",
-      "email": "elena.rostova@designstudio.ch",
-      "phone": "+41 79 123 4567",
-      "checkIn": "2026-10-25",
-      "checkOut": "2026-10-30",
-      "adults": 8,
-      "children": 0,
-      "specialRequests": "Celebrating birthday. Need private chef dining setup for one evening.",
-      "status": "confirmed",
-      "createdAt": "2026-10-09T08:15:00.000Z"
-    },
-    {
-      "id": "INQ-9483",
-      "villaId": "b3-villa-2pn",
-      "villaName": "B3 Villa • 2 Bedrooms",
-      "guestName": "Marcus & Chloe Vance",
-      "email": "chloe.vance@honeymoon.org",
-      "phone": "+61 400 123 987",
-      "checkIn": "2026-11-25",
-      "checkOut": "2026-11-30",
-      "adults": 2,
-      "children": 0,
-      "specialRequests": "Honeymoon stay. Would love flower arrangements by the plunge pool.",
-      "status": "contacted",
-      "createdAt": "2026-10-09T18:45:00.000Z"
-    }
+  "inquiries": [],
+  "deletedIds": [
+    "INQ-9483",
+    "INQ-9481",
+    "INQ-9482",
+    "INQ-9480",
+    "INQ-8255",
+    "INQ-6659",
+    "INQ-1483",
+    "INQ-9385",
+    "INQ-5349"
   ],
-  "deletedIds": [],
   "maintenance": {},
-  "version": 9,
-  "lastUpdated": 1791610549983
+  "version": 42,
+  "lastUpdated": 1791694420359
 }

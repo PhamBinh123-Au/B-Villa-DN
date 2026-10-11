@@ -82,6 +82,8 @@ export interface RealtimeSyncPayload {
 let isSyncing = false;
 let initialSyncDone = false;
 let knownInquiryIds = new Set<string>();
+let cloudStorageDetected = false;
+let cloudStorageTypeString = "Checking cloud storage...";
 
 function broadcastSync(payload: RealtimeSyncPayload) {
   if (typeof window === "undefined") return;
@@ -172,6 +174,13 @@ async function syncWithServer(): Promise<void> {
     if (!res.ok) return;
 
     const data = await res.json();
+
+    if (typeof data.isCloudStorage === "boolean") {
+      cloudStorageDetected = data.isCloudStorage;
+      if (data.storageType) {
+        cloudStorageTypeString = data.storageType;
+      }
+    }
 
     // 1. Ingest tombstoned deleted IDs from server
     if (Array.isArray(data.deletedIds)) {
@@ -846,5 +855,99 @@ export const bookingStore = {
       window.removeEventListener("storage", handleStorage);
       window.removeEventListener(LOCAL_EVENT_NAME, handleLocal);
     };
+  },
+
+  isCloudStorage(): boolean {
+    return cloudStorageDetected;
+  },
+
+  getStorageType(): string {
+    return cloudStorageTypeString;
+  },
+
+  generateSyncToken(): string {
+    if (typeof window === "undefined") return "";
+    const inquiries = this.getInquiries();
+    const maintenance = this.getMaintenanceMap();
+    const deletedIds = Array.from(this.getDeletedIds());
+    const payload = {
+      inquiries,
+      maintenance,
+      deletedIds,
+      timestamp: Date.now(),
+      appName: "Danang Sanctuary Luxury Villas",
+    };
+    try {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+    } catch {
+      return "";
+    }
+  },
+
+  async importSyncToken(
+    token: string,
+    replaceAll = false
+  ): Promise<{ success: boolean; count: number; message?: string }> {
+    if (typeof window === "undefined" || !token) {
+      return { success: false, count: 0, message: "Sync token cannot be empty." };
+    }
+
+    try {
+      const raw = decodeURIComponent(escape(atob(token.trim())));
+      const parsed = JSON.parse(raw);
+
+      const incomingInquiries: BookingInquiry[] = Array.isArray(parsed.inquiries) ? parsed.inquiries : [];
+      const incomingMaintenance: Record<string, VillaMaintenanceInfo> = parsed.maintenance || {};
+      const incomingDeleted: string[] = Array.isArray(parsed.deletedIds) ? parsed.deletedIds : [];
+
+      incomingDeleted.forEach((id) => this.addDeletedId(id));
+
+      let finalInquiries: BookingInquiry[];
+      if (replaceAll) {
+        finalInquiries = deduplicateInquiries(incomingInquiries);
+      } else {
+        const cur = this.getInquiries();
+        const inqMap = new Map<string, BookingInquiry>();
+        cur.forEach((i) => inqMap.set(i.id, i));
+        incomingInquiries.forEach((i) => inqMap.set(i.id, i));
+        const delSet = this.getDeletedIds();
+        finalInquiries = deduplicateInquiries(Array.from(inqMap.values())).filter((i) => !delSet.has(i.id));
+      }
+
+      finalInquiries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(finalInquiries));
+      if (incomingMaintenance && Object.keys(incomingMaintenance).length > 0) {
+        localStorage.setItem(
+          MAINTENANCE_STORAGE_KEY,
+          JSON.stringify({
+            ...this.getMaintenanceMap(),
+            ...incomingMaintenance,
+          })
+        );
+      }
+
+      // Sync to server API in background
+      try {
+        await fetch("/api/bookings/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            inquiries: finalInquiries,
+            maintenance: incomingMaintenance,
+            deletedIds: incomingDeleted,
+            replaceAll,
+          }),
+        });
+      } catch (err) {
+        console.warn("Server sync endpoint error, local storage updated:", err);
+      }
+
+      broadcastSync({ action: "UPDATE", timestamp: Date.now() });
+
+      return { success: true, count: finalInquiries.length };
+    } catch (err: any) {
+      return { success: false, count: 0, message: err.message || "Invalid sync token format" };
+    }
   },
 };
