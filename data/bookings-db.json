@@ -1,5 +1,21 @@
 {
-  "inquiries": [],
+  "inquiries": [
+    {
+      "villaId": "b1-villa-4pn",
+      "villaName": "B1 Villa • 4 Bedrooms",
+      "guestName": "Bình Phạm",
+      "email": "phambinh2092008@gmail.com",
+      "phone": "43243242423",
+      "checkIn": "2026-10-15",
+      "checkOut": "2026-10-17",
+      "adults": 2,
+      "children": 0,
+      "specialRequests": "",
+      "id": "INQ-1636",
+      "status": "pending",
+      "createdAt": "2026-10-11T06:06:34.554Z"
+    }
+  ],
   "deletedIds": [
     "INQ-9483",
     "INQ-9481",
@@ -12,6 +28,6 @@
     "INQ-5349"
   ],
   "maintenance": {},
-  "version": 42,
-  "lastUpdated": 1791694420359
+  "version": 43,
+  "lastUpdated": 1791698794593
 }
