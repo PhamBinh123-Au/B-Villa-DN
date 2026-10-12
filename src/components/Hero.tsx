@@ -5,6 +5,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { siteConfig } from "@/config/siteConfig";
 import { bookingStore } from "@/lib/bookingStore";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   Sparkles,
   Calendar as CalendarIcon,
@@ -92,6 +93,7 @@ function addDaysToString(dateStr: string, days: number): string {
 }
 
 export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
+  const { t, language } = useLanguage();
   const [currentSlide, setCurrentSlide] = useState(0);
   const [selectedVilla, setSelectedVilla] = useState("");
   const [checkIn, setCheckIn] = useState("");
@@ -311,17 +313,23 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
         {/* Subtle Badge */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#EAE4D7] text-xs uppercase tracking-[0.2em] mb-4 sm:mb-6 shadow-sm">
           <Sparkles className="w-3.5 h-3.5 text-[#C2A476]" />
-          <span>Exclusive Private Sanctuaries</span>
+          <span>{t("hero.subtitle", "Exclusive Private Sanctuaries")}</span>
         </div>
 
         {/* Headline */}
         <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-light tracking-tight leading-[1.15] sm:leading-[1.1] text-white max-w-4xl drop-shadow-md">
-          A Symphony of <span className="italic font-normal text-[#C2A476]">Light, Water</span> & Architectural Serenity
+          {language === "vi" ? (
+            <>Nghỉ Dưỡng Đẳng Cấp <span className="italic font-normal text-[#C2A476]">Bên Bờ Biển</span> Đà Nẵng</>
+          ) : (
+            <>A Symphony of <span className="italic font-normal text-[#C2A476]">Light, Water</span> & Architectural Serenity</>
+          )}
         </h1>
 
         {/* Subtitle */}
         <p className="mt-4 sm:mt-6 text-sm sm:text-base md:text-lg lg:text-xl text-neutral-300 font-light max-w-2xl leading-relaxed">
-          Four private, architecturally designed pool villas across Da Nang&apos;s coveted Son Tra and Ngu Hanh Son coastlines. Dedicated to absolute tranquility.
+          {language === "vi"
+            ? "Khám phá 4 biệt thự hồ bơi riêng tư tuyệt mỹ tại Sơn Trà & Ngũ Hành Sơn với kiến trúc tối giản hiện đại và dịch vụ đặc quyền."
+            : "Four private, architecturally designed pool villas across Da Nang's coveted Son Tra and Ngu Hanh Son coastlines. Dedicated to absolute tranquility."}
         </p>
 
         {/* Quick CTA Buttons */}
@@ -330,14 +338,14 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
             href="#villas"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs md:text-sm uppercase tracking-widest font-semibold px-8 py-3.5 sm:py-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
           >
-            <span>Explore The 4 Villas</span>
+            <span>{language === "vi" ? "Khám Phá 4 Biệt Thự" : "Explore The 4 Villas"}</span>
             <ArrowRight className="w-4 h-4" />
           </a>
           <a
             href="#experience"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs md:text-sm uppercase tracking-widest font-medium px-8 py-3.5 sm:py-4 rounded-full transition-all duration-300 cursor-pointer"
           >
-            <span>The Villa Lifestyle</span>
+            <span>{language === "vi" ? "Trải Nghiệm Nghỉ Dưỡng" : "The Villa Lifestyle"}</span>
           </a>
         </div>
 
@@ -369,17 +377,17 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
                     <span className="block text-[10px] uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
-                      Select Sanctuary
+                      {t("search.select_villa", "Select Sanctuary")}
                     </span>
                     {isSelectedVillaUnderMaintenance && (
                       <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
                         <Wrench className="w-2.5 h-2.5" />
-                        <span>Maintenance</span>
+                        <span>{t("villas.maintenance_badge", "Maintenance")}</span>
                       </span>
                     )}
                   </div>
                   <span className="block text-xs sm:text-sm font-bold text-neutral-900 truncate mt-0.5">
-                    {selectedVillaData ? selectedVillaData.name : "All 4 Villas"}
+                    {selectedVillaData ? selectedVillaData.name : t("search.all_villas", "All 4 Villas")}
                   </span>
                 </div>
 
@@ -523,7 +531,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
 
                 <div className="min-w-0 flex-1">
                   <span className="block text-[10px] uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
-                    Check-in Date
+                    {t("search.check_in", "Check-in Date")}
                   </span>
                   <span
                     className={`block text-xs sm:text-sm truncate mt-0.5 ${
@@ -532,7 +540,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                         : "text-neutral-500 font-medium"
                     }`}
                   >
-                    {checkIn ? formatDisplayDate(checkIn) : "Select Arrival"}
+                    {checkIn ? formatDisplayDate(checkIn) : (language === "vi" ? "Chọn Ngày Đến" : "Select Arrival")}
                   </span>
                 </div>
 
@@ -741,7 +749,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
 
                 <div className="min-w-0 flex-1">
                   <span className="block text-[10px] uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
-                    Check-out Date
+                    {t("search.check_out", "Check-out Date")}
                   </span>
                   <span
                     className={`block text-xs sm:text-sm truncate mt-0.5 ${
@@ -750,7 +758,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                         : "text-neutral-500 font-medium"
                     }`}
                   >
-                    {checkOut ? formatDisplayDate(checkOut) : "Select Departure"}
+                    {checkOut ? formatDisplayDate(checkOut) : (language === "vi" ? "Chọn Ngày Đi" : "Select Departure")}
                   </span>
                 </div>
 
@@ -968,11 +976,11 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                 {isSelectedVillaUnderMaintenance ? (
                   <>
                     <Wrench className="w-4 h-4 text-neutral-500" />
-                    <span>Under Maintenance</span>
+                    <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
                   </>
                 ) : (
                   <>
-                    <span>Check Dates</span>
+                    <span>{t("search.check_availability", "Check Dates")}</span>
                     <ArrowRight className="w-4 h-4 text-[#C2A476] group-hover:text-white group-hover:translate-x-1 transition-all" />
                   </>
                 )}

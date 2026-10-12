@@ -4,8 +4,17 @@ import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
-import { bookingStore, RealtimeSyncPayload, getInquirySignature } from "@/lib/bookingStore";
-import { BookingInquiry, InquiryStatus, Villa, VillaMaintenanceInfo } from "@/types";
+import {
+  bookingStore,
+  RealtimeSyncPayload,
+  getInquirySignature,
+  formatPriceVnd,
+  formatPriceUsd,
+  getStayStatus,
+  isCheckoutExpired,
+  isCheckoutToday,
+} from "@/lib/bookingStore";
+import { BookingInquiry, InquiryStatus, Villa, VillaMaintenanceInfo, CleaningStatus } from "@/types";
 import {
   LuxuryDatePicker,
   addDays,
@@ -16,6 +25,8 @@ import {
   DialogVariant,
   DetailItem,
 } from "@/components/LuxuryConfirmDialog";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   Shield,
   Lock,
@@ -49,6 +60,8 @@ import {
   Upload,
   Copy,
   ExternalLink,
+  Tag,
+  DollarSign,
 } from "lucide-react";
 
 // Web Audio Luxury Chime generator (Pure synthesized browser audio)
@@ -90,6 +103,7 @@ function playLuxuryChime() {
 }
 
 export default function AdminPage() {
+  const { t, language } = useLanguage();
   const [hasMounted, setHasMounted] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passcodeInput, setPasscodeInput] = useState("");
@@ -123,6 +137,21 @@ export default function AdminPage() {
   const [maintenanceMap, setMaintenanceMap] = useState<Record<string, VillaMaintenanceInfo>>(() => bookingStore.getMaintenanceMap());
   const [maintenanceDialogVilla, setMaintenanceDialogVilla] = useState<Villa | null>(null);
   const [maintenanceNoteInput, setMaintenanceNoteInput] = useState("");
+
+  // Admin Active View Tab
+  const [adminViewTab, setAdminViewTab] = useState<"all_bookings" | "housekeeping" | "pricing" | "maintenance">("all_bookings");
+
+  // Villa Pricing & USD Rate States
+  const [villaPrices, setVillaPrices] = useState<Record<string, number>>(() => bookingStore.getAllVillaPrices());
+  const [usdRate, setUsdRate] = useState<number>(() => bookingStore.getUsdRate());
+  const [isSavingPrices, setIsSavingPrices] = useState(false);
+  const [priceSaveFeedback, setPriceSaveFeedback] = useState(false);
+
+  // Housekeeping Turnover States
+  const [housekeepingSubFilter, setHousekeepingSubFilter] = useState<"all" | "needs_cleaning" | "in_cleaning" | "cleaned" | "today">("all");
+  const [editingCleaningNotesId, setEditingCleaningNotesId] = useState<string | null>(null);
+  const [cleaningNotesInput, setCleaningNotesInput] = useState("");
+  const [isUpdatingCleaning, setIsUpdatingCleaning] = useState(false);
 
   // Luxury Dialog States
   const [inquiryToDelete, setInquiryToDelete] = useState<BookingInquiry | null>(null);
@@ -206,7 +235,12 @@ export default function AdminPage() {
 
   const handleExecuteImport = async () => {
     if (!syncTokenInput.trim()) {
-      showAdminNotice("Mã đồng bộ trống", "Vui lòng dán mã đồng bộ được sao chép từ thiết bị trước.", "warning", "Import Sync");
+      showAdminNotice(
+        language === "vi" ? "Mã đồng bộ trống" : "Empty Sync Token",
+        language === "vi" ? "Vui lòng dán mã đồng bộ được sao chép từ thiết bị trước." : "Please paste the sync token copied from your previous device.",
+        "warning",
+        language === "vi" ? "Nhập dữ liệu" : "Import Sync"
+      );
       return;
     }
 
@@ -216,12 +250,25 @@ export default function AdminPage() {
       if (res.success) {
         reloadInquiries();
         setIsSyncModalOpen(false);
-        showNotification("Đồng bộ đa thiết bị thành công!", `Đã nạp ${res.count} đơn đặt phòng và cập nhật lịch tức thì.`);
+        showNotification(
+          language === "vi" ? "Đồng bộ đa thiết bị thành công!" : "Multi-Device Sync Successful!",
+          language === "vi" ? `Đã nạp ${res.count} đơn đặt phòng và cập nhật lịch tức thì.` : `Imported ${res.count} reservations and refreshed calendars instantly.`
+        );
       } else {
-        showAdminNotice("Nhập thất bại", res.message || "Mã đồng bộ không hợp lệ.", "danger", "Import Error");
+        showAdminNotice(
+          language === "vi" ? "Nhập thất bại" : "Import Failed",
+          res.message || (language === "vi" ? "Mã đồng bộ không hợp lệ." : "Invalid sync token."),
+          "danger",
+          language === "vi" ? "Lỗi nhập dữ liệu" : "Import Error"
+        );
       }
     } catch (err: any) {
-      showAdminNotice("Nhập thất bại", err.message || "Không thể nạp dữ liệu.", "danger", "Import Error");
+      showAdminNotice(
+        language === "vi" ? "Nhập thất bại" : "Import Failed",
+        err.message || (language === "vi" ? "Không thể nạp dữ liệu." : "Could not import data."),
+        "danger",
+        language === "vi" ? "Lỗi nhập dữ liệu" : "Import Error"
+      );
     } finally {
       setIsImporting(false);
     }
@@ -249,12 +296,89 @@ export default function AdminPage() {
     }, 6000);
   };
 
-  // Load inquiries and maintenance from reactive store
+  // Load inquiries, maintenance and prices from reactive store
   const reloadInquiries = () => {
     const list = bookingStore.getInquiries();
     setInquiries(list);
     setMaintenanceMap(bookingStore.getMaintenanceMap());
+    setVillaPrices(bookingStore.getAllVillaPrices());
+    setUsdRate(bookingStore.getUsdRate());
     return list;
+  };
+
+  // Housekeeping status update handler
+  const handleUpdateCleaningStatus = async (inquiryId: string, status: CleaningStatus, notes?: string) => {
+    try {
+      setIsUpdatingCleaning(true);
+      await bookingStore.updateCleaningStatus(inquiryId, status, notes);
+      reloadInquiries();
+      playLuxuryChime();
+      const statusLabel =
+        status === "cleaned"
+          ? (language === "vi" ? "✨ Đã dọn dẹp sạch sẽ & sẵn sàng đón khách mới" : "✨ Marked as Cleaned & Inspected")
+          : status === "in_cleaning"
+          ? (language === "vi" ? "🟡 Đang tiến hành dọn dẹp buồng phòng" : "🟡 In Cleaning Progress")
+          : (language === "vi" ? "🔴 Đã chuyển về Cần dọn dẹp" : "🔴 Marked as Needs Cleaning");
+      showNotification(
+        language === "vi" ? "Cập nhật buồng phòng thành công!" : "Housekeeping Updated!",
+        `${inquiryId}: ${statusLabel}`
+      );
+      if (editingCleaningNotesId === inquiryId) {
+        setEditingCleaningNotesId(null);
+      }
+    } catch (err: any) {
+      showAdminNotice(
+        language === "vi" ? "Lỗi cập nhật buồng phòng" : "Cleaning Update Failed",
+        err.message || "Could not update housekeeping status."
+      );
+    } finally {
+      setIsUpdatingCleaning(false);
+    }
+  };
+
+  // Pricing update handlers
+  const handleSaveVillaPrice = async (villaId: string, price: number) => {
+    try {
+      setIsSavingPrices(true);
+      await bookingStore.setVillaPrice(villaId, price);
+      setVillaPrices((prev) => ({ ...prev, [villaId]: price }));
+      playLuxuryChime();
+      const vMatch = siteConfig.villas.find((v) => v.id === villaId);
+      showNotification(
+        language === "vi" ? "Cập nhật đơn giá thành công!" : "Villa Nightly Rate Updated!",
+        `${vMatch?.name || villaId}: ${formatPriceVnd(price)}/đêm`
+      );
+    } catch (err: any) {
+      showAdminNotice(
+        language === "vi" ? "Lỗi cập nhật giá" : "Price Update Failed",
+        err.message || "Failed to update price."
+      );
+    } finally {
+      setIsSavingPrices(false);
+    }
+  };
+
+  const handleSaveAllPricesAndUsd = async () => {
+    try {
+      setIsSavingPrices(true);
+      await bookingStore.setAllVillaPrices(villaPrices, usdRate);
+      setPriceSaveFeedback(true);
+      setTimeout(() => setPriceSaveFeedback(false), 3000);
+      playLuxuryChime();
+      showNotification(
+        language === "vi" ? "Cập nhật đơn giá & tỷ giá USD thành công!" : "Villa Rates & USD Conversion Updated!",
+        language === "vi"
+          ? `Đã lưu đơn giá 4 villa và tỷ giá 1 USD = ${formatPriceVnd(usdRate).replace(' ₫', '')} VND.`
+          : `Saved nightly rates and exchange rate (1 USD = ${formatPriceVnd(usdRate).replace(' ₫', '')} VND).`
+      );
+    } catch (err: any) {
+      showAdminNotice(
+        language === "vi" ? "Lỗi cập nhật giá" : "Price Update Failed",
+        err.message || "Failed to update prices."
+      );
+    } finally {
+      setIsSavingPrices(false);
+    }
   };
 
   // Toggle or update villa maintenance status
@@ -274,10 +398,12 @@ export default function AdminPage() {
     playLuxuryChime();
 
     showNotification(
-      newStatus ? `🛠️ ${vName} is now Under Maintenance` : `✅ ${vName} Restored to Active`,
       newStatus
-        ? "Public inquiries and calendar dates are strictly locked in real-time."
-        : "Public website can now receive new booking inquiries."
+        ? (language === "vi" ? `🛠️ ${vName} Đã chuyển sang chế độ Bảo trì` : `🛠️ ${vName} is now Under Maintenance`)
+        : (language === "vi" ? `✅ ${vName} Đã hoạt động trở lại` : `✅ ${vName} Restored to Active`),
+      newStatus
+        ? (language === "vi" ? "Lịch phòng và tính năng đặt trực tuyến đã được khóa trong thời gian thực." : "Public inquiries and calendar dates are strictly locked in real-time.")
+        : (language === "vi" ? "Website công khai hiện đã sẵn sàng nhận đơn đặt phòng mới." : "Public website can now receive new booking inquiries.")
     );
   };
 
@@ -313,6 +439,17 @@ export default function AdminPage() {
         showNotification(
           payload.isMaintenance ? `🛠️ ${vName} Placed Under Maintenance` : `✅ ${vName} Restored to Active`,
           payload.isMaintenance ? "Public bookings are strictly locked." : "Public bookings are now open."
+        );
+      } else if (payload.action === "PRICE_UPDATE") {
+        setVillaPrices(bookingStore.getAllVillaPrices());
+        setUsdRate(bookingStore.getUsdRate());
+        showNotification(
+          language === "vi" ? "Đơn giá villa & tỷ giá USD vừa cập nhật." : "Villa rates & USD exchange updated."
+        );
+      } else if (payload.action === "CLEANING_UPDATE") {
+        reloadInquiries();
+        showNotification(
+          language === "vi" ? "Trạng thái buồng phòng vừa cập nhật." : "Housekeeping status updated."
         );
       } else if (payload.action === "UPDATE") {
         showNotification("Reservation updated & synced across public site.");
@@ -354,7 +491,11 @@ export default function AdminPage() {
       setErrorMsg("");
       playLuxuryChime();
     } else {
-      setErrorMsg("Incorrect passcode. Please check siteConfig.ts or try again.");
+      setErrorMsg(
+        language === "vi"
+          ? "Mật khẩu bảo mật không chính xác. Vui lòng kiểm tra lại."
+          : "Incorrect passcode. Please check siteConfig.ts or try again."
+      );
     }
   };
 
@@ -369,9 +510,15 @@ export default function AdminPage() {
     bookingStore.updateStatus(id, newStatus);
     reloadInquiries();
     if (newStatus === "cancelled") {
-      showNotification(`Reservation #${id} Cancelled`, "Dates have been released on public site calendar.");
+      showNotification(
+        language === "vi" ? `Đơn đặt phòng #${id} đã HỦY` : `Reservation #${id} Cancelled`,
+        language === "vi" ? "Các ngày đã chọn đã được mở lại trên website." : "Dates have been released on public site calendar."
+      );
     } else {
-      showNotification(`Reservation #${id} marked as ${newStatus.toUpperCase()}`, "Calendar updated in real-time.");
+      showNotification(
+        language === "vi" ? `Đơn #${id} cập nhật: ${newStatus.toUpperCase()}` : `Reservation #${id} marked as ${newStatus.toUpperCase()}`,
+        language === "vi" ? "Lịch phòng đã cập nhật theo thời gian thực." : "Calendar updated in real-time."
+      );
     }
   };
 
@@ -385,10 +532,17 @@ export default function AdminPage() {
       setIsDeleting(true);
       await bookingStore.deleteInquiryAsync(inquiryToDelete.id);
       reloadInquiries();
-      showNotification(`Inquiry #${inquiryToDelete.id} removed`, "Dates released on public website calendar.");
+      showNotification(
+        language === "vi" ? `Đã xóa đơn #${inquiryToDelete.id}` : `Inquiry #${inquiryToDelete.id} removed`,
+        language === "vi" ? "Các ngày đã được mở khóa trên lịch website." : "Dates released on public website calendar."
+      );
       setInquiryToDelete(null);
     } catch (err: any) {
-      showAdminNotice("Deletion Failed", err.message || "Failed to remove inquiry.", "danger");
+      showAdminNotice(
+        language === "vi" ? "Xóa thất bại" : "Deletion Failed",
+        err.message || (language === "vi" ? "Không thể xóa đơn." : "Failed to remove inquiry."),
+        "danger"
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -399,12 +553,22 @@ export default function AdminPage() {
     if (!editingInquiry) return;
 
     if (!editingInquiry.checkIn || !editingInquiry.checkOut) {
-      showAdminNotice("Dates Required", "Please select both check-in and check-out dates.", "warning", "Validation");
+      showAdminNotice(
+        language === "vi" ? "Yêu cầu chọn ngày" : "Dates Required",
+        language === "vi" ? "Vui lòng chọn cả ngày nhận phòng và trả phòng." : "Please select both check-in and check-out dates.",
+        "warning",
+        language === "vi" ? "Kiểm tra" : "Validation"
+      );
       return;
     }
 
     if (editingInquiry.checkIn >= editingInquiry.checkOut) {
-      showAdminNotice("Invalid Stay Duration", "Check-out date must be strictly after check-in date.", "warning", "Validation");
+      showAdminNotice(
+        language === "vi" ? "Thời gian ở không hợp lệ" : "Invalid Stay Duration",
+        language === "vi" ? "Ngày trả phòng phải sau ngày nhận phòng." : "Check-out date must be strictly after check-in date.",
+        "warning",
+        language === "vi" ? "Kiểm tra" : "Validation"
+      );
       return;
     }
 
@@ -418,14 +582,16 @@ export default function AdminPage() {
 
     if (conflict && editingInquiry.status !== "cancelled") {
       showAdminNotice(
-        "Overlapping Booking Prohibited",
-        `These dates conflict with reservation #${conflict.id} (${conflict.guestName}). Overlapping bookings are strictly prohibited to avoid double reservation. Please select non-overlapping dates or cancel the conflicting booking first.`,
+        language === "vi" ? "Trùng ngày không thể lưu" : "Overlapping Booking Prohibited",
+        language === "vi"
+          ? `Khoảng ngày này trùng với đơn #${conflict.id} (${conflict.guestName}). Không thể lưu trùng ngày để tránh double booking. Vui lòng chọn khoảng ngày khác.`
+          : `These dates conflict with reservation #${conflict.id} (${conflict.guestName}). Overlapping bookings are strictly prohibited to avoid double reservation. Please select non-overlapping dates or cancel the conflicting booking first.`,
         "warning",
-        "Schedule Conflict",
+        language === "vi" ? "Xung đột lịch" : "Schedule Conflict",
         [
-          { label: "Conflicting ID", value: `#${conflict.id}` },
-          { label: "Guest Name", value: conflict.guestName },
-          { label: "Reserved Dates", value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}` },
+          { label: language === "vi" ? "Mã đơn trùng" : "Conflicting ID", value: `#${conflict.id}` },
+          { label: language === "vi" ? "Tên khách" : "Guest Name", value: conflict.guestName },
+          { label: language === "vi" ? "Khoảng ngày đã đặt" : "Reserved Dates", value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}` },
         ]
       );
       return;
@@ -442,11 +608,15 @@ export default function AdminPage() {
       reloadInquiries();
       setEditingInquiry(null);
       showNotification(
-        `Reservation #${editingInquiry.id} Updated!`,
-        "Public website calendar has been refreshed immediately across all devices."
+        language === "vi" ? `Đã cập nhật đơn #${editingInquiry.id}!` : `Reservation #${editingInquiry.id} Updated!`,
+        language === "vi" ? "Lịch phòng công khai đã được làm mới tức thì trên mọi thiết bị." : "Public website calendar has been refreshed immediately across all devices."
       );
     } catch (err: any) {
-      showAdminNotice("Update Failed", err.message || "Failed to update reservation.", "danger");
+      showAdminNotice(
+        language === "vi" ? "Cập nhật thất bại" : "Update Failed",
+        err.message || (language === "vi" ? "Không thể cập nhật đơn đặt phòng." : "Failed to update reservation."),
+        "danger"
+      );
     }
   };
 
@@ -454,12 +624,22 @@ export default function AdminPage() {
     e.preventDefault();
 
     if (!newBookingData.checkIn || !newBookingData.checkOut) {
-      showAdminNotice("Dates Required", "Please select both check-in and check-out dates.", "warning", "Validation");
+      showAdminNotice(
+        language === "vi" ? "Yêu cầu chọn ngày" : "Dates Required",
+        language === "vi" ? "Vui lòng chọn cả ngày nhận phòng và trả phòng." : "Please select both check-in and check-out dates.",
+        "warning",
+        language === "vi" ? "Kiểm tra" : "Validation"
+      );
       return;
     }
 
     if (newBookingData.checkIn >= newBookingData.checkOut) {
-      showAdminNotice("Invalid Stay Duration", "Check-out date must be strictly after check-in date.", "warning", "Validation");
+      showAdminNotice(
+        language === "vi" ? "Thời gian ở không hợp lệ" : "Invalid Stay Duration",
+        language === "vi" ? "Ngày trả phòng phải sau ngày nhận phòng." : "Check-out date must be strictly after check-in date.",
+        "warning",
+        language === "vi" ? "Kiểm tra" : "Validation"
+      );
       return;
     }
 
@@ -472,14 +652,16 @@ export default function AdminPage() {
 
     if (conflict && newBookingData.status !== "cancelled") {
       showAdminNotice(
-        "Overlapping Booking Prohibited",
-        `This villa is already reserved by ${conflict.guestName} (#${conflict.id}). Overlapping bookings cannot be created. Please select non-overlapping dates.`,
+        language === "vi" ? "Trùng ngày không thể tạo" : "Overlapping Booking Prohibited",
+        language === "vi"
+          ? `Biệt thự này đã có lịch đặt từ ${conflict.guestName} (#${conflict.id}). Không thể tạo đơn trùng ngày.`
+          : `This villa is already reserved by ${conflict.guestName} (#${conflict.id}). Overlapping bookings cannot be created. Please select non-overlapping dates.`,
         "warning",
-        "Schedule Conflict",
+        language === "vi" ? "Xung đột lịch" : "Schedule Conflict",
         [
-          { label: "Existing Reservation", value: `#${conflict.id}` },
-          { label: "Guest Name", value: conflict.guestName },
-          { label: "Reserved Dates", value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}` },
+          { label: language === "vi" ? "Đơn hiện có" : "Existing Reservation", value: `#${conflict.id}` },
+          { label: language === "vi" ? "Tên khách" : "Guest Name", value: conflict.guestName },
+          { label: language === "vi" ? "Khoảng ngày đã đặt" : "Reserved Dates", value: `${formatLuxuryDate(conflict.checkIn)} → ${formatLuxuryDate(conflict.checkOut)}` },
         ]
       );
       return;
@@ -497,11 +679,17 @@ export default function AdminPage() {
       reloadInquiries();
       setIsAddModalOpen(false);
       showNotification(
-        "Dates Blocked / New Reservation Created!",
-        `Website calendar locked for ${villaName} (${newBookingData.checkIn} - ${newBookingData.checkOut})`
+        language === "vi" ? "Đã khóa ngày / Thêm đơn thành công!" : "Dates Blocked / New Reservation Created!",
+        language === "vi"
+          ? `Lịch website đã khóa cho ${villaName} (${newBookingData.checkIn} - ${newBookingData.checkOut})`
+          : `Website calendar locked for ${villaName} (${newBookingData.checkIn} - ${newBookingData.checkOut})`
       );
     } catch (err: any) {
-      showAdminNotice("Reservation Failed", err.message || "Failed to create reservation.", "danger");
+      showAdminNotice(
+        language === "vi" ? "Tạo đơn thất bại" : "Reservation Failed",
+        err.message || (language === "vi" ? "Không thể tạo đơn đặt phòng." : "Failed to create reservation."),
+        "danger"
+      );
     }
   };
 
@@ -515,9 +703,17 @@ export default function AdminPage() {
       await bookingStore.resetSampleDataAsync();
       reloadInquiries();
       setIsResetConfirmOpen(false);
-      showNotification("Reset to sample inquiries completed across all devices!");
+      showNotification(
+        language === "vi"
+          ? "Đã khôi phục dữ liệu mẫu ban đầu đồng bộ trên mọi thiết bị!"
+          : "Reset to sample inquiries completed across all devices!"
+      );
     } catch (err: any) {
-      showAdminNotice("Reset Failed", err.message || "Failed to reset sample data.", "danger");
+      showAdminNotice(
+        language === "vi" ? "Khôi phục thất bại" : "Reset Failed",
+        err.message || (language === "vi" ? "Không thể đặt lại dữ liệu mẫu." : "Failed to reset sample data."),
+        "danger"
+      );
     } finally {
       setIsResetting(false);
     }
@@ -537,8 +733,9 @@ export default function AdminPage() {
   const contactedCount = inquiries.filter((i) => i.status === "contacted").length;
   const confirmedCount = inquiries.filter((i) => i.status === "confirmed").length;
   const maintenanceCount = siteConfig.villas.filter((v) => Boolean(maintenanceMap[v.id]?.isMaintenance)).length;
+  const hkSummary = bookingStore.getHousekeepingSummary();
 
-  // Filtered List
+  // Filtered List for All Bookings Tab
   const filteredInquiries = inquiries.filter((inq) => {
     const matchesSearch =
       inq.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -547,8 +744,23 @@ export default function AdminPage() {
       inq.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inq.villaName.toLowerCase().includes(searchQuery.toLowerCase());
 
-    const matchesStatus =
-      statusFilter === "all" ? true : inq.status === statusFilter;
+    let matchesStatus = true;
+    if (statusFilter === "all") {
+      matchesStatus = true;
+    } else if (statusFilter === "expired_needs_cleaning") {
+      const stay = getStayStatus(inq.checkIn, inq.checkOut);
+      matchesStatus = (stay === "expired" || stay === "checkout_today") && (inq.cleaningStatus === "needs_cleaning" || !inq.cleaningStatus);
+    } else if (statusFilter === "checkout_today") {
+      matchesStatus = isCheckoutToday(inq.checkOut);
+    } else if (statusFilter === "cleaned") {
+      matchesStatus = inq.cleaningStatus === "cleaned";
+    } else if (statusFilter === "in_cleaning") {
+      matchesStatus = inq.cleaningStatus === "in_cleaning";
+    } else if (statusFilter === "in_house") {
+      matchesStatus = getStayStatus(inq.checkIn, inq.checkOut) === "in_house";
+    } else {
+      matchesStatus = inq.status === statusFilter;
+    }
 
     const matchesVilla =
       villaFilter === "all" ? true : inq.villaId === villaFilter;
@@ -556,17 +768,48 @@ export default function AdminPage() {
     return matchesSearch && matchesStatus && matchesVilla;
   });
 
+  // Dedicated Inquiries list for Housekeeping Turnover tab (completed or checkout today)
+  const housekeepingInquiries = inquiries.filter((inq) => {
+    if (inq.status === "cancelled") return false;
+    const stay = getStayStatus(inq.checkIn, inq.checkOut);
+    const isTargetStay = stay === "expired" || stay === "checkout_today";
+    if (!isTargetStay) return false;
+
+    const matchesSearch =
+      searchQuery === "" ||
+      inq.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inq.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      inq.villaName.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesVilla =
+      villaFilter === "all" ? true : inq.villaId === villaFilter;
+
+    if (!matchesSearch || !matchesVilla) return false;
+
+    const cStatus = inq.cleaningStatus || "needs_cleaning";
+    if (housekeepingSubFilter === "needs_cleaning") return cStatus === "needs_cleaning";
+    if (housekeepingSubFilter === "in_cleaning") return cStatus === "in_cleaning";
+    if (housekeepingSubFilter === "cleaned") return cStatus === "cleaned";
+    if (housekeepingSubFilter === "today") return stay === "checkout_today";
+    return true;
+  });
+
   // Login Screen
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#111315] text-white flex items-center justify-center p-6">
+      <div className="min-h-screen bg-[#111315] text-white flex flex-col items-center justify-center p-6 relative">
+        {/* Top-Right Language Switcher */}
+        <div className="absolute top-6 right-6 z-20">
+          <LanguageSwitcher size="sm" />
+        </div>
+
         <div className="w-full max-w-md bg-[#181B1E] border border-white/10 rounded-3xl p-8 sm:p-10 shadow-2xl relative">
           <Link
             href="/"
             className="inline-flex items-center gap-2 text-xs text-neutral-400 hover:text-white mb-6 transition-colors"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Return to Public Website</span>
+            <span>{t("admin.return_home", "Return to Public Website")}</span>
           </Link>
 
           <div className="w-14 h-14 rounded-2xl bg-[#C2A476]/10 border border-[#C2A476]/30 flex items-center justify-center mx-auto mb-6">
@@ -574,21 +817,21 @@ export default function AdminPage() {
           </div>
 
           <h1 className="font-serif text-2xl sm:text-3xl font-light text-center text-white mb-2">
-            Host Administration
+            {t("admin.login_title", "Host Administration")}
           </h1>
           <p className="text-xs text-neutral-400 text-center font-light mb-8">
-            Enter your secret passcode to access booking logs and customer inquiries.
+            {t("admin.login_desc", "Enter your secret passcode to access booking logs and customer inquiries.")}
           </p>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
               <label className="block text-[11px] uppercase tracking-wider text-neutral-400 mb-2 font-semibold">
-                Admin Passcode
+                {t("admin.passcode_label", "Admin Passcode")}
               </label>
               <div className="relative">
                 <input
                   type="password"
-                  placeholder="Enter passcode..."
+                  placeholder={t("admin.passcode_placeholder", "Enter passcode...")}
                   value={passcodeInput}
                   onChange={(e) => setPasscodeInput(e.target.value)}
                   className="w-full bg-[#111315] border border-white/15 rounded-xl px-4 py-3.5 pl-11 text-sm text-white placeholder-neutral-500 focus:outline-none focus:border-[#C2A476] transition-colors"
@@ -609,13 +852,14 @@ export default function AdminPage() {
               type="submit"
               className="w-full bg-[#C2A476] hover:bg-[#aa8c5b] text-white py-3.5 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all duration-300 shadow-lg mt-2 cursor-pointer"
             >
-              Unlock Dashboard
+              {t("admin.unlock_btn", "Unlock Dashboard")}
             </button>
           </form>
 
           <div className="mt-8 pt-6 border-t border-white/5 text-center">
             <p className="text-[11px] text-neutral-500">
-              Default passcode configured: <span className="font-mono text-neutral-400">{siteConfig.admin.passcode}</span>
+              {language === "vi" ? "Mã mặc định cấu hình:" : "Default passcode configured:"}{" "}
+              <span className="font-mono text-neutral-400">{siteConfig.admin.passcode}</span>
             </p>
           </div>
         </div>
@@ -658,7 +902,7 @@ export default function AdminPage() {
             <Link
               href="/"
               className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-colors"
-              title="Return to Public Website"
+              title={t("admin.return_home", "Return to Public Website")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
@@ -668,7 +912,7 @@ export default function AdminPage() {
                   {siteConfig.name}
                 </h1>
                 <span className="bg-[#C2A476]/20 text-[#C2A476] border border-[#C2A476]/40 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-                  Admin Portal
+                  {t("admin.portal", "Admin Portal")}
                 </span>
               </div>
               <div className="flex items-center gap-2 mt-0.5">
@@ -677,13 +921,16 @@ export default function AdminPage() {
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
                 <span className="text-[11px] text-emerald-400 font-medium">
-                  Two-Way Live Sync Active (Edit dates, instant calendar update)
+                  {t("admin.live_sync", "Two-Way Live Sync Active (Edit dates, instant calendar update)")}
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
+            {/* Quick Dual Flag Language Switcher */}
+            <LanguageSwitcher size="sm" />
+
             {/* Cloud Database / Device Sync Status Button */}
             <button
               onClick={() => {
@@ -698,7 +945,7 @@ export default function AdminPage() {
               title="Click to manage multi-device synchronization and cloud database"
             >
               <Cloud className="w-3.5 h-3.5" />
-              <span>{isCloudStorage ? "Cloud Synced 🟢" : "Đồng bộ Đa Thiết bị ⚡"}</span>
+              <span>{isCloudStorage ? t("admin.cloud_synced", "Cloud Synced 🟢") : t("admin.device_sync_btn", "Đồng bộ Đa Thiết bị ⚡")}</span>
             </button>
 
             {/* Button to Block Dates / Add Reservation */}
@@ -707,7 +954,7 @@ export default function AdminPage() {
               className="text-xs bg-[#C2A476] hover:bg-[#aa8c5b] text-white px-3.5 py-1.5 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-md cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Block Dates / New Booking</span>
+              <span>{t("admin.block_dates_btn", "Block Dates / New Booking")}</span>
             </button>
 
             <button
@@ -716,14 +963,14 @@ export default function AdminPage() {
               title="Reset Sample Data"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Reset Demo</span>
+              <span className="hidden sm:inline">{t("admin.reset_demo_btn", "Reset Demo")}</span>
             </button>
 
             <button
               onClick={handleLogout}
               className="text-xs bg-white/10 hover:bg-white/20 text-neutral-200 px-4 py-1.5 rounded-lg transition-colors font-medium cursor-pointer"
             >
-              Log Out
+              {t("admin.logout", "Log Out")}
             </button>
           </div>
         </div>
@@ -806,101 +1053,172 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* KPI Metric Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-5 mb-8">
+        {/* KPI Metric Cards (6 cards) */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5 sm:gap-4 mb-6">
           {/* 1. Total Inquiries */}
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[140px] group">
+          <div
+            onClick={() => {
+              setAdminViewTab("all_bookings");
+              setStatusFilter("all");
+            }}
+            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group cursor-pointer hover:border-[#C2A476]"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-500">
-                Total Inquiries
+              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+                {t("admin.kpi_total", "Total Inquiries")}
               </span>
-              <div className="w-9 h-9 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] text-[#8A6B3D] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] text-[#8A6B3D] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                 <Calendar className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-2">
-              <p className="text-3xl sm:text-4xl font-serif font-bold text-neutral-900">
+            <div className="my-1.5">
+              <p className="text-2xl sm:text-3xl font-serif font-bold text-neutral-900">
                 {totalCount}
               </p>
             </div>
-            <p className="text-[11px] text-neutral-400 font-light truncate">
-              All guest submissions
+            <p className="text-[10px] text-neutral-400 font-light truncate">
+              {language === "vi" ? "Tất cả yêu cầu gửi về" : "All submissions"}
             </p>
           </div>
 
           {/* 2. Pending Action */}
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[140px] group hover:border-amber-300">
+          <div
+            onClick={() => {
+              setAdminViewTab("all_bookings");
+              setStatusFilter("pending");
+            }}
+            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group hover:border-amber-300 cursor-pointer"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700">
-                Pending Action
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                {t("admin.kpi_pending", "Pending Action")}
               </span>
-              <div className="w-9 h-9 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                 <Clock className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-2">
-              <p className="text-3xl sm:text-4xl font-serif font-bold text-amber-600">
+            <div className="my-1.5">
+              <p className="text-2xl sm:text-3xl font-serif font-bold text-amber-600">
                 {pendingCount}
               </p>
             </div>
-            <p className="text-[11px] text-amber-600/80 font-medium truncate">
-              {pendingCount > 0 ? "Requires concierge reply" : "All caught up"}
+            <p className="text-[10px] text-amber-600/80 font-medium truncate">
+              {pendingCount > 0
+                ? language === "vi" ? "Cần phản hồi khách" : "Requires reply"
+                : language === "vi" ? "Đã xử lý hết" : "All caught up"}
             </p>
           </div>
 
           {/* 3. Contacted */}
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[140px] group hover:border-blue-300">
+          <div
+            onClick={() => {
+              setAdminViewTab("all_bookings");
+              setStatusFilter("contacted");
+            }}
+            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group hover:border-blue-300 cursor-pointer"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-blue-700">
-                Contacted
+              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+                {t("admin.kpi_contacted", "Contacted")}
               </span>
-              <div className="w-9 h-9 rounded-2xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                 <PhoneCall className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-2">
-              <p className="text-3xl sm:text-4xl font-serif font-bold text-blue-600">
+            <div className="my-1.5">
+              <p className="text-2xl sm:text-3xl font-serif font-bold text-blue-600">
                 {contactedCount}
               </p>
             </div>
-            <p className="text-[11px] text-blue-600/80 font-medium truncate">
-              In direct communication
+            <p className="text-[10px] text-blue-600/80 font-medium truncate">
+              {language === "vi" ? "Đang trao đổi trực tiếp" : "In communication"}
             </p>
           </div>
 
           {/* 4. Confirmed */}
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[140px] group hover:border-emerald-300">
+          <div
+            onClick={() => {
+              setAdminViewTab("all_bookings");
+              setStatusFilter("confirmed");
+            }}
+            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group hover:border-emerald-300 cursor-pointer"
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-700">
-                Confirmed
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                {t("admin.kpi_confirmed", "Confirmed")}
               </span>
-              <div className="w-9 h-9 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-2">
-              <p className="text-3xl sm:text-4xl font-serif font-bold text-emerald-600">
+            <div className="my-1.5">
+              <p className="text-2xl sm:text-3xl font-serif font-bold text-emerald-600">
                 {confirmedCount}
               </p>
             </div>
-            <p className="text-[11px] text-emerald-600/80 font-medium truncate">
-              Booked & dates secured
+            <p className="text-[10px] text-emerald-600/80 font-medium truncate">
+              {language === "vi" ? "Đã chốt & giữ lịch" : "Dates secured"}
             </p>
           </div>
 
-          {/* 5. Under Maintenance */}
-          <div className={`p-5 sm:p-6 rounded-3xl border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[140px] group ${
-            maintenanceCount > 0
-              ? "bg-[#FFFBF5] border-amber-300 ring-2 ring-amber-400/20"
-              : "bg-white border-[#EAE5DC]"
-          }`}>
+          {/* 5. Housekeeping & Turnover KPI Card */}
+          <div
+            onClick={() => setAdminViewTab("housekeeping")}
+            className={`p-4 sm:p-5 rounded-3xl border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group cursor-pointer ${
+              hkSummary.needsCleaningCount > 0
+                ? "bg-rose-50/60 border-rose-300 ring-2 ring-rose-400/20 hover:border-rose-400"
+                : "bg-white border-[#EAE5DC] hover:border-emerald-300"
+            }`}
+          >
             <div className="flex items-center justify-between gap-2">
-              <span className={`text-[11px] font-bold uppercase tracking-wider ${
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
+                hkSummary.needsCleaningCount > 0 ? "text-rose-700" : "text-emerald-700"
+              }`}>
+                {language === "vi" ? "Dọn Dẹp Buồng Phòng" : "Housekeeping"}
+              </span>
+              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${
+                hkSummary.needsCleaningCount > 0
+                  ? "bg-rose-100 border-rose-300 text-rose-700"
+                  : "bg-emerald-50 border-emerald-200 text-emerald-600"
+              }`}>
+                <Sparkles className={`w-4 h-4 ${hkSummary.needsCleaningCount > 0 ? "animate-pulse" : ""}`} />
+              </div>
+            </div>
+            <div className="my-1.5 flex items-baseline gap-1.5">
+              <p className={`text-2xl sm:text-3xl font-serif font-bold ${
+                hkSummary.needsCleaningCount > 0 ? "text-rose-600" : "text-emerald-600"
+              }`}>
+                {hkSummary.needsCleaningCount}
+              </p>
+              <span className="text-[11px] text-neutral-500 font-medium">
+                {language === "vi" ? "cần dọn" : "to clean"}
+              </span>
+            </div>
+            <p className={`text-[10px] font-medium truncate ${
+              hkSummary.needsCleaningCount > 0 ? "text-rose-700" : "text-emerald-700"
+            }`}>
+              {hkSummary.needsCleaningCount > 0
+                ? (language === "vi" ? `🔴 ${hkSummary.needsCleaningCount} phòng chờ dọn dẹp` : `🔴 ${hkSummary.needsCleaningCount} turnover pending`)
+                : (language === "vi" ? `✨ ${hkSummary.cleanedCount} phòng đã hoàn tất` : `✨ ${hkSummary.cleanedCount} cleaned & ready`)}
+            </p>
+          </div>
+
+          {/* 6. Under Maintenance */}
+          <div
+            onClick={() => setAdminViewTab("maintenance")}
+            className={`p-4 sm:p-5 rounded-3xl border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group cursor-pointer ${
+              maintenanceCount > 0
+                ? "bg-[#FFFBF5] border-amber-300 ring-2 ring-amber-400/20 hover:border-amber-400"
+                : "bg-white border-[#EAE5DC] hover:border-[#C2A476]"
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${
                 maintenanceCount > 0 ? "text-amber-800" : "text-neutral-500"
               }`}>
-                Maintenance
+                {t("admin.kpi_maintenance", "Maintenance")}
               </span>
-              <div className={`w-9 h-9 rounded-2xl border flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${
+              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${
                 maintenanceCount > 0
                   ? "bg-amber-100 border-amber-300 text-amber-700"
                   : "bg-neutral-50 border-neutral-200 text-neutral-400"
@@ -908,180 +1226,845 @@ export default function AdminPage() {
                 <Wrench className={`w-4 h-4 ${maintenanceCount > 0 ? "animate-pulse" : ""}`} />
               </div>
             </div>
-            <div className="my-2 flex items-baseline gap-2">
-              <p className={`text-3xl sm:text-4xl font-serif font-bold ${
+            <div className="my-1.5 flex items-baseline gap-1.5">
+              <p className={`text-2xl sm:text-3xl font-serif font-bold ${
                 maintenanceCount > 0 ? "text-amber-700" : "text-neutral-900"
               }`}>
                 {maintenanceCount}
               </p>
-              <span className="text-xs text-neutral-400 font-medium">/ 4 Villas</span>
+              <span className="text-[11px] text-neutral-400 font-medium">/ 4 Villas</span>
             </div>
-            <p className={`text-[11px] font-medium truncate ${
+            <p className={`text-[10px] font-medium truncate ${
               maintenanceCount > 0 ? "text-amber-700" : "text-neutral-400"
             }`}>
-              {maintenanceCount > 0 ? `${maintenanceCount} villa locked from booking` : "All 4 villas operational"}
+              {maintenanceCount > 0
+                ? language === "vi" ? `${maintenanceCount} villa tạm khoá lịch` : `${maintenanceCount} villa locked`
+                : language === "vi" ? "Cả 4 villa sẵn sàng nhận khách" : "All 4 villas operational"}
             </p>
           </div>
         </div>
 
-        {/* Dedicated Villa Maintenance & Availability Control Panel */}
-        <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-sm mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-5">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 flex-shrink-0 shadow-sm">
-                <Wrench className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
-                    Villa Maintenance & Operational Status Control
-                  </h2>
-                  <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 uppercase tracking-wider hidden sm:inline">
-                    Live Toggle
+        {/* Navigation Tab Switcher */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6 p-2 rounded-2xl bg-white border border-[#EAE5DC] shadow-xs">
+          <button
+            type="button"
+            onClick={() => setAdminViewTab("all_bookings")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              adminViewTab === "all_bookings"
+                ? "bg-[#14171A] text-white shadow-md ring-2 ring-[#C2A476]/30"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
+            }`}
+          >
+            <Calendar className="w-4 h-4 text-[#C2A476]" />
+            <span>{language === "vi" ? "📋 Tất Cả Đơn Đặt Phòng" : "📋 All Reservations"}</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
+              {totalCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminViewTab("housekeeping")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              adminViewTab === "housekeeping"
+                ? "bg-[#14171A] text-white shadow-md ring-2 ring-rose-400/30"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-amber-400" />
+            <span>{language === "vi" ? "🧹 Quản Lý Dọn Dẹp & Trả Phòng" : "🧹 Housekeeping & Turnover"}</span>
+            {hkSummary.needsCleaningCount > 0 ? (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-mono animate-pulse">
+                {hkSummary.needsCleaningCount} {language === "vi" ? "cần dọn" : "to clean"}
+              </span>
+            ) : (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-mono">
+                {hkSummary.cleanedCount} {language === "vi" ? "sạch" : "ready"}
+              </span>
+            )}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminViewTab("pricing")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              adminViewTab === "pricing"
+                ? "bg-[#14171A] text-white shadow-md ring-2 ring-emerald-400/30"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
+            }`}
+          >
+            <Tag className="w-4 h-4 text-emerald-400" />
+            <span>{language === "vi" ? "💵 Đơn Giá Villa & Tỷ Giá USD" : "💵 Villa Pricing & USD Rates"}</span>
+            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-50 text-emerald-800 font-mono border border-emerald-200">
+              4 Villas
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setAdminViewTab("maintenance")}
+            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+              adminViewTab === "maintenance"
+                ? "bg-[#14171A] text-white shadow-md ring-2 ring-amber-400/30"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
+            }`}
+          >
+            <Wrench className="w-4 h-4 text-amber-400" />
+            <span>{language === "vi" ? "🛠️ Quản Lý Bảo Trì Villa" : "🛠️ Villa Maintenance"}</span>
+            {maintenanceCount > 0 && (
+              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-mono">
+                {maintenanceCount}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* PANEL 1: HOUSEKEEPING & TURNOVER MANAGEMENT */}
+        {adminViewTab === "housekeeping" && (
+          <div className="space-y-6 mb-8 animate-fade-in">
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-5">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 flex-shrink-0 shadow-sm">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
+                        {language === "vi" ? "Quản Lý Đơn Đã Hết Hạn & Dọn Dẹp Buồng Phòng" : "Housekeeping Turnover & Departure Management"}
+                      </h2>
+                      <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-300 uppercase tracking-wider hidden sm:inline">
+                        {hkSummary.needsCleaningCount} {language === "vi" ? "Cần Dọn Ngay" : "Pending Turnover"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-500 font-light mt-0.5">
+                      {language === "vi"
+                        ? "Theo dõi các lượt khách đã trả phòng hoặc trả phòng hôm nay để sắp xếp vệ sinh, thay ga gối, khử khuẩn và nghiệm thu bàn giao sẵn sàng đón khách mới."
+                        : "Track departures and completed stays to schedule turnovers, linen changes, and inspections before subsequent arrivals."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-neutral-50 text-neutral-700 border-neutral-200">
+                    {language === "vi" ? `Tổng: ${hkSummary.expiredCount + hkSummary.todayCount} đơn trả phòng` : `Total: ${hkSummary.expiredCount + hkSummary.todayCount} turnover stays`}
                   </span>
                 </div>
-                <p className="text-xs text-neutral-500 font-light mt-0.5">
-                  Select any villa to place under maintenance. Locked villas immediately block online inquiries and calendar dates across the public website.
-                </p>
+              </div>
+
+              {/* Housekeeping Sub-Filter Pills & Search */}
+              <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setHousekeepingSubFilter("all")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                      housekeepingSubFilter === "all"
+                        ? "bg-[#14171A] text-white shadow-sm"
+                        : "bg-[#FAF8F5] text-neutral-600 hover:bg-neutral-100 border border-neutral-200"
+                    }`}
+                  >
+                    {language === "vi" ? "Tất cả lượt trả phòng" : "All Departures"} ({hkSummary.expiredCount + hkSummary.todayCount})
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHousekeepingSubFilter("needs_cleaning")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      housekeepingSubFilter === "needs_cleaning"
+                        ? "bg-rose-600 text-white shadow-sm"
+                        : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-500" />
+                    <span>{language === "vi" ? "🔴 Cần dọn ngay" : "🔴 Needs Cleaning"}</span>
+                    <span className="font-bold">({hkSummary.needsCleaningCount})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHousekeepingSubFilter("in_cleaning")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      housekeepingSubFilter === "in_cleaning"
+                        ? "bg-amber-600 text-white shadow-sm"
+                        : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span>{language === "vi" ? "🟡 Đang dọn dẹp" : "🟡 In Cleaning"}</span>
+                    <span className="font-bold">({hkSummary.inCleaningCount})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHousekeepingSubFilter("cleaned")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      housekeepingSubFilter === "cleaned"
+                        ? "bg-emerald-600 text-white shadow-sm"
+                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                    <span>{language === "vi" ? "🟢 Đã dọn xong" : "🟢 Cleaned & Ready"}</span>
+                    <span className="font-bold">({hkSummary.cleanedCount})</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setHousekeepingSubFilter("today")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                      housekeepingSubFilter === "today"
+                        ? "bg-blue-600 text-white shadow-sm"
+                        : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
+                    }`}
+                  >
+                    <span>⏰ {language === "vi" ? "Trả phòng hôm nay" : "Checkout Today"}</span>
+                    <span className="font-bold">({hkSummary.todayCount})</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <select
+                    value={villaFilter}
+                    onChange={(e) => setVillaFilter(e.target.value)}
+                    className="bg-[#FAF8F5] border border-neutral-200 rounded-xl px-3 py-1.5 text-xs font-medium text-neutral-800 focus:outline-none"
+                  >
+                    <option value="all">{t("admin.all_villas_option", "All 4 Villas")}</option>
+                    {siteConfig.villas.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.code} ({v.district})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Housekeeping Inquiries Cards */}
+              {housekeepingInquiries.length === 0 ? (
+                <div className="bg-[#FAF8F5] rounded-2xl p-8 text-center border border-neutral-200">
+                  <p className="text-neutral-500 text-xs">
+                    {language === "vi"
+                      ? "Không có đơn lưu trú nào hết hạn hoặc trả phòng cần dọn dẹp trong tiêu chí này."
+                      : "No departure stays matching this turnover filter."}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {housekeepingInquiries.map((inq) => {
+                    const stay = getStayStatus(inq.checkIn, inq.checkOut);
+                    const cStatus = inq.cleaningStatus || "needs_cleaning";
+                    const isNotesEditing = editingCleaningNotesId === inq.id;
+                    const vMatch = siteConfig.villas.find((v) => v.id === inq.villaId);
+
+                    return (
+                      <div
+                        key={inq.id}
+                        className={`rounded-2xl border p-4 sm:p-5 transition-all shadow-xs ${
+                          cStatus === "needs_cleaning"
+                            ? "bg-rose-50/30 border-rose-200 hover:border-rose-300"
+                            : cStatus === "in_cleaning"
+                            ? "bg-amber-50/30 border-amber-200 hover:border-amber-300"
+                            : "bg-emerald-50/30 border-emerald-200 hover:border-emerald-300"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-200/60">
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-xs font-bold text-neutral-800 bg-white border border-neutral-200 px-2.5 py-1 rounded-md">
+                              {inq.id}
+                            </span>
+                            <div>
+                              <h3 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
+                                {inq.villaName}
+                              </h3>
+                              <p className="text-xs text-neutral-500">
+                                {language === "vi" ? "Khách lưu trú:" : "Guest:"}{" "}
+                                <span className="font-semibold text-neutral-800">{inq.guestName}</span>
+                                {inq.phone && ` • ${inq.phone}`}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Stay Duration Tag */}
+                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                              stay === "checkout_today"
+                                ? "bg-amber-100 text-amber-900 border-amber-300"
+                                : "bg-neutral-100 text-neutral-800 border-neutral-300"
+                            }`}>
+                              {stay === "checkout_today"
+                                ? (language === "vi" ? "⏰ Trả phòng hôm nay" : "⏰ Checkout Today")
+                                : (language === "vi" ? "🔴 Đã trả phòng" : "🔴 Checked Out")}
+                            </span>
+
+                            {/* Cleaning Status Pill */}
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border shadow-xs ${
+                              cStatus === "needs_cleaning"
+                                ? "bg-rose-600 text-white border-rose-700 animate-pulse"
+                                : cStatus === "in_cleaning"
+                                ? "bg-amber-500 text-white border-amber-600"
+                                : "bg-emerald-600 text-white border-emerald-700"
+                            }`}>
+                              {cStatus === "needs_cleaning"
+                                ? (language === "vi" ? "🔴 Cần Dọn Dẹp" : "🔴 Needs Cleaning")
+                                : cStatus === "in_cleaning"
+                                ? (language === "vi" ? "🟡 Đang Dọn Dẹp" : "🟡 In Cleaning")
+                                : (language === "vi" ? "🟢 Đã Dọn Xong ✨" : "🟢 Cleaned & Ready ✨")}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Stay Dates and Notes Grid */}
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 my-3 text-xs">
+                          <div className="p-2.5 rounded-xl bg-white/80 border border-neutral-200/70">
+                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
+                              {language === "vi" ? "Khoảng Ngày Lưu Trú" : "Stay Timeframe"}
+                            </span>
+                            <span className="font-semibold text-neutral-800 mt-0.5 block">
+                              {inq.checkIn} → {inq.checkOut}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-white/80 border border-neutral-200/70">
+                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
+                              {language === "vi" ? "Thông Số Biệt Thự" : "Villa Specs"}
+                            </span>
+                            <span className="font-semibold text-neutral-800 mt-0.5 block">
+                              {vMatch?.bedrooms || 4} PN • {vMatch?.maxGuests || 8} khách • {vMatch?.poolType || "Private Pool"}
+                            </span>
+                          </div>
+
+                          <div className="p-2.5 rounded-xl bg-white/80 border border-neutral-200/70">
+                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
+                              {language === "vi" ? "Thời Điểm Nghiệm Thu" : "Housekeeping Timestamp"}
+                            </span>
+                            <span className="font-medium text-neutral-700 mt-0.5 block">
+                              {inq.cleanedAt && cStatus === "cleaned"
+                                ? `✨ ${new Date(inq.cleanedAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}`
+                                : (language === "vi" ? "Chưa nghiệm thu" : "Pending completion")}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Housekeeping Notes Box */}
+                        <div className="p-3 rounded-xl bg-white border border-neutral-200 mb-3">
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
+                              <Edit3 className="w-3.5 h-3.5 text-[#C2A476]" />
+                              <span>{language === "vi" ? "Ghi Chú Buồng Phòng & Vệ Sinh:" : "Housekeeping & Linen Turnover Notes:"}</span>
+                            </span>
+                            {!isNotesEditing && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingCleaningNotesId(inq.id);
+                                  setCleaningNotesInput(inq.cleaningNotes || "");
+                                }}
+                                className="text-[11px] text-[#8A6B3D] hover:underline font-semibold cursor-pointer"
+                              >
+                                {inq.cleaningNotes ? (language === "vi" ? "Sửa ghi chú" : "Edit Notes") : (language === "vi" ? "+ Thêm ghi chú" : "+ Add Notes")}
+                              </button>
+                            )}
+                          </div>
+
+                          {isNotesEditing ? (
+                            <div className="space-y-2 animate-fade-in">
+                              <textarea
+                                rows={2}
+                                value={cleaningNotesInput}
+                                onChange={(e) => setCleaningNotesInput(e.target.value)}
+                                placeholder={language === "vi" ? "Ví dụ: Đã thay 4 bộ ga giường, lau ban công, khử khuẩn hồ bơi, bổ sung đồ tiêu hao minibar..." : "e.g. Linens replaced, terrace cleaned, pool filtered, minibar restocked..."}
+                                className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl p-2.5 text-xs text-neutral-800 focus:outline-none focus:border-[#C2A476] resize-none"
+                              />
+                              <div className="flex items-center justify-end gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingCleaningNotesId(null)}
+                                  className="px-3 py-1 rounded-lg border border-neutral-300 text-[11px] text-neutral-600 hover:bg-neutral-50 cursor-pointer"
+                                >
+                                  {language === "vi" ? "Hủy" : "Cancel"}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateCleaningStatus(inq.id, cStatus, cleaningNotesInput)}
+                                  className="px-3 py-1 rounded-lg bg-[#14171A] hover:bg-[#C2A476] text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+                                >
+                                  <Save className="w-3 h-3" />
+                                  <span>{language === "vi" ? "Lưu Ghi Chú" : "Save Notes"}</span>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs text-neutral-600 italic">
+                              {inq.cleaningNotes || (language === "vi" ? "Chưa có ghi chú đặc biệt cho buồng phòng." : "No specific housekeeping notes added.")}
+                            </p>
+                          )}
+                        </div>
+
+                        {/* Quick One-Click Action Status Buttons */}
+                        <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-neutral-200/50">
+                          <span className="text-[11px] text-neutral-400">
+                            {language === "vi" ? "Chuyển nhanh trạng thái buồng phòng:" : "Transition turnover status:"}
+                          </span>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {cStatus !== "in_cleaning" && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCleaningStatus(inq.id, "in_cleaning")}
+                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                              >
+                                <span>🟡 {language === "vi" ? "Bắt Đầu Dọn Dẹp" : "Start Cleaning"}</span>
+                              </button>
+                            )}
+
+                            {cStatus !== "cleaned" && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCleaningStatus(inq.id, "cleaned")}
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                              >
+                                <span>🟢 {language === "vi" ? "Nghiệm Thu • Đã Dọn Xong" : "Mark Cleaned & Ready"}</span>
+                              </button>
+                            )}
+
+                            {cStatus !== "needs_cleaning" && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateCleaningStatus(inq.id, "needs_cleaning")}
+                                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                              >
+                                <span>🔴 {language === "vi" ? "Cần Dọn Lại" : "Mark Needs Cleaning"}</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* PANEL 2: VILLA PRICING & DIRECT USD CONVERSION MANAGEMENT */}
+        {adminViewTab === "pricing" && (
+          <div className="space-y-6 mb-8 animate-fade-in">
+            <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-sm">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 flex-shrink-0 shadow-sm">
+                    <Tag className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h2 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
+                        {language === "vi" ? "Quản Lý Đơn Giá Villa & Tỷ Giá Quy Đổi USD" : "Villa Nightly Rates & Real-Time USD Currency Conversion"}
+                      </h2>
+                      <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 uppercase tracking-wider hidden sm:inline">
+                        {language === "vi" ? "Đồng Bộ Trực Tiếp" : "Live Sync"}
+                      </span>
+                    </div>
+                    <p className="text-xs text-neutral-500 font-light mt-0.5">
+                      {language === "vi"
+                        ? "Điều chỉnh đơn giá mỗi đêm (VND) cho từng căn biệt thự và tỷ giá USD. Website công khai và modal đặt phòng sẽ tự động quy đổi và hiển thị giá mới tức thì trên mọi thiết bị."
+                        : "Configure nightly rates (VND) per villa and USD exchange rate. The public website and booking modal recalculate and mirror rates instantly across all devices."}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveAllPricesAndUsd}
+                    disabled={isSavingPrices}
+                    className="px-4 py-2.5 rounded-xl bg-[#14171A] hover:bg-[#C2A476] text-white text-xs font-bold uppercase tracking-wider transition-all shadow-md flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {priceSaveFeedback ? (
+                      <>
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        <span className="text-emerald-400">{language === "vi" ? "Đã Lưu & Đồng Bộ!" : "Saved & Synced!"}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 text-[#C2A476]" />
+                        <span>{language === "vi" ? "Lưu Toàn Bộ Bảng Giá" : "Save All Rates & USD"}</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Setting Box: USD Exchange Rate */}
+              <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC]">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 block">
+                      {language === "vi" ? "Tỷ Giá Ngoại Tệ (USD / VND)" : "Foreign Exchange Rate (USD / VND)"}
+                    </span>
+                    <h3 className="font-serif text-base sm:text-lg font-bold text-neutral-900 mt-0.5">
+                      1 USD = {formatPriceVnd(usdRate).replace(" ₫", "")} VND
+                    </h3>
+                    <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
+                      {language === "vi"
+                        ? "Tỷ giá này dùng để quy đổi trực tiếp đơn giá và tạm tính tổng tiền ra USD trên trang chủ cho khách quốc tế."
+                        : "Used for real-time conversion from VND to USD on public villa cards and the booking modal."}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2.5">
+                    <div className="flex items-center gap-2 bg-white border border-neutral-300 rounded-xl px-3 py-2 shadow-2xs">
+                      <span className="text-xs font-bold text-neutral-500">1 USD =</span>
+                      <input
+                        type="number"
+                        min="1000"
+                        step="100"
+                        value={usdRate}
+                        onChange={(e) => setUsdRate(Math.max(1, Number(e.target.value)))}
+                        className="w-24 text-sm font-mono font-bold text-neutral-900 focus:outline-none"
+                      />
+                      <span className="text-xs font-semibold text-neutral-500">VND</span>
+                    </div>
+
+                    {/* Preset Pills */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {[25400, 25500, 25800, 26000].map((ratePreset) => (
+                        <button
+                          key={ratePreset}
+                          type="button"
+                          onClick={() => setUsdRate(ratePreset)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-mono font-semibold transition-all cursor-pointer ${
+                            usdRate === ratePreset
+                              ? "bg-emerald-600 text-white"
+                              : "bg-white border border-neutral-200 text-neutral-700 hover:bg-neutral-100"
+                          }`}
+                        >
+                          {ratePreset.toLocaleString()}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Villas Nightly Price Configuration Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+                {siteConfig.villas.map((villa) => {
+                  const currentPrice = villaPrices[villa.id] ?? villa.priceVnd ?? 18000000;
+                  const convertedUsd = formatPriceUsd(currentPrice, usdRate);
+
+                  return (
+                    <div
+                      key={villa.id}
+                      className="bg-[#FAF8F5] rounded-2xl border border-[#EAE5DC] p-4 sm:p-5 hover:border-[#C2A476] transition-all shadow-xs flex flex-col justify-between"
+                    >
+                      <div>
+                        {/* Top Info */}
+                        <div className="flex items-center gap-3.5 mb-4">
+                          <div className="w-14 h-14 rounded-xl overflow-hidden relative border border-[#EAE5DC] flex-shrink-0 bg-neutral-100 shadow-sm">
+                            <Image
+                              src={villa.image}
+                              alt={villa.name}
+                              fill
+                              className="object-cover"
+                            />
+                            <div className="absolute top-1 left-1 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                              {villa.code}
+                            </div>
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="font-serif text-sm sm:text-base font-bold text-neutral-900 truncate">
+                              {villa.name}
+                            </h3>
+                            <p className="text-[11px] text-neutral-500 mt-0.5">
+                              {villa.district} • {villa.bedrooms} PN • {villa.maxGuests} khách tối đa
+                            </p>
+                            <span className="text-[10px] text-neutral-400 block truncate">
+                              {villa.poolType}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Price Input Form */}
+                        <div className="bg-white rounded-xl p-3.5 border border-neutral-200 mb-3 space-y-2.5">
+                          <label className="block text-[11px] uppercase font-bold tracking-wider text-neutral-600">
+                            {language === "vi" ? "Đơn Giá Thuê 1 Đêm (VND)" : "Nightly Rate (VND)"}
+                          </label>
+
+                          <div className="flex items-center gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type="number"
+                                min="1000000"
+                                step="500000"
+                                value={currentPrice}
+                                onChange={(e) =>
+                                  setVillaPrices((prev) => ({
+                                    ...prev,
+                                    [villa.id]: Math.max(0, Number(e.target.value)),
+                                  }))
+                                }
+                                className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2 text-sm font-mono font-bold text-neutral-900 focus:outline-none focus:border-[#C2A476]"
+                              />
+                            </div>
+                            <span className="text-xs font-semibold text-neutral-500">VNĐ/đêm</span>
+                          </div>
+
+                          {/* Quick Increment/Decrement Buttons */}
+                          <div className="flex items-center gap-1.5 flex-wrap pt-1">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVillaPrices((prev) => ({
+                                  ...prev,
+                                  [villa.id]: Math.max(0, currentPrice - 1000000),
+                                }))
+                              }
+                              className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 rounded-lg text-[10px] font-semibold text-neutral-700 cursor-pointer"
+                            >
+                              - 1.000.000
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVillaPrices((prev) => ({
+                                  ...prev,
+                                  [villa.id]: Math.max(0, currentPrice - 500000),
+                                }))
+                              }
+                              className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 rounded-lg text-[10px] font-semibold text-neutral-700 cursor-pointer"
+                            >
+                              - 500.000
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVillaPrices((prev) => ({
+                                  ...prev,
+                                  [villa.id]: currentPrice + 500000,
+                                }))
+                              }
+                              className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 rounded-lg text-[10px] font-semibold text-neutral-700 cursor-pointer"
+                            >
+                              + 500.000
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVillaPrices((prev) => ({
+                                  ...prev,
+                                  [villa.id]: currentPrice + 1000000,
+                                }))
+                              }
+                              className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 rounded-lg text-[10px] font-semibold text-neutral-700 cursor-pointer"
+                            >
+                              + 1.000.000
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Live Conversion Preview */}
+                        <div className="p-3 rounded-xl bg-emerald-50/60 border border-emerald-200 flex items-center justify-between gap-2 mb-3">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-emerald-800 block">
+                              {language === "vi" ? "Hiển Thị Website Công Khai:" : "Public Live Display:"}
+                            </span>
+                            <span className="font-serif text-sm font-bold text-emerald-950">
+                              {formatPriceVnd(currentPrice)}/đêm
+                            </span>
+                          </div>
+                          <div className="text-right">
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white border border-emerald-300 text-xs font-bold text-emerald-900 shadow-2xs">
+                              <span>≈</span>
+                              <span className="font-mono">${convertedUsd}</span>
+                              <span className="text-[10px] font-normal text-emerald-700">USD/đêm</span>
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Single Villa Save Button */}
+                      <button
+                        type="button"
+                        onClick={() => handleSaveVillaPrice(villa.id, currentPrice)}
+                        className="w-full bg-[#14171A] hover:bg-[#C2A476] text-white py-2 px-3 rounded-xl text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer mt-1"
+                      >
+                        <Save className="w-3.5 h-3.5" />
+                        <span>{language === "vi" ? `Lưu Giá ${villa.code}` : `Save ${villa.code} Rate`}</span>
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PANEL 3: DEDICATED VILLA MAINTENANCE PANEL */}
+        {adminViewTab === "maintenance" && (
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-sm mb-8 animate-fade-in">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-5">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 flex-shrink-0 shadow-sm">
+                  <Wrench className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
+                      {language === "vi" ? "Kiểm Soát Vận Hành & Bảo Trì Villa" : "Villa Maintenance & Operational Status Control"}
+                    </h2>
+                    <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 uppercase tracking-wider hidden sm:inline">
+                      {language === "vi" ? "Chuyển Trực Tiếp" : "Live Toggle"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-neutral-500 font-light mt-0.5">
+                    {language === "vi"
+                      ? "Chọn bất kỳ biệt thự nào để chuyển sang chế độ bảo trì. Villa bị khoá sẽ tự động dừng nhận đơn đặt phòng và khoá lịch trên trang web."
+                      : "Select any villa to place under maintenance. Locked villas immediately block online inquiries and calendar dates across the public website."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
+                  maintenanceCount > 0
+                    ? "bg-amber-50 text-amber-800 border-amber-300"
+                    : "bg-emerald-50 text-emerald-800 border-emerald-300"
+                }`}>
+                  {language === "vi" ? `${4 - maintenanceCount}/4 Villa Sẵn Sàng` : `${4 - maintenanceCount} of 4 Villas Active`}
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className={`text-xs font-semibold px-3 py-1 rounded-full border ${
-                maintenanceCount > 0
-                  ? "bg-amber-50 text-amber-800 border-amber-300"
-                  : "bg-emerald-50 text-emerald-800 border-emerald-300"
-              }`}>
-                {4 - maintenanceCount} of 4 Villas Active
-              </span>
-            </div>
-          </div>
+            {/* 4 Villa Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {siteConfig.villas.map((villa) => {
+                const isMaint = Boolean(maintenanceMap[villa.id]?.isMaintenance);
+                const info = maintenanceMap[villa.id];
 
-          {/* 4 Villa Cards Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {siteConfig.villas.map((villa) => {
-              const isMaint = Boolean(maintenanceMap[villa.id]?.isMaintenance);
-              const info = maintenanceMap[villa.id];
-
-              return (
-                <div
-                  key={villa.id}
-                  className={`rounded-2xl border p-4 transition-all duration-300 flex flex-col justify-between ${
-                    isMaint
-                      ? "border-amber-400 bg-amber-50/40 shadow-md ring-2 ring-amber-400/25"
-                      : "border-neutral-200 bg-[#FAF8F5]/60 hover:border-[#C2A476] hover:bg-white hover:shadow-md"
-                  }`}
-                >
-                  <div>
-                    {/* Villa Thumbnail & Title */}
-                    <div className="flex items-center gap-3 mb-3">
-                      <div className="w-12 h-12 rounded-xl overflow-hidden relative border border-neutral-200 flex-shrink-0 bg-neutral-100 shadow-sm">
-                        <Image
-                          src={villa.image}
-                          alt={villa.name}
-                          fill
-                          className="object-cover"
-                        />
-                        <div className="absolute top-0.5 left-0.5 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
-                          {villa.code}
+                return (
+                  <div
+                    key={villa.id}
+                    className={`rounded-2xl border p-4 transition-all duration-300 flex flex-col justify-between ${
+                      isMaint
+                        ? "border-amber-400 bg-amber-50/40 shadow-md ring-2 ring-amber-400/25"
+                        : "border-neutral-200 bg-[#FAF8F5]/60 hover:border-[#C2A476] hover:bg-white hover:shadow-md"
+                    }`}
+                  >
+                    <div>
+                      {/* Villa Thumbnail & Title */}
+                      <div className="flex items-center gap-3 mb-3">
+                        <div className="w-12 h-12 rounded-xl overflow-hidden relative border border-neutral-200 flex-shrink-0 bg-neutral-100 shadow-sm">
+                          <Image
+                            src={villa.image}
+                            alt={villa.name}
+                            fill
+                            className="object-cover"
+                          />
+                          <div className="absolute top-0.5 left-0.5 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                            {villa.code}
+                          </div>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-xs sm:text-sm font-bold text-neutral-900 truncate">
+                            {villa.name}
+                          </h3>
+                          <p className="text-[11px] text-neutral-500 truncate">
+                            {villa.district} • {villa.bedrooms} PN
+                          </p>
                         </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="text-xs sm:text-sm font-bold text-neutral-900 truncate">
-                          {villa.name}
-                        </h3>
-                        <p className="text-[11px] text-neutral-500 truncate">
-                          {villa.district} • {villa.bedrooms} PN
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* Operational Status Pill */}
-                    <div className="mb-3">
-                      {isMaint ? (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold">
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                      {/* Operational Status Pill */}
+                      <div className="mb-3">
+                        {isMaint ? (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                            </span>
+                            <span>{language === "vi" ? "Đang Bảo Trì (Khoá Lịch)" : "Under Maintenance (Locked)"}</span>
+                          </div>
+                        ) : (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
+                            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                            <span>{language === "vi" ? "Đang Hoạt Động" : "Operational & Active"}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reason / Note Box */}
+                      {isMaint && (
+                        <div className="bg-white/90 border border-amber-200 rounded-xl p-2.5 mb-3 text-[11px] text-amber-900 shadow-xs">
+                          <span className="text-[10px] uppercase font-bold text-amber-700 block mb-0.5">
+                            {language === "vi" ? "Thông Báo Khách:" : "Public Notice:"}
                           </span>
-                          <span>Under Maintenance (Locked)</span>
-                        </div>
-                      ) : (
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
-                          <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                          <span>Operational & Active</span>
+                          <p className="line-clamp-2 italic font-light">
+                            &ldquo;{info?.reason || (language === "vi" ? "Biệt thự đang bảo trì nâng cấp định kỳ." : "Scheduled luxury maintenance & seasonal care.")}&rdquo;
+                          </p>
                         </div>
                       )}
                     </div>
 
-                    {/* Reason / Note Box */}
-                    {isMaint && (
-                      <div className="bg-white/90 border border-amber-200 rounded-xl p-2.5 mb-3 text-[11px] text-amber-900 shadow-xs">
-                        <span className="text-[10px] uppercase font-bold text-amber-700 block mb-0.5">
-                          Public Notice:
-                        </span>
-                        <p className="line-clamp-2 italic font-light">
-                          &ldquo;{info?.reason || "Scheduled luxury maintenance & seasonal care."}&rdquo;
-                        </p>
-                      </div>
-                    )}
-                  </div>
+                    {/* Action Buttons */}
+                    <div className="pt-2 border-t border-neutral-100 flex flex-col gap-2 mt-2">
+                      {isMaint ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleMaintenance(villa.id)}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:shadow-md"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{language === "vi" ? "Mở Lại Hoạt Động" : "Restore to Active"}</span>
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMaintenanceDialogVilla(villa);
+                            setMaintenanceNoteInput(
+                              info?.reason || (language === "vi" ? "Nâng cấp bảo trì định kỳ. Tạm dừng nhận đặt phòng." : "Scheduled seasonal maintenance & deep renovation. Reopening soon.")
+                            );
+                          }}
+                          className="w-full bg-[#14171A] hover:bg-amber-600 text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:shadow-md"
+                        >
+                          <Wrench className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{language === "vi" ? "Kích Hoạt Bảo Trì" : "Set Under Maintenance"}</span>
+                        </button>
+                      )}
 
-                  {/* Action Buttons */}
-                  <div className="pt-2 border-t border-neutral-100 flex flex-col gap-2 mt-2">
-                    {isMaint ? (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleMaintenance(villa.id)}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:shadow-md"
-                      >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Restore to Active</span>
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMaintenanceDialogVilla(villa);
-                          setMaintenanceNoteInput(
-                            info?.reason || "Scheduled seasonal maintenance & deep renovation. Reopening soon."
-                          );
-                        }}
-                        className="w-full bg-[#14171A] hover:bg-amber-600 text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:shadow-md"
-                      >
-                        <Wrench className="w-3.5 h-3.5 text-amber-400" />
-                        <span>Set Under Maintenance</span>
-                      </button>
-                    )}
-
-                    {isMaint && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMaintenanceDialogVilla(villa);
-                          setMaintenanceNoteInput(
-                            info?.reason || "Scheduled seasonal maintenance & deep renovation. Reopening soon."
-                          );
-                        }}
-                        className="text-[11px] text-neutral-500 hover:text-neutral-900 underline text-center cursor-pointer py-0.5"
-                      >
-                        Edit maintenance notice
-                      </button>
-                    )}
+                      {isMaint && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMaintenanceDialogVilla(villa);
+                            setMaintenanceNoteInput(
+                              info?.reason || (language === "vi" ? "Nâng cấp bảo trì định kỳ. Tạm dừng nhận đặt phòng." : "Scheduled seasonal maintenance & deep renovation. Reopening soon.")
+                            );
+                          }}
+                          className="text-[11px] text-neutral-500 hover:text-neutral-900 underline text-center cursor-pointer py-0.5"
+                        >
+                          {language === "vi" ? "Sửa thông báo bảo trì" : "Edit maintenance notice"}
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Filter and Search Bar */}
-        <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm mb-6 flex flex-col md:flex-row gap-3 items-center justify-between">
-          <div className="relative w-full md:w-80">
+        {/* PANEL 4: ALL RESERVATIONS (DEFAULT VIEW) */}
+        {adminViewTab === "all_bookings" && (
+          <div className="space-y-6 animate-fade-in">
+            {/* Filter and Search Bar */}
+            <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm mb-6 flex flex-col md:flex-row gap-3 items-center justify-between">
+              <div className="relative w-full md:w-80">
             <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
             <input
               type="text"
-              placeholder="Search guest, ID, villa, phone..."
+              placeholder={t("admin.search_placeholder", "Search guest, ID, villa, phone...")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-[#FAF8F5] border border-neutral-200 rounded-xl pl-10 pr-4 py-2 text-xs focus:outline-none focus:border-[#C2A476]"
@@ -1092,29 +2075,44 @@ export default function AdminPage() {
             {/* Status Filter */}
             <div className="flex items-center gap-1.5 text-xs text-neutral-600">
               <Filter className="w-3.5 h-3.5 text-neutral-400" />
-              <span>Status:</span>
+              <span>{t("admin.filter_status", "Status")}:</span>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
                 className="bg-[#FAF8F5] border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-800 focus:outline-none"
               >
-                <option value="all">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="contacted">Contacted</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="all">{t("admin.all_statuses", "All Statuses")}</option>
+                <option value="pending">⏳ {t("admin.status_pending", "Pending")}</option>
+                <option value="contacted">📞 {t("admin.status_contacted", "Contacted")}</option>
+                <option value="confirmed">✅ {t("admin.status_confirmed", "Confirmed")}</option>
+                <option value="cancelled">❌ {t("admin.status_cancelled", "Cancelled")}</option>
+                <option value="expired_needs_cleaning">
+                  🧹 {language === "vi" ? "Hết hạn • Cần dọn dẹp" : "Stay Ended • Needs Cleaning"} ({hkSummary.needsCleaningCount})
+                </option>
+                <option value="checkout_today">
+                  ⏰ {language === "vi" ? "Trả phòng hôm nay" : "Checkout Today"} ({hkSummary.todayCount})
+                </option>
+                <option value="in_cleaning">
+                  🟡 {language === "vi" ? "Đang dọn dẹp" : "In Cleaning"} ({hkSummary.inCleaningCount})
+                </option>
+                <option value="cleaned">
+                  ✨ {language === "vi" ? "Đã dọn dẹp xong" : "Cleaned & Inspected"} ({hkSummary.cleanedCount})
+                </option>
+                <option value="in_house">
+                  🏡 {language === "vi" ? "Đang lưu trú" : "Currently In-House"}
+                </option>
               </select>
             </div>
 
             {/* Villa Filter */}
             <div className="flex items-center gap-1.5 text-xs text-neutral-600">
-              <span>Villa:</span>
+              <span>{t("admin.filter_villa", "Villa")}:</span>
               <select
                 value={villaFilter}
                 onChange={(e) => setVillaFilter(e.target.value)}
                 className="bg-[#FAF8F5] border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-800 focus:outline-none"
               >
-                <option value="all">All 4 Villas</option>
+                <option value="all">{t("admin.all_villas_option", "All 4 Villas")}</option>
                 {siteConfig.villas.map((v) => (
                   <option key={v.id} value={v.id}>
                     {v.code} ({v.district})
@@ -1204,6 +2202,98 @@ export default function AdminPage() {
                     );
                   })()}
 
+                  {/* Stay Expiration & Housekeeping Turnover Banner */}
+                  {(() => {
+                    const stay = getStayStatus(inq.checkIn, inq.checkOut);
+                    const isExpiredOrToday = stay === "expired" || stay === "checkout_today";
+                    if (!isExpiredOrToday || inq.status === "cancelled") return null;
+
+                    const cStatus = inq.cleaningStatus || "needs_cleaning";
+
+                    return (
+                      <div className={`mb-4 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in ${
+                        cStatus === "needs_cleaning"
+                          ? "bg-rose-50 border-rose-300 text-rose-900"
+                          : cStatus === "in_cleaning"
+                          ? "bg-amber-50 border-amber-300 text-amber-900"
+                          : "bg-emerald-50 border-emerald-300 text-emerald-900"
+                      }`}>
+                        <div className="flex items-start gap-2.5">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold ${
+                            cStatus === "needs_cleaning"
+                              ? "bg-rose-600"
+                              : cStatus === "in_cleaning"
+                              ? "bg-amber-500"
+                              : "bg-emerald-600"
+                          }`}>
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-xs">
+                                {stay === "checkout_today"
+                                  ? (language === "vi" ? "⏰ Hôm Nay Trả Phòng" : "⏰ Checkout Today")
+                                  : (language === "vi" ? "🔴 Đã Hết Hạn Lưu Trú" : "🔴 Stay Concluded")}
+                              </span>
+                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
+                                cStatus === "needs_cleaning"
+                                  ? "bg-rose-200 text-rose-900 border border-rose-300"
+                                  : cStatus === "in_cleaning"
+                                  ? "bg-amber-200 text-amber-900 border border-amber-300"
+                                  : "bg-emerald-200 text-emerald-900 border border-emerald-300"
+                              }`}>
+                                {cStatus === "needs_cleaning"
+                                  ? (language === "vi" ? "Chưa Dọn Dẹp" : "Needs Cleaning")
+                                  : cStatus === "in_cleaning"
+                                  ? (language === "vi" ? "Đang Dọn Dẹp" : "In Cleaning")
+                                  : (language === "vi" ? "Đã Dọn Xong ✨" : "Cleaned ✨")}
+                              </span>
+                            </div>
+                            <p className="text-[11px] mt-0.5 leading-snug opacity-90">
+                              {inq.cleaningNotes || (language === "vi" ? "Cần kiểm tra phòng, thay ga giường và vệ sinh trước khi đón khách tiếp theo." : "Inspect room, replace linens and sanitize before next arrival.")}
+                            </p>
+                            {inq.cleanedAt && cStatus === "cleaned" && (
+                              <p className="text-[10px] text-emerald-700 mt-1 font-medium">
+                                ✨ {language === "vi" ? "Dọn xong lúc:" : "Cleaned at:"} {new Date(inq.cleanedAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Quick Action Status Switcher */}
+                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
+                          {cStatus !== "in_cleaning" && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateCleaningStatus(inq.id, "in_cleaning")}
+                              className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer transition-colors"
+                            >
+                              {language === "vi" ? "🟡 Bắt đầu dọn" : "🟡 Start Cleaning"}
+                            </button>
+                          )}
+                          {cStatus !== "cleaned" && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateCleaningStatus(inq.id, "cleaned")}
+                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer transition-colors"
+                            >
+                              {language === "vi" ? "🟢 Đã dọn xong" : "🟢 Mark Cleaned"}
+                            </button>
+                          )}
+                          {cStatus !== "needs_cleaning" && (
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateCleaningStatus(inq.id, "needs_cleaning")}
+                              className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer transition-colors"
+                            >
+                              {language === "vi" ? "🔴 Đặt lại cần dọn" : "🔴 Reset Needs Cleaning"}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-neutral-100">
                     <div className="flex items-start sm:items-center gap-3">
                       <span className="font-mono text-xs font-bold text-neutral-800 bg-neutral-100 px-2.5 py-1 rounded-md">
@@ -1234,10 +2324,10 @@ export default function AdminPage() {
                             : "bg-neutral-100 text-neutral-500 border-neutral-200"
                         }`}
                       >
-                        <option value="pending">● Pending</option>
-                        <option value="contacted">● Contacted</option>
-                        <option value="confirmed">● Confirmed</option>
-                        <option value="cancelled">● Cancelled (Release Dates)</option>
+                        <option value="pending">● {t("admin.status_pending", "Pending")}</option>
+                        <option value="contacted">● {t("admin.status_contacted", "Contacted")}</option>
+                        <option value="confirmed">● {t("admin.status_confirmed", "Confirmed")}</option>
+                        <option value="cancelled">● {language === "vi" ? "Đã Huỷ (Nhả Lịch)" : "Cancelled (Release Dates)"}</option>
                       </select>
 
                       {/* Edit Button */}
@@ -1247,7 +2337,7 @@ export default function AdminPage() {
                         title="Edit Dates & Reservation Info"
                       >
                         <Edit3 className="w-3.5 h-3.5 text-[#C2A476]" />
-                        <span>Edit</span>
+                        <span>{t("admin.edit_dates", "Edit")}</span>
                       </button>
 
                       {/* Direct WhatsApp Contact */}
@@ -1277,7 +2367,7 @@ export default function AdminPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 text-xs">
                     <div>
                       <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        Stay Dates
+                        {t("admin.stay_dates", "Stay Dates")}
                       </span>
                       <p className="font-semibold text-neutral-800 mt-0.5">
                         {inq.checkIn} → {inq.checkOut}
@@ -1286,16 +2376,16 @@ export default function AdminPage() {
 
                     <div>
                       <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        Guest Count
+                        {t("admin.guest_count", "Guest Count")}
                       </span>
                       <p className="font-semibold text-neutral-800 mt-0.5">
-                        {inq.adults} Adults {inq.children > 0 ? `, ${inq.children} Children` : ""}
+                        {inq.adults} {language === "vi" ? "Người lớn" : "Adults"} {inq.children > 0 ? `, ${inq.children} ${language === "vi" ? "Trẻ em" : "Children"}` : ""}
                       </p>
                     </div>
 
                     <div>
                       <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        Guest Phone / WhatsApp
+                        {language === "vi" ? "Điện Thoại / WhatsApp" : "Guest Phone / WhatsApp"}
                       </span>
                       <a
                         href={`tel:${inq.phone}`}
@@ -1308,7 +2398,7 @@ export default function AdminPage() {
 
                     <div>
                       <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        Guest Email
+                        {language === "vi" ? "Email Khách" : "Guest Email"}
                       </span>
                       <a
                         href={`mailto:${inq.email}`}
@@ -1324,21 +2414,23 @@ export default function AdminPage() {
                   {inq.specialRequests && (
                     <div className="mt-3 p-3 bg-[#FAF8F5] rounded-xl text-xs text-neutral-700 border border-neutral-100">
                       <span className="font-semibold text-neutral-900 block mb-0.5">
-                        Guest Special Notes / Reason:
+                        {t("admin.special_notes", "Guest Special Notes / Reason:")}
                       </span>
                       <p className="italic">{inq.specialRequests}</p>
                     </div>
                   )}
 
                   <div className="mt-3 text-[10px] text-neutral-400 text-right">
-                    Received on: {new Date(inq.createdAt).toLocaleString()}
+                    {t("admin.created_at", "Received on")}: {new Date(inq.createdAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
                   </div>
                 </div>
               );
             })}
           </div>
         )}
-      </main>
+      </div>
+    )}
+  </main>
 
       {/* MODAL 1: EDIT RESERVATION & DATES */}
       {editingInquiry && (
@@ -1347,10 +2439,10 @@ export default function AdminPage() {
             <div className="bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-[#C2A476] font-semibold">
-                  Host Reservation Editor
+                  {language === "vi" ? "Chỉnh sửa đơn đặt phòng Host" : "Host Reservation Editor"}
                 </span>
                 <h3 className="font-serif text-lg font-medium text-white">
-                  Edit Reservation #{editingInquiry.id}
+                  {language === "vi" ? `Sửa đơn đặt phòng #${editingInquiry.id}` : `Edit Reservation #${editingInquiry.id}`}
                 </h3>
               </div>
               <button
@@ -1365,7 +2457,7 @@ export default function AdminPage() {
               {/* Villa Selector */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  Assigned Villa
+                  {language === "vi" ? "Biệt thự được chỉ định" : "Assigned Villa"}
                 </label>
                 <select
                   value={editingInquiry.villaId}
@@ -1385,7 +2477,7 @@ export default function AdminPage() {
               {/* Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <LuxuryDatePicker
-                  label="Check-in Date"
+                  label={language === "vi" ? "Ngày nhận phòng (Check-in)" : "Check-in Date"}
                   selectedDate={editingInquiry.checkIn}
                   onSelectDate={(val) =>
                     setEditingInquiry((prev) =>
@@ -1400,10 +2492,10 @@ export default function AdminPage() {
                   }
                   villaId={editingInquiry.villaId}
                   excludeInquiryId={editingInquiry.id}
-                  placeholder="Select Check-in Date"
+                  placeholder={language === "vi" ? "Chọn ngày nhận phòng" : "Select Check-in Date"}
                 />
                 <LuxuryDatePicker
-                  label="Check-out Date"
+                  label={language === "vi" ? "Ngày trả phòng (Check-out)" : "Check-out Date"}
                   selectedDate={editingInquiry.checkOut}
                   onSelectDate={(val) =>
                     setEditingInquiry((prev) => (prev ? { ...prev, checkOut: val } : null))
@@ -1413,7 +2505,7 @@ export default function AdminPage() {
                   checkInDate={editingInquiry.checkIn}
                   minDate={editingInquiry.checkIn ? addDays(editingInquiry.checkIn, 1) : undefined}
                   excludeInquiryId={editingInquiry.id}
-                  placeholder="Select Check-out Date"
+                  placeholder={language === "vi" ? "Chọn ngày trả phòng" : "Select Check-out Date"}
                 />
               </div>
 
@@ -1434,9 +2526,13 @@ export default function AdminPage() {
                   <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-bold text-rose-900">Overlapping Date Conflict Detected!</p>
+                      <p className="font-bold text-rose-900">
+                        {language === "vi" ? "Phát hiện xung đột lịch phòng!" : "Overlapping Date Conflict Detected!"}
+                      </p>
                       <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
-                        These dates overlap with reservation #{conflict.id} ({conflict.guestName}: {conflict.checkIn} → {conflict.checkOut}). Please select non-overlapping dates.
+                        {language === "vi"
+                          ? `Khoảng ngày này trùng với đơn #${conflict.id} (${conflict.guestName}: ${conflict.checkIn} → ${conflict.checkOut}). Vui lòng chọn ngày không bị trùng.`
+                          : `These dates overlap with reservation #${conflict.id} (${conflict.guestName}: ${conflict.checkIn} → ${conflict.checkOut}). Please select non-overlapping dates.`}
                       </p>
                     </div>
                   </div>
@@ -1446,7 +2542,7 @@ export default function AdminPage() {
               {/* Status */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  Reservation Status
+                  {language === "vi" ? "Trạng thái đặt phòng" : "Reservation Status"}
                 </label>
                 <select
                   value={editingInquiry.status}
@@ -1458,10 +2554,10 @@ export default function AdminPage() {
                   }
                   className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2.5 text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
                 >
-                  <option value="pending">Pending</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="confirmed">Confirmed (Dates Locked)</option>
-                  <option value="cancelled">Cancelled (Dates Released)</option>
+                  <option value="pending">{language === "vi" ? "Chờ xử lý (Pending)" : "Pending"}</option>
+                  <option value="contacted">{language === "vi" ? "Đã liên hệ (Contacted)" : "Contacted"}</option>
+                  <option value="confirmed">{language === "vi" ? "Đã xác nhận (Khóa ngày)" : "Confirmed (Dates Locked)"}</option>
+                  <option value="cancelled">{language === "vi" ? "Đã hủy (Mở lại ngày)" : "Cancelled (Dates Released)"}</option>
                 </select>
               </div>
 
@@ -1469,7 +2565,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                    Guest Name / Label
+                    {language === "vi" ? "Tên khách / Ghi chú" : "Guest Name / Label"}
                   </label>
                   <input
                     type="text"
@@ -1483,7 +2579,7 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                    Phone / WhatsApp
+                    {language === "vi" ? "Số điện thoại / Zalo" : "Phone / WhatsApp"}
                   </label>
                   <input
                     type="text"
@@ -1499,7 +2595,7 @@ export default function AdminPage() {
 
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  Email Address
+                  {language === "vi" ? "Địa chỉ Email" : "Email Address"}
                 </label>
                 <input
                   type="email"
@@ -1515,7 +2611,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                    Adults
+                    {language === "vi" ? "Người lớn" : "Adults"}
                   </label>
                   <input
                     type="number"
@@ -1533,7 +2629,7 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                    Children
+                    {language === "vi" ? "Trẻ em" : "Children"}
                   </label>
                   <input
                     type="number"
@@ -1554,7 +2650,7 @@ export default function AdminPage() {
               {/* Special Requests */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  Host Notes / Special Requests
+                  {language === "vi" ? "Ghi chú nội bộ / Yêu cầu đặc biệt" : "Host Notes / Special Requests"}
                 </label>
                 <textarea
                   rows={2}
@@ -1576,7 +2672,7 @@ export default function AdminPage() {
                   onClick={() => setEditingInquiry(null)}
                   className="w-1/2 py-2.5 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 hover:bg-neutral-100 cursor-pointer"
                 >
-                  Cancel
+                  {language === "vi" ? "Hủy bỏ" : "Cancel"}
                 </button>
                 {(() => {
                   const hasConflict = Boolean(
@@ -1598,7 +2694,11 @@ export default function AdminPage() {
                       className="w-1/2 py-2.5 rounded-xl bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Save className="w-4 h-4" />
-                      <span>{hasConflict ? "Dates Conflict — Cannot Save" : "Save Changes"}</span>
+                      <span>
+                        {hasConflict
+                          ? (language === "vi" ? "Trùng ngày — Không thể lưu" : "Dates Conflict — Cannot Save")
+                          : (language === "vi" ? "Lưu thay đổi" : "Save Changes")}
+                      </span>
                     </button>
                   );
                 })()}
@@ -1615,10 +2715,10 @@ export default function AdminPage() {
             <div className="bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-[#C2A476] font-semibold">
-                  Host Calendar Management
+                  {language === "vi" ? "Quản lý lịch phòng Host" : "Host Calendar Management"}
                 </span>
                 <h3 className="font-serif text-lg font-medium text-white">
-                  Block Dates or Add Offline Reservation
+                  {language === "vi" ? "Khóa ngày hoặc Thêm đơn đặt phòng offline" : "Block Dates or Add Offline Reservation"}
                 </h3>
               </div>
               <button
@@ -1632,7 +2732,7 @@ export default function AdminPage() {
             <form onSubmit={handleCreateManualBooking} className="p-6 space-y-4">
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  Select Villa to Block / Reserve
+                  {language === "vi" ? "Chọn Biệt thự cần khóa / đặt phòng" : "Select Villa to Block / Reserve"}
                 </label>
                 <select
                   value={newBookingData.villaId}
@@ -1652,7 +2752,7 @@ export default function AdminPage() {
               {/* Luxury Dates Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <LuxuryDatePicker
-                  label="Check-in Date"
+                  label={language === "vi" ? "Ngày nhận phòng (Check-in)" : "Check-in Date"}
                   selectedDate={newBookingData.checkIn}
                   onSelectDate={(val) =>
                     setNewBookingData((prev) => ({
@@ -1662,10 +2762,10 @@ export default function AdminPage() {
                     }))
                   }
                   villaId={newBookingData.villaId}
-                  placeholder="Select Check-in Date"
+                  placeholder={language === "vi" ? "Chọn ngày nhận phòng" : "Select Check-in Date"}
                 />
                 <LuxuryDatePicker
-                  label="Check-out Date"
+                  label={language === "vi" ? "Ngày trả phòng (Check-out)" : "Check-out Date"}
                   selectedDate={newBookingData.checkOut}
                   onSelectDate={(val) =>
                     setNewBookingData((prev) => ({ ...prev, checkOut: val }))
@@ -1674,7 +2774,7 @@ export default function AdminPage() {
                   isCheckOut={true}
                   checkInDate={newBookingData.checkIn}
                   minDate={newBookingData.checkIn ? addDays(newBookingData.checkIn, 1) : undefined}
-                  placeholder="Select Check-out Date"
+                  placeholder={language === "vi" ? "Chọn ngày trả phòng" : "Select Check-out Date"}
                 />
               </div>
 
@@ -1694,9 +2794,13 @@ export default function AdminPage() {
                   <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
                     <div>
-                      <p className="font-bold text-rose-900">Overlapping Booking Prohibited!</p>
+                      <p className="font-bold text-rose-900">
+                        {language === "vi" ? "Nghiêm cấm đặt trùng ngày!" : "Overlapping Booking Prohibited!"}
+                      </p>
                       <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
-                        This villa is already reserved from {conflict.checkIn} to {conflict.checkOut} by {conflict.guestName} (#{conflict.id}). Overlapping reservations cannot be saved.
+                        {language === "vi"
+                          ? `Villa này đã có lịch từ ${conflict.checkIn} đến ${conflict.checkOut} bởi khách ${conflict.guestName} (#${conflict.id}). Không thể khóa trùng ngày.`
+                          : `This villa is already reserved from ${conflict.checkIn} to ${conflict.checkOut} by ${conflict.guestName} (#{conflict.id}). Overlapping reservations cannot be saved.`}
                       </p>
                     </div>
                   </div>
@@ -1706,11 +2810,11 @@ export default function AdminPage() {
               {/* Guest Name / Reason */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  Guest Name or Reason for Block
+                  {language === "vi" ? "Tên khách hoặc Lý do khóa ngày" : "Guest Name or Reason for Block"}
                 </label>
                 <input
                   type="text"
-                  placeholder="e.g. VIP Guest Mr. Thomas / Private Maintenance"
+                  placeholder={language === "vi" ? "Ví dụ: Khách VIP Anh Nam / Giữ phòng nội bộ" : "e.g. VIP Guest Mr. Thomas / Private Maintenance"}
                   value={newBookingData.guestName}
                   onChange={(e) =>
                     setNewBookingData({ ...newBookingData, guestName: e.target.value })
@@ -1724,7 +2828,7 @@ export default function AdminPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                    Phone / WhatsApp
+                    {language === "vi" ? "Số điện thoại / Zalo" : "Phone / WhatsApp"}
                   </label>
                   <input
                     type="text"
@@ -1737,7 +2841,7 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                    Status
+                    {language === "vi" ? "Trạng thái" : "Status"}
                   </label>
                   <select
                     value={newBookingData.status}
@@ -1749,8 +2853,8 @@ export default function AdminPage() {
                     }
                     className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900"
                   >
-                    <option value="confirmed">Confirmed (Locks Dates)</option>
-                    <option value="pending">Pending</option>
+                    <option value="confirmed">{language === "vi" ? "Đã xác nhận (Khóa ngày)" : "Confirmed (Locks Dates)"}</option>
+                    <option value="pending">{language === "vi" ? "Chờ xử lý (Pending)" : "Pending"}</option>
                   </select>
                 </div>
               </div>
@@ -1758,7 +2862,7 @@ export default function AdminPage() {
               {/* Notes */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  Notes
+                  {language === "vi" ? "Ghi chú thêm" : "Notes"}
                 </label>
                 <textarea
                   rows={2}
@@ -1779,7 +2883,7 @@ export default function AdminPage() {
                   onClick={() => setIsAddModalOpen(false)}
                   className="w-1/2 py-2.5 rounded-xl border border-neutral-300 text-xs font-medium text-neutral-700 hover:bg-neutral-100 cursor-pointer"
                 >
-                  Cancel
+                  {language === "vi" ? "Hủy bỏ" : "Cancel"}
                 </button>
                 {(() => {
                   const hasConflict = Boolean(
@@ -1800,7 +2904,11 @@ export default function AdminPage() {
                       className="w-1/2 py-2.5 rounded-xl bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Check className="w-4 h-4" />
-                      <span>{hasConflict ? "Dates Conflict — Cannot Lock" : "Lock Dates on Calendar"}</span>
+                      <span>
+                        {hasConflict
+                          ? (language === "vi" ? "Trùng ngày — Không thể khóa" : "Dates Conflict — Cannot Lock")
+                          : (language === "vi" ? "Khóa ngày trên lịch" : "Lock Dates on Calendar")}
+                      </span>
                     </button>
                   );
                 })()}
@@ -1821,10 +2929,10 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <h3 className="font-serif font-bold text-base text-neutral-900 leading-tight">
-                    Villa Maintenance Settings
+                    {language === "vi" ? "Cài đặt bảo trì Biệt thự" : "Villa Maintenance Settings"}
                   </h3>
                   <span className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider">
-                    Operational Control
+                    {language === "vi" ? "Điều khiển vận hành" : "Operational Control"}
                   </span>
                 </div>
               </div>
@@ -1839,7 +2947,7 @@ export default function AdminPage() {
 
             <div className="mb-4">
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                Target Sanctuary:
+                {language === "vi" ? "Biệt thự áp dụng:" : "Target Sanctuary:"}
               </label>
               <div className="p-3 rounded-2xl bg-[#FAF8F5] border border-neutral-200 flex items-center gap-3">
                 <div className="w-12 h-12 rounded-xl overflow-hidden relative border border-neutral-200 flex-shrink-0 shadow-sm">
@@ -1858,7 +2966,7 @@ export default function AdminPage() {
                     {maintenanceDialogVilla.name}
                   </h4>
                   <p className="text-[11px] text-neutral-500">
-                    {maintenanceDialogVilla.district} • {maintenanceDialogVilla.bedrooms} PN En-suite
+                    {maintenanceDialogVilla.district} • {maintenanceDialogVilla.bedrooms} {language === "vi" ? "PN En-suite" : "En-suite BR"}
                   </p>
                 </div>
               </div>
@@ -1866,17 +2974,25 @@ export default function AdminPage() {
 
             <div className="mb-5">
               <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                Maintenance Notice & Reason (Shown to public guests):
+                {language === "vi"
+                  ? "Thông báo & Lý do bảo trì (Hiển thị công khai cho khách xem):"
+                  : "Maintenance Notice & Reason (Shown to public guests):"}
               </label>
               <textarea
                 rows={3}
                 value={maintenanceNoteInput}
                 onChange={(e) => setMaintenanceNoteInput(e.target.value)}
-                placeholder="e.g. Scheduled pool resurfacing & luxury interior upgrade. Reopening soon."
+                placeholder={
+                  language === "vi"
+                    ? "Ví dụ: Đang thay nước hồ bơi & nâng cấp nội thất sang trọng. Sẽ mở lại đón khách sớm."
+                    : "e.g. Scheduled pool resurfacing & luxury interior upgrade. Reopening soon."
+                }
                 className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl p-3 text-xs text-neutral-900 focus:outline-none focus:border-[#C2A476] resize-none"
               />
               <p className="text-[11px] text-neutral-400 mt-1.5 leading-relaxed">
-                When activated, this villa cannot be booked online. The calendar dates will be locked and this notice will be displayed to guests.
+                {language === "vi"
+                  ? "Khi kích hoạt, biệt thự này sẽ tạm dừng nhận đặt phòng online. Lịch sẽ bị khóa và lý do này sẽ hiển thị cho khách xem."
+                  : "When activated, this villa cannot be booked online. The calendar dates will be locked and this notice will be displayed to guests."}
               </p>
             </div>
 
@@ -1886,7 +3002,7 @@ export default function AdminPage() {
                 onClick={() => setMaintenanceDialogVilla(null)}
                 className="px-4 py-2.5 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 cursor-pointer"
               >
-                Cancel
+                {language === "vi" ? "Hủy bỏ" : "Cancel"}
               </button>
               <button
                 type="button"
@@ -1899,8 +3015,8 @@ export default function AdminPage() {
                 <Wrench className="w-3.5 h-3.5" />
                 <span>
                   {Boolean(maintenanceMap[maintenanceDialogVilla.id]?.isMaintenance)
-                    ? "Update Notice"
-                    : "Activate Maintenance & Lock"}
+                    ? (language === "vi" ? "Cập nhật thông báo" : "Update Notice")
+                    : (language === "vi" ? "Kích hoạt bảo trì & Khóa phòng" : "Activate Maintenance & Lock")}
                 </span>
               </button>
             </div>
@@ -1912,25 +3028,29 @@ export default function AdminPage() {
       <LuxuryConfirmDialog
         isOpen={Boolean(inquiryToDelete)}
         variant="danger"
-        badgeText="Permanent Action"
-        title="Delete Reservation Inquiry"
-        message="Are you sure you want to permanently delete this reservation inquiry? The reserved dates will be immediately released and made available for public booking across all devices."
+        badgeText={language === "vi" ? "Hành động vĩnh viễn" : "Permanent Action"}
+        title={language === "vi" ? "Xóa đơn đặt phòng" : "Delete Reservation Inquiry"}
+        message={
+          language === "vi"
+            ? "Bạn có chắc chắn muốn xóa vĩnh viễn đơn đặt phòng này không? Các ngày đã chọn sẽ ngay lập tức được mở khóa cho khách đặt trên mọi thiết bị."
+            : "Are you sure you want to permanently delete this reservation inquiry? The reserved dates will be immediately released and made available for public booking across all devices."
+        }
         details={
           inquiryToDelete
             ? [
-                { label: "Inquiry ID", value: `#${inquiryToDelete.id}` },
-                { label: "Guest Name", value: inquiryToDelete.guestName },
-                { label: "Villa", value: inquiryToDelete.villaName },
+                { label: language === "vi" ? "Mã đơn" : "Inquiry ID", value: `#${inquiryToDelete.id}` },
+                { label: language === "vi" ? "Tên khách" : "Guest Name", value: inquiryToDelete.guestName },
+                { label: language === "vi" ? "Biệt thự" : "Villa", value: inquiryToDelete.villaName },
                 {
-                  label: "Stay Period",
+                  label: language === "vi" ? "Thời gian lưu trú" : "Stay Period",
                   value: `${formatLuxuryDate(inquiryToDelete.checkIn)} → ${formatLuxuryDate(inquiryToDelete.checkOut)}`,
                 },
-                { label: "Status", value: inquiryToDelete.status.toUpperCase() },
+                { label: language === "vi" ? "Trạng thái" : "Status", value: inquiryToDelete.status.toUpperCase() },
               ]
             : undefined
         }
-        confirmText="Delete & Release Dates"
-        cancelText="Cancel"
+        confirmText={language === "vi" ? "Xóa & Mở lại ngày" : "Delete & Release Dates"}
+        cancelText={language === "vi" ? "Hủy bỏ" : "Cancel"}
         isLoading={isDeleting}
         onConfirm={handleConfirmDelete}
         onCancel={() => setInquiryToDelete(null)}
@@ -1940,11 +3060,15 @@ export default function AdminPage() {
       <LuxuryConfirmDialog
         isOpen={isResetConfirmOpen}
         variant="warning"
-        badgeText="Database Reset"
-        title="Reset to Sample Inquiries"
-        message="Are you sure you want to restore the initial sample reservations? This will overwrite recent inquiries and reset the demo schedule across all devices."
-        confirmText="Reset Database"
-        cancelText="Cancel"
+        badgeText={language === "vi" ? "Khôi phục hệ thống" : "Database Reset"}
+        title={language === "vi" ? "Khôi phục dữ liệu mẫu ban đầu" : "Reset to Sample Inquiries"}
+        message={
+          language === "vi"
+            ? "Bạn có chắc chắn muốn khôi phục lại các đơn đặt phòng mẫu ban đầu? Thao tác này sẽ ghi đè các đơn hiện tại và đặt lại lịch mẫu đồng bộ trên tất cả thiết bị."
+            : "Are you sure you want to restore the initial sample reservations? This will overwrite recent inquiries and reset the demo schedule across all devices."
+        }
+        confirmText={language === "vi" ? "Khôi phục dữ liệu mẫu" : "Reset Database"}
+        cancelText={language === "vi" ? "Hủy bỏ" : "Cancel"}
         isLoading={isResetting}
         onConfirm={handleConfirmResetSample}
         onCancel={() => setIsResetConfirmOpen(false)}
@@ -1959,7 +3083,7 @@ export default function AdminPage() {
           title={adminNotice.title}
           message={adminNotice.message}
           details={adminNotice.details}
-          confirmText="Understood"
+          confirmText={language === "vi" ? "Đã hiểu" : "Understood"}
           cancelText={null}
           isAlertOnly={true}
           onConfirm={() => setAdminNotice(null)}
@@ -1989,10 +3113,10 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <span className="text-[10px] uppercase font-bold tracking-[0.2em] px-2.5 py-0.5 rounded-full bg-[#FAF8F5] border border-[#EAE5DC] text-[#93784F] inline-block mb-1">
-                      Multi-Device Architecture
+                      {language === "vi" ? "Kiến trúc Đa Thiết Bị" : "Multi-Device Architecture"}
                     </span>
                     <h3 className="font-serif text-xl sm:text-2xl font-normal text-neutral-900 leading-tight">
-                      Đồng bộ Đa Thiết bị & Cloud Database
+                      {language === "vi" ? "Đồng bộ Đa Thiết bị & Cloud Database" : "Multi-Device Cloud Synchronization"}
                     </h3>
                   </div>
                 </div>
@@ -2023,12 +3147,18 @@ export default function AdminPage() {
                   />
                   <span className="font-semibold">
                     {isCloudStorage
-                      ? `Trạng thái: 🟢 Đã kết nối Cloud Database (${storageType})`
-                      : "Trạng thái: ⚡ Chế độ Cục bộ (Chưa kết nối Vercel KV)"}
+                      ? (language === "vi"
+                          ? `Trạng thái: 🟢 Đã kết nối Cloud Database (${storageType})`
+                          : `Status: 🟢 Connected to Cloud Database (${storageType})`)
+                      : (language === "vi"
+                          ? "Trạng thái: ⚡ Chế độ Cục bộ (Chưa kết nối Vercel KV)"
+                          : "Status: ⚡ Local Standalone Mode (Vercel KV Not Connected)")}
                   </span>
                 </div>
                 <span className="text-[11px] font-mono opacity-80">
-                  {isCloudStorage ? "Live Real-Time" : "Local Standalone"}
+                  {isCloudStorage
+                    ? (language === "vi" ? "Trực tiếp Thời gian thực" : "Live Real-Time")
+                    : (language === "vi" ? "Cục bộ Đơn máy" : "Local Standalone")}
                 </span>
               </div>
 
@@ -2043,7 +3173,7 @@ export default function AdminPage() {
                       : "text-neutral-600 hover:text-neutral-900"
                   }`}
                 >
-                  1. Bật Vercel KV (Tự động 100%)
+                  {language === "vi" ? "1. Bật Vercel KV (Tự động 100%)" : "1. Enable Vercel KV (100% Auto)"}
                 </button>
                 <button
                   type="button"
@@ -2056,7 +3186,7 @@ export default function AdminPage() {
                       : "text-neutral-600 hover:text-neutral-900"
                   }`}
                 >
-                  2. Xuất mã sang máy khác
+                  {language === "vi" ? "2. Xuất mã sang máy khác" : "2. Export Code to Other Devices"}
                 </button>
                 <button
                   type="button"
@@ -2069,7 +3199,7 @@ export default function AdminPage() {
                       : "text-neutral-600 hover:text-neutral-900"
                   }`}
                 >
-                  3. Nạp mã từ máy khác
+                  {language === "vi" ? "3. Nạp mã từ máy khác" : "3. Import Code from Other Device"}
                 </button>
               </div>
 
@@ -2078,16 +3208,28 @@ export default function AdminPage() {
                 <div className="space-y-4 text-xs leading-relaxed text-neutral-600">
                   <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-4">
                     <h4 className="font-bold text-neutral-900 text-sm mb-1.5">
-                      💡 Tại sao khi dùng nhiều thiết bị trên Vercel cần bật Vercel KV?
+                      {language === "vi"
+                        ? "💡 Tại sao khi dùng nhiều thiết bị trên Vercel cần bật Vercel KV?"
+                        : "💡 Why is Vercel KV required for multi-device sync on Vercel?"}
                     </h4>
                     <p className="text-neutral-600 leading-relaxed text-[12px]">
-                      Vercel chạy trên mô hình <strong>Serverless</strong> (máy chủ không lưu file cố định). Khi bạn đặt phòng trên điện thoại và mở máy tính khác, mỗi máy kết nối đến một phiên bản máy chủ đám mây độc lập. Để dữ liệu được lưu vĩnh viễn và đồng bộ ngay lập tức, bạn chỉ cần liên kết <strong>Vercel KV</strong> (hoàn toàn miễn phí).
+                      {language === "vi" ? (
+                        <>
+                          Vercel chạy trên mô hình <strong>Serverless</strong> (máy chủ không lưu file cố định). Khi bạn đặt phòng trên điện thoại và mở máy tính khác, mỗi máy kết nối đến một phiên bản máy chủ đám mây độc lập. Để dữ liệu được lưu vĩnh viễn và đồng bộ ngay lập tức, bạn chỉ cần liên kết <strong>Vercel KV</strong> (hoàn toàn miễn phí).
+                        </>
+                      ) : (
+                        <>
+                          Vercel operates on a <strong>Serverless</strong> architecture (ephemeral cloud instances that do not persist local files). When booking on mobile and viewing on another computer, each connects to an isolated cloud instance. Linking <strong>Vercel KV</strong> (completely free) ensures reservations persist permanently and sync in real time across all devices.
+                        </>
+                      )}
                     </p>
                   </div>
 
                   <div className="border border-neutral-200 rounded-2xl p-4 space-y-3">
                     <h5 className="font-bold text-neutral-900 text-xs uppercase tracking-wider text-[#C2A476]">
-                      3 Bước Kích Hoạt Miễn Phí (Chỉ Mất 30 Giây):
+                      {language === "vi"
+                        ? "3 Bước Kích Hoạt Miễn Phí (Chỉ Mất 30 Giây):"
+                        : "3 Free Activation Steps (Takes Only 30 Seconds):"}
                     </h5>
 
                     <div className="flex items-start gap-3">
@@ -2096,10 +3238,18 @@ export default function AdminPage() {
                       </span>
                       <div>
                         <p className="font-semibold text-neutral-900">
-                          Mở Dashboard dự án trên Vercel
+                          {language === "vi" ? "Mở Dashboard dự án trên Vercel" : "Open Project Dashboard on Vercel"}
                         </p>
                         <p className="text-[11px] text-neutral-500">
-                          Truy cập <a href="https://vercel.com/dashboard" target="_blank" rel="noreferrer" className="text-[#C2A476] underline font-medium">vercel.com/dashboard</a>, chọn dự án website của bạn và bấm vào tab <strong>Storage</strong> ở menu trên cùng.
+                          {language === "vi" ? (
+                            <>
+                              Truy cập <a href="https://vercel.com/dashboard" target="_blank" rel="noreferrer" className="text-[#C2A476] underline font-medium">vercel.com/dashboard</a>, chọn dự án website của bạn và bấm vào tab <strong>Storage</strong> ở menu trên cùng.
+                            </>
+                          ) : (
+                            <>
+                              Visit <a href="https://vercel.com/dashboard" target="_blank" rel="noreferrer" className="text-[#C2A476] underline font-medium">vercel.com/dashboard</a>, select your website project, and click the <strong>Storage</strong> tab in the top navigation.
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -2110,10 +3260,22 @@ export default function AdminPage() {
                       </span>
                       <div>
                         <p className="font-semibold text-neutral-900">
-                          Bấm &quot;Create Database&quot; &rarr; Chọn &quot;KV&quot;
+                          {language === "vi" ? (
+                            <>Bấm &quot;Create Database&quot; &rarr; Chọn &quot;KV&quot;</>
+                          ) : (
+                            <>Click &quot;Create Database&quot; &rarr; Select &quot;KV&quot;</>
+                          )}
                         </p>
                         <p className="text-[11px] text-neutral-500">
-                          Bấm <strong>Create Database</strong>, chọn <strong>KV</strong> (hoặc Upstash Redis), chọn vùng Singapore/Hong Kong rồi bấm <strong>Create</strong>. Vercel sẽ tự động cấp mã kết nối vào dự án!
+                          {language === "vi" ? (
+                            <>
+                              Bấm <strong>Create Database</strong>, chọn <strong>KV</strong> (hoặc Upstash Redis), chọn vùng Singapore/Hong Kong rồi bấm <strong>Create</strong>. Vercel sẽ tự động cấp mã kết nối vào dự án!
+                            </>
+                          ) : (
+                            <>
+                              Click <strong>Create Database</strong>, choose <strong>KV</strong> (or Upstash Redis), select Singapore/Hong Kong region, and click <strong>Create</strong>. Vercel will automatically connect the environment variables!
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -2124,10 +3286,22 @@ export default function AdminPage() {
                       </span>
                       <div>
                         <p className="font-semibold text-neutral-900">
-                          Bấm &quot;Redeploy&quot; lại dự án
+                          {language === "vi" ? (
+                            <>Bấm &quot;Redeploy&quot; lại dự án</>
+                          ) : (
+                            <>Click &quot;Redeploy&quot; the Project</>
+                          )}
                         </p>
                         <p className="text-[11px] text-neutral-500">
-                          Vào tab <strong>Deployments</strong> trên Vercel, chọn bản deploy mới nhất bấm <strong>Redeploy</strong>. Ngay sau khi xong, ô trạng thái sẽ chuyển sang màu xanh 🟢 và toàn bộ thiết bị (iPhone, Android, Laptop) sẽ thấy đơn của nhau tức thì!
+                          {language === "vi" ? (
+                            <>
+                              Vào tab <strong>Deployments</strong> trên Vercel, chọn bản deploy mới nhất bấm <strong>Redeploy</strong>. Ngay sau khi xong, ô trạng thái sẽ chuyển sang màu xanh 🟢 và toàn bộ thiết bị (iPhone, Android, Laptop) sẽ thấy đơn của nhau tức thì!
+                            </>
+                          ) : (
+                            <>
+                              Navigate to <strong>Deployments</strong> on Vercel, select the latest build, and click <strong>Redeploy</strong>. Once finished, this indicator turns green 🟢 and all devices (iPhone, Android, Laptop) will sync reservations instantaneously!
+                            </>
+                          )}
                         </p>
                       </div>
                     </div>
@@ -2140,10 +3314,12 @@ export default function AdminPage() {
                 <div className="space-y-4">
                   <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-4">
                     <h4 className="font-bold text-neutral-900 text-xs sm:text-sm mb-1">
-                      Mã Đồng Bộ Toàn Bộ Đơn Đặt Phòng
+                      {language === "vi" ? "Mã Đồng Bộ Toàn Bộ Đơn Đặt Phòng" : "Complete Reservation Sync Token"}
                     </h4>
                     <p className="text-neutral-500 text-[11px] leading-relaxed mb-3">
-                      Sao chép mã này để gửi sang thiết bị khác (Laptop, iPad, điện thoại khác). Thiết bị nhận chỉ cần dán mã vào mục &quot;Nạp mã&quot; là sẽ có ngay 100% lịch phòng từ máy này.
+                      {language === "vi"
+                        ? "Sao chép mã này để gửi sang thiết bị khác (Laptop, iPad, điện thoại khác). Thiết bị nhận chỉ cần dán mã vào mục \"Nạp mã\" là sẽ có ngay 100% lịch phòng từ máy này."
+                        : "Copy this token to send to another device (Laptop, iPad, mobile). The recipient device only needs to paste it into \"Import Code\" to immediately mirror 100% of the schedule."}
                     </p>
 
                     <textarea
@@ -2155,7 +3331,11 @@ export default function AdminPage() {
 
                     <div className="flex items-center justify-between mt-3 pt-2">
                       <span className="text-[11px] text-neutral-500">
-                        Bao gồm: <strong>{inquiries.length} đơn đặt phòng</strong> & lịch bảo trì
+                        {language === "vi" ? (
+                          <>Bao gồm: <strong>{inquiries.length} đơn đặt phòng</strong> & lịch bảo trì</>
+                        ) : (
+                          <>Includes: <strong>{inquiries.length} reservations</strong> & maintenance status</>
+                        )}
                       </span>
 
                       <button
@@ -2166,12 +3346,12 @@ export default function AdminPage() {
                         {copyTokenFeedback ? (
                           <>
                             <Check className="w-4 h-4 text-emerald-400" />
-                            <span className="text-emerald-400">Đã sao chép!</span>
+                            <span className="text-emerald-400">{language === "vi" ? "Đã sao chép!" : "Copied!"}</span>
                           </>
                         ) : (
                           <>
                             <Copy className="w-4 h-4 text-[#C2A476]" />
-                            <span>Sao chép mã</span>
+                            <span>{language === "vi" ? "Sao chép mã" : "Copy Token"}</span>
                           </>
                         )}
                       </button>
@@ -2185,15 +3365,17 @@ export default function AdminPage() {
                 <div className="space-y-4">
                   <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-4">
                     <h4 className="font-bold text-neutral-900 text-xs sm:text-sm mb-1">
-                      Nạp Mã Đồng Bộ Từ Thiết Bị Khác
+                      {language === "vi" ? "Nạp Mã Đồng Bộ Từ Thiết Bị Khác" : "Import Sync Token from Another Device"}
                     </h4>
                     <p className="text-neutral-500 text-[11px] leading-relaxed mb-3">
-                      Dán mã đồng bộ mà bạn vừa sao chép từ thiết bị trước vào đây. Toàn bộ đơn đặt phòng sẽ được hợp nhất ngay lập tức vào thiết bị này.
+                      {language === "vi"
+                        ? "Dán mã đồng bộ mà bạn vừa sao chép từ thiết bị trước vào đây. Toàn bộ đơn đặt phòng sẽ được hợp nhất ngay lập tức vào thiết bị này."
+                        : "Paste the sync token copied from your previous device here. All reservations will be merged immediately into this device."}
                     </p>
 
                     <textarea
                       rows={5}
-                      placeholder="Dán mã đồng bộ bắt đầu bằng eyJ... vào đây..."
+                      placeholder={language === "vi" ? "Dán mã đồng bộ bắt đầu bằng eyJ... vào đây..." : "Paste sync token starting with eyJ... here..."}
                       value={syncTokenInput}
                       onChange={(e) => setSyncTokenInput(e.target.value)}
                       className="w-full bg-white border border-neutral-300 rounded-xl p-3 text-[11px] font-mono text-neutral-800 focus:outline-none focus:border-[#C2A476] resize-none"
@@ -2205,7 +3387,7 @@ export default function AdminPage() {
                         onClick={() => setIsSyncModalOpen(false)}
                         className="px-4 py-2.5 rounded-xl border border-neutral-300 text-neutral-700 hover:bg-neutral-50 text-xs font-medium cursor-pointer"
                       >
-                        Đóng
+                        {language === "vi" ? "Đóng" : "Close"}
                       </button>
                       <button
                         type="button"
@@ -2216,12 +3398,12 @@ export default function AdminPage() {
                         {isImporting ? (
                           <>
                             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                            <span>Đang nạp dữ liệu...</span>
+                            <span>{language === "vi" ? "Đang nạp dữ liệu..." : "Importing Data..."}</span>
                           </>
                         ) : (
                           <>
                             <Upload className="w-3.5 h-3.5" />
-                            <span>Nạp & Cập Nhật Lịch Ngay</span>
+                            <span>{language === "vi" ? "Nạp & Cập Nhật Lịch Ngay" : "Import & Update Schedule Now"}</span>
                           </>
                         )}
                       </button>

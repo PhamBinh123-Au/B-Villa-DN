@@ -5,7 +5,8 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { siteConfig } from "@/config/siteConfig";
 import { Villa } from "@/types";
-import { bookingStore } from "@/lib/bookingStore";
+import { bookingStore, formatPriceVnd, formatPriceUsd } from "@/lib/bookingStore";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   LuxuryDatePicker,
   formatLuxuryDate,
@@ -32,6 +33,7 @@ import {
   AlertCircle,
   Clock,
   Wrench,
+  Tag,
 } from "lucide-react";
 
 interface BookingModalProps {
@@ -47,6 +49,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
   preSelectedVilla,
   initialDates,
 }) => {
+  const { t, language } = useLanguage();
   const [villaId, setVillaId] = useState<string>("");
   const [isVillaSelectOpen, setIsVillaSelectOpen] = useState(false);
   const [guestName, setGuestName] = useState("");
@@ -112,9 +115,26 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     };
   }, []);
 
+  const [priceVersion, setPriceVersion] = useState(0);
+  useEffect(() => {
+    const unsubscribe = bookingStore.subscribe((payload) => {
+      if (payload.action === "PRICE_UPDATE" || payload.action === "UPDATE") {
+        setPriceVersion((v) => v + 1);
+      }
+    });
+    return unsubscribe;
+  }, []);
+
   if (!isOpen) return null;
 
   const currentVilla = siteConfig.villas.find((v) => v.id === villaId) || siteConfig.villas[0];
+  const currentPrice = currentVilla ? bookingStore.getVillaPrice(currentVilla.id) : 0;
+  const currentUsdRate = bookingStore.getUsdRate();
+  const stayNights =
+    checkIn && checkOut && checkOut > checkIn
+      ? Math.max(1, Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))
+      : 0;
+  const estimatedTotalVnd = stayNights > 0 ? currentPrice * stayNights : 0;
   const isUnderMaintenance = currentVilla ? bookingStore.isVillaUnderMaintenance(currentVilla.id) : false;
   const maintenanceInfo = currentVilla ? bookingStore.getVillaMaintenanceInfo(currentVilla.id) : undefined;
 
@@ -216,10 +236,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
         <div className="bg-[#14171A] text-white px-5 sm:px-6 py-4 sm:py-5 flex items-center justify-between border-b border-white/10 rounded-t-3xl">
           <div>
             <span className="text-[10px] uppercase tracking-[0.25em] text-[#C2A476] font-semibold">
-              Direct Reservation Inquiry
+              {t("modal.title", "Direct Reservation Inquiry")}
             </span>
             <h3 className="font-serif text-lg sm:text-2xl font-light text-white">
-              Reserve Your Sanctuary
+              {t("modal.heading", "Reserve Your Sanctuary")}
             </h3>
           </div>
           <button
@@ -240,29 +260,33 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <CheckCircle2 className="w-10 h-10" />
               </div>
               <h4 className="font-serif text-2xl sm:text-3xl text-neutral-900 font-light mb-2">
-                Inquiry Successfully Received
+                {t("modal.success_title", "Inquiry Successfully Received")}
               </h4>
               <p className="text-sm text-neutral-600 max-w-md mx-auto mb-6">
-                Thank you, <span className="font-semibold text-neutral-900">{guestName}</span>. Your reservation inquiry for <span className="font-semibold text-neutral-900">{currentVilla.name}</span> has been logged directly with our concierge team.
+                {language === "vi" ? (
+                  <>Cảm ơn quý khách, <span className="font-semibold text-neutral-900">{guestName}</span>. Yêu cầu đặt phòng <span className="font-semibold text-neutral-900">{currentVilla.name}</span> đã được chuyển trực tiếp tới đội ngũ quản gia.</>
+                ) : (
+                  <>Thank you, <span className="font-semibold text-neutral-900">{guestName}</span>. Your reservation inquiry for <span className="font-semibold text-neutral-900">{currentVilla.name}</span> has been logged directly with our concierge team.</>
+                )}
               </p>
 
               <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-4 max-w-md mx-auto mb-8 text-left">
                 <div className="flex justify-between items-center text-xs text-neutral-500 pb-2 border-b border-neutral-200">
-                  <span>Reference Number:</span>
+                  <span>{language === "vi" ? "Mã Tra Cứu:" : "Reference Number:"}</span>
                   <span className="font-mono font-bold text-[#C2A476]">{submittedInquiryId}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs text-neutral-600 pt-2">
-                  <span>Villa Selected:</span>
+                  <span>{language === "vi" ? "Biệt Thự Đã Chọn:" : "Villa Selected:"}</span>
                   <span className="font-medium text-neutral-900">{currentVilla.name}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs text-neutral-600 pt-1">
-                  <span>Dates:</span>
-                  <span>{checkIn} to {checkOut}</span>
+                  <span>{language === "vi" ? "Thời Gian Lưu Trú:" : "Dates:"}</span>
+                  <span>{checkIn} → {checkOut}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs text-neutral-600 pt-1">
-                  <span>Status:</span>
+                  <span>{language === "vi" ? "Trạng Thái:" : "Status:"}</span>
                   <span className="text-amber-600 font-medium uppercase text-[10px] bg-amber-50 px-2 py-0.5 rounded">
-                    Sent to Host Dashboard
+                    {language === "vi" ? "Đã Gửi Tới Bảng Quản Trị" : "Sent to Host Dashboard"}
                   </span>
                 </div>
               </div>
@@ -275,13 +299,13 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1fb355] text-white py-3.5 px-6 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-md cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>Chat on WhatsApp Now</span>
+                  <span>{language === "vi" ? "Nhắn WhatsApp / Zalo Ngay" : "Chat on WhatsApp Now"}</span>
                 </a>
                 <button
                   onClick={handleReset}
                   className="inline-flex items-center justify-center bg-[#14171A] hover:bg-neutral-800 text-white py-3.5 px-6 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
                 >
-                  Done
+                  {t("modal.close", "Done")}
                 </button>
               </div>
             </div>
@@ -401,6 +425,33 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   Max capacity: {currentVilla.maxGuests} guests • {currentVilla.bedrooms} En-suite Bedrooms
                 </p>
 
+                {/* Nightly Price Banner with Live USD Conversion */}
+                <div className="mt-2.5 p-3 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-[#C2A476]/15 text-[#8A6B3D] flex items-center justify-center font-bold flex-shrink-0">
+                      <Tag className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 block">
+                        {language === "vi" ? "Đơn Giá Niêm Yết" : "Nightly Rate"}
+                      </span>
+                      <span className="font-serif font-bold text-neutral-900 text-sm">
+                        {formatPriceVnd(currentPrice)}
+                        <span className="text-xs font-normal text-neutral-500 font-sans ml-1">
+                          /{language === "vi" ? "đêm" : "night"}
+                        </span>
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white border border-[#EAE5DC] text-[11px] font-semibold text-neutral-700 shadow-2xs">
+                    <span className="text-neutral-400">≈</span>
+                    <span className="text-emerald-700 font-mono font-bold">
+                      ${formatPriceUsd(currentPrice, currentUsdRate)} USD
+                    </span>
+                    <span className="text-[10px] text-neutral-400">/{language === "vi" ? "đêm" : "night"}</span>
+                  </div>
+                </div>
+
                 {/* Prominent Maintenance Alert Banner if Selected Villa is Under Maintenance */}
                 {isUnderMaintenance && (
                   <div className="mt-3 p-3.5 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-900 text-xs flex items-start gap-3 animate-fade-in shadow-sm">
@@ -446,21 +497,47 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 />
               </div>
 
-              {/* Stay Duration & Dates Confirmation Pill */}
+              {/* Stay Duration & Price Estimate Card */}
               {checkIn && checkOut && checkOut > checkIn && !conflict && (
-                <div className="p-2.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center justify-between text-xs text-neutral-700 animate-fade-in">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="w-3.5 h-3.5 text-[#C2A476]" />
-                    <span className="font-semibold text-neutral-900">
-                      Stay Duration:
-                    </span>
-                    <span>
-                      {Math.max(1, Math.round((new Date(checkOut).getTime() - new Date(checkIn).getTime()) / 86400000))} Nights
+                <div className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between text-xs text-neutral-700 pb-2 border-b border-[#EAE5DC]/70">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-[#C2A476]" />
+                      <span className="font-semibold text-neutral-900">
+                        {language === "vi" ? "Thời Gian Lưu Trú:" : "Stay Duration:"}
+                      </span>
+                      <span className="font-bold text-neutral-900">
+                        {stayNights} {language === "vi" ? "Đêm" : "Nights"}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 uppercase tracking-wider">
+                      {language === "vi" ? "Ngày Hợp Lệ" : "Dates Available"}
                     </span>
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Dates Available
-                  </span>
+
+                  {/* Calculated Estimated Total */}
+                  <div className="flex flex-wrap items-baseline justify-between gap-2 pt-0.5">
+                    <div>
+                      <span className="text-[11px] text-neutral-500 font-medium block">
+                        {language === "vi" ? `Tổng tạm tính (${stayNights} đêm):` : `Estimated Stay Total (${stayNights} nights):`}
+                      </span>
+                      <span className="font-serif text-base sm:text-lg font-bold text-neutral-900">
+                        {formatPriceVnd(estimatedTotalVnd)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800">
+                        <span>≈</span>
+                        <span className="font-mono text-emerald-900 text-sm">
+                          ${formatPriceUsd(estimatedTotalVnd, currentUsdRate)}
+                        </span>
+                        <span className="text-[10px] text-emerald-700 font-normal">USD</span>
+                      </span>
+                      <span className="block text-[9px] text-neutral-400 mt-0.5">
+                        {language === "vi" ? "*Giá niêm yết tiêu chuẩn" : "*Standard published rates"}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -469,7 +546,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div>
                   <label className="block text-xs uppercase font-semibold tracking-wider text-neutral-700 mb-2 flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-[#C2A476]" />
-                    <span>Adults</span>
+                    <span>{language === "vi" ? "Người Lớn" : "Adults"}</span>
                   </label>
                   <input
                     type="number"
@@ -484,7 +561,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div>
                   <label className="block text-xs uppercase font-semibold tracking-wider text-neutral-700 mb-2 flex items-center gap-1.5">
                     <Users className="w-3.5 h-3.5 text-[#C2A476]" />
-                    <span>Children</span>
+                    <span>{language === "vi" ? "Trẻ Em" : "Children"}</span>
                   </label>
                   <input
                     type="number"
@@ -502,11 +579,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div>
                   <label className="block text-xs uppercase font-semibold tracking-wider text-neutral-700 mb-2 flex items-center gap-1.5">
                     <User className="w-3.5 h-3.5 text-[#C2A476]" />
-                    <span>Your Full Name</span>
+                    <span>{t("modal.guest_name", "Your Full Name")}</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="e.g. David Harrison"
+                    placeholder={language === "vi" ? "Ví dụ: Nguyễn Văn A" : "e.g. David Harrison"}
                     value={guestName}
                     onChange={(e) => setGuestName(e.target.value)}
                     className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
@@ -516,11 +593,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div>
                   <label className="block text-xs uppercase font-semibold tracking-wider text-neutral-700 mb-2 flex items-center gap-1.5">
                     <Phone className="w-3.5 h-3.5 text-[#C2A476]" />
-                    <span>Phone or WhatsApp</span>
+                    <span>{t("modal.phone", "Phone or WhatsApp")}</span>
                   </label>
                   <input
                     type="tel"
-                    placeholder="e.g. +84 905 123 456"
+                    placeholder={language === "vi" ? "Ví dụ: 0905 123 456" : "e.g. +84 905 123 456"}
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
@@ -532,7 +609,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               <div>
                 <label className="block text-xs uppercase font-semibold tracking-wider text-neutral-700 mb-2 flex items-center gap-1.5">
                   <Mail className="w-3.5 h-3.5 text-[#C2A476]" />
-                  <span>Email Address</span>
+                  <span>{t("modal.email", "Email Address")}</span>
                 </label>
                 <input
                   type="email"
@@ -547,11 +624,11 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               {/* Special Requests */}
               <div>
                 <label className="block text-xs uppercase font-semibold tracking-wider text-neutral-700 mb-2">
-                  Special Requests / Arrival Notes
+                  {t("modal.special_requests", "Special Requests / Arrival Notes")}
                 </label>
                 <textarea
                   rows={2}
-                  placeholder="Airport pickup, early check-in, BBQ arrangement, etc."
+                  placeholder={language === "vi" ? "Đón sân bay, nhận phòng sớm, tiệc nướng BBQ..." : "Airport pickup, early check-in, BBQ arrangement, etc."}
                   value={specialRequests}
                   onChange={(e) => setSpecialRequests(e.target.value)}
                   className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476] resize-none"
@@ -563,9 +640,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 <div className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2.5 animate-fade-in">
                   <AlertCircle className="w-4 h-4 text-rose-500 flex-shrink-0 mt-0.5" />
                   <div>
-                    <p className="font-bold">Villa Already Reserved On These Dates</p>
+                    <p className="font-bold">{t("modal.conflict_warning", "Villa Already Reserved On These Dates")}</p>
                     <p className="text-[11px] text-rose-600 mt-0.5 leading-relaxed">
-                      {currentVilla.name} is already booked from <span className="font-semibold">{conflict.checkIn}</span> to <span className="font-semibold">{conflict.checkOut}</span>. Please choose different dates or select another villa.
+                      {currentVilla.name} {language === "vi" ? "đã được đặt từ" : "is already booked from"} <span className="font-semibold">{conflict.checkIn}</span> {language === "vi" ? "đến" : "to"} <span className="font-semibold">{conflict.checkOut}</span>. {language === "vi" ? "Vui lòng chọn ngày khác hoặc chọn căn villa khác." : "Please choose different dates or select another villa."}
                     </p>
                   </div>
                 </div>
@@ -581,25 +658,27 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   {isUnderMaintenance ? (
                     <>
                       <Wrench className="w-4 h-4 text-amber-400" />
-                      <span>Unavailable — Villa Under Maintenance</span>
+                      <span>{language === "vi" ? "Tạm Dừng — Biệt Thự Đang Bảo Trì" : "Unavailable — Villa Under Maintenance"}</span>
                     </>
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-[#C2A476] group-hover:text-white" />
                       <span>
                         {conflict
-                          ? "Dates Unavailable — Choose Other Dates"
+                          ? (language === "vi" ? "Ngày Đã Kín — Chọn Ngày Khác" : "Dates Unavailable — Choose Other Dates")
                           : !checkIn || !checkOut
-                          ? "Select Check-in & Check-out Dates"
+                          ? (language === "vi" ? "Chọn Ngày Nhận & Trả Phòng" : "Select Check-in & Check-out Dates")
                           : isSubmitting
-                          ? "Submitting Inquiry..."
-                          : "Submit Reservation Inquiry"}
+                          ? t("modal.submitting", "Submitting Inquiry...")
+                          : t("modal.submit_btn", "Submit Reservation Inquiry")}
                       </span>
                     </>
                   )}
                 </button>
                 <p className="text-[11px] text-center text-neutral-400 mt-2">
-                  No payment required now. Our team will verify availability and confirm within 1 hour.
+                  {language === "vi"
+                    ? "Không mất phí giữ chỗ ngay lúc này. Đội ngũ quản gia sẽ liên hệ xác nhận trong vòng 1 giờ."
+                    : "No payment required now. Our team will verify availability and confirm within 1 hour."}
                 </p>
               </div>
             </form>

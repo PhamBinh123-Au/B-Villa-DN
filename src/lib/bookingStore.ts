@@ -1,12 +1,92 @@
-import { BookingInquiry, InquiryStatus, VillaMaintenanceInfo } from "@/types";
+import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo } from "@/types";
 
 const STORAGE_KEY = "danang_villa_booking_inquiries_v1";
 const MAINTENANCE_STORAGE_KEY = "danang_villa_maintenance_v1";
 const DELETED_STORAGE_KEY = "danang_villa_deleted_ids_v1";
+export const PRICES_STORAGE_KEY = "danang_villa_prices_v1";
+export const USD_RATE_STORAGE_KEY = "danang_villa_usd_rate_v1";
 export const SYNC_CHANNEL_NAME = "danang_villa_realtime_bookings";
 export const LOCAL_EVENT_NAME = "danang_realtime_booking_event";
 
+export const DEFAULT_VILLA_PRICES: Record<string, number> = {
+  "b1-villa-4pn": 18000000,
+  "b2-villa-4pn": 19500000,
+  "b3-villa-2pn": 9500000,
+  "b4-villa-4pn": 17000000,
+};
+export const DEFAULT_USD_RATE = 25400;
+
+export function formatPriceVnd(amount: number): string {
+  if (!amount || isNaN(amount)) return "0 ₫";
+  return new Intl.NumberFormat("vi-VN").format(amount) + " ₫";
+}
+
+export function formatPriceUsd(amountVnd: number, usdRate = DEFAULT_USD_RATE): string {
+  if (!amountVnd || isNaN(amountVnd)) return "0";
+  const rate = usdRate > 0 ? usdRate : DEFAULT_USD_RATE;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(amountVnd / rate));
+}
+
+export function getStayStatus(checkIn: string, checkOut: string): "upcoming" | "in_house" | "checkout_today" | "expired" {
+  if (!checkIn || !checkOut) return "upcoming";
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+  if (checkOut < todayStr) return "expired";
+  if (checkOut === todayStr) return "checkout_today";
+  if (checkIn <= todayStr && todayStr < checkOut) return "in_house";
+  return "upcoming";
+}
+
+export function isCheckoutExpired(checkOut: string): boolean {
+  if (!checkOut) return false;
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return checkOut < todayStr;
+}
+
+export function isCheckoutToday(checkOut: string): boolean {
+  if (!checkOut) return false;
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  return checkOut === todayStr;
+}
+
 const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
+  {
+    id: "INQ-9478",
+    villaId: "b4-villa-4pn",
+    villaName: "B4 Villa • 4 Bedrooms",
+    guestName: "Lord Arthur Pendelton",
+    email: "arthur.pendelton@oxford.uk",
+    phone: "+44 7700 900555",
+    checkIn: "2026-10-06",
+    checkOut: "2026-10-11",
+    adults: 4,
+    children: 1,
+    specialRequests: "Family vacation. Checked out yesterday.",
+    status: "confirmed",
+    cleaningStatus: "needs_cleaning",
+    cleaningNotes: "Cần thay toàn bộ drap giường 4PN, lau ban công & lọc hồ bơi.",
+    createdAt: "2026-10-05T09:00:00.000Z",
+  },
+  {
+    id: "INQ-9479",
+    villaId: "b2-villa-4pn",
+    villaName: "B2 Villa • 4 Bedrooms",
+    guestName: "Madam Sophie Dupont",
+    email: "sophie.dupont@paris.fr",
+    phone: "+33 6 12 34 56 78",
+    checkIn: "2026-10-07",
+    checkOut: "2026-10-12",
+    adults: 2,
+    children: 0,
+    specialRequests: "Checkout at 12:00 PM today. Cleaning crew scheduled.",
+    status: "confirmed",
+    cleaningStatus: "in_cleaning",
+    cleaningNotes: "Khách trả phòng 11:30. Đội dọn dẹp đang vệ sinh tầng 1 & hồ bơi atrium.",
+    createdAt: "2026-10-06T11:00:00.000Z",
+  },
   {
     id: "INQ-9480",
     villaId: "b1-villa-4pn",
@@ -70,12 +150,15 @@ const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
 ];
 
 export interface RealtimeSyncPayload {
-  action: "ADD" | "UPDATE" | "DELETE" | "RESET" | "MAINTENANCE_UPDATE";
+  action: "ADD" | "UPDATE" | "DELETE" | "RESET" | "MAINTENANCE_UPDATE" | "PRICE_UPDATE" | "CLEANING_UPDATE";
   inquiry?: BookingInquiry;
   id?: string;
   villaId?: string;
   isMaintenance?: boolean;
   reason?: string;
+  prices?: Record<string, number>;
+  usdRate?: number;
+  cleaningStatus?: CleaningStatus;
   timestamp: number;
 }
 
@@ -259,6 +342,15 @@ async function syncWithServer(): Promise<void> {
     }
     if (maintenanceChanged) {
       localStorage.setItem(MAINTENANCE_STORAGE_KEY, JSON.stringify(mergedMaintenance));
+    }
+
+    if (data.prices && typeof data.prices === "object") {
+      const curPrices = bookingStore.getAllVillaPrices();
+      const mergedPrices = { ...curPrices, ...data.prices };
+      localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify(mergedPrices));
+    }
+    if (typeof data.usdRate === "number" && data.usdRate > 0) {
+      localStorage.setItem(USD_RATE_STORAGE_KEY, String(data.usdRate));
     }
 
     if (!initialSyncDone) {
@@ -857,6 +949,170 @@ export const bookingStore = {
     };
   },
 
+  getAllVillaPrices(): Record<string, number> {
+    if (typeof window === "undefined") return { ...DEFAULT_VILLA_PRICES };
+    try {
+      const stored = localStorage.getItem(PRICES_STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed && typeof parsed === "object") {
+          return { ...DEFAULT_VILLA_PRICES, ...parsed };
+        }
+      }
+    } catch {}
+    return { ...DEFAULT_VILLA_PRICES };
+  },
+
+  getVillaPrice(villaId: string): number {
+    const prices = this.getAllVillaPrices();
+    return prices[villaId] || DEFAULT_VILLA_PRICES[villaId] || 15000000;
+  },
+
+  getUsdRate(): number {
+    if (typeof window === "undefined") return DEFAULT_USD_RATE;
+    try {
+      const stored = localStorage.getItem(USD_RATE_STORAGE_KEY);
+      if (stored) {
+        const val = Number(stored);
+        if (val > 0) return val;
+      }
+    } catch {}
+    return DEFAULT_USD_RATE;
+  },
+
+  async setVillaPrice(villaId: string, priceVnd: number): Promise<void> {
+    const currentPrices = this.getAllVillaPrices();
+    const updated = { ...currentPrices, [villaId]: priceVnd };
+    if (typeof window !== "undefined") {
+      localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify(updated));
+      broadcastSync({
+        action: "PRICE_UPDATE",
+        villaId,
+        prices: updated,
+        timestamp: Date.now(),
+      });
+    }
+
+    try {
+      await fetch("/api/prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ villaId, priceVnd }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist price to server:", err);
+    }
+  },
+
+  async setAllVillaPrices(prices: Record<string, number>, usdRate?: number): Promise<void> {
+    const currentPrices = this.getAllVillaPrices();
+    const updated = { ...currentPrices, ...prices };
+    const finalRate = usdRate || this.getUsdRate();
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify(updated));
+      if (usdRate) {
+        localStorage.setItem(USD_RATE_STORAGE_KEY, String(usdRate));
+      }
+      broadcastSync({
+        action: "PRICE_UPDATE",
+        prices: updated,
+        usdRate: finalRate,
+        timestamp: Date.now(),
+      });
+    }
+
+    try {
+      await fetch("/api/prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prices: updated, usdRate: finalRate }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist prices to server:", err);
+    }
+  },
+
+  async setUsdRate(rate: number): Promise<void> {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(USD_RATE_STORAGE_KEY, String(rate));
+      broadcastSync({
+        action: "PRICE_UPDATE",
+        usdRate: rate,
+        timestamp: Date.now(),
+      });
+    }
+    try {
+      await fetch("/api/prices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usdRate: rate }),
+      });
+    } catch (err) {
+      console.warn("Failed to persist USD rate to server:", err);
+    }
+  },
+
+  async updateCleaningStatus(id: string, cleaningStatus: CleaningStatus, cleaningNotes?: string): Promise<void> {
+    const inquiries = this.getInquiries();
+    const target = inquiries.find((i) => i.id === id);
+    if (!target) return;
+
+    const updatedFields: Partial<BookingInquiry> = {
+      cleaningStatus,
+      cleaningNotes: cleaningNotes !== undefined ? cleaningNotes : target.cleaningNotes,
+      cleanedAt: cleaningStatus === "cleaned" ? new Date().toISOString() : target.cleanedAt,
+    };
+
+    await this.updateInquiryAsync(id, updatedFields);
+    broadcastSync({
+      action: "CLEANING_UPDATE",
+      id,
+      cleaningStatus,
+      timestamp: Date.now(),
+    });
+  },
+
+  getHousekeepingSummary(): {
+    expiredCount: number;
+    todayCount: number;
+    needsCleaningCount: number;
+    inCleaningCount: number;
+    cleanedCount: number;
+  } {
+    const inquiries = this.getInquiries();
+    let expiredCount = 0;
+    let todayCount = 0;
+    let needsCleaningCount = 0;
+    let inCleaningCount = 0;
+    let cleanedCount = 0;
+
+    inquiries.forEach((inq) => {
+      if (inq.status === "cancelled") return;
+      const stay = getStayStatus(inq.checkIn, inq.checkOut);
+      if (stay === "expired") {
+        expiredCount++;
+      } else if (stay === "checkout_today") {
+        todayCount++;
+      }
+
+      if (stay === "expired" || stay === "checkout_today") {
+        const cStatus = inq.cleaningStatus || "needs_cleaning";
+        if (cStatus === "needs_cleaning") needsCleaningCount++;
+        else if (cStatus === "in_cleaning") inCleaningCount++;
+        else if (cStatus === "cleaned") cleanedCount++;
+      }
+    });
+
+    return {
+      expiredCount,
+      todayCount,
+      needsCleaningCount,
+      inCleaningCount,
+      cleanedCount,
+    };
+  },
+
   isCloudStorage(): boolean {
     return cloudStorageDetected;
   },
@@ -870,10 +1126,14 @@ export const bookingStore = {
     const inquiries = this.getInquiries();
     const maintenance = this.getMaintenanceMap();
     const deletedIds = Array.from(this.getDeletedIds());
+    const prices = this.getAllVillaPrices();
+    const usdRate = this.getUsdRate();
     const payload = {
       inquiries,
       maintenance,
       deletedIds,
+      prices,
+      usdRate,
       timestamp: Date.now(),
       appName: "Danang Sanctuary Luxury Villas",
     };
@@ -899,6 +1159,8 @@ export const bookingStore = {
       const incomingInquiries: BookingInquiry[] = Array.isArray(parsed.inquiries) ? parsed.inquiries : [];
       const incomingMaintenance: Record<string, VillaMaintenanceInfo> = parsed.maintenance || {};
       const incomingDeleted: string[] = Array.isArray(parsed.deletedIds) ? parsed.deletedIds : [];
+      const incomingPrices: Record<string, number> = parsed.prices || {};
+      const incomingUsdRate: number = parsed.usdRate;
 
       incomingDeleted.forEach((id) => this.addDeletedId(id));
 
@@ -927,6 +1189,14 @@ export const bookingStore = {
         );
       }
 
+      if (incomingPrices && Object.keys(incomingPrices).length > 0) {
+        const curPrices = this.getAllVillaPrices();
+        localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify({ ...curPrices, ...incomingPrices }));
+      }
+      if (typeof incomingUsdRate === "number" && incomingUsdRate > 0) {
+        localStorage.setItem(USD_RATE_STORAGE_KEY, String(incomingUsdRate));
+      }
+
       // Sync to server API in background
       try {
         await fetch("/api/bookings/sync", {
@@ -936,6 +1206,8 @@ export const bookingStore = {
             inquiries: finalInquiries,
             maintenance: incomingMaintenance,
             deletedIds: incomingDeleted,
+            prices: incomingPrices,
+            usdRate: incomingUsdRate,
             replaceAll,
           }),
         });

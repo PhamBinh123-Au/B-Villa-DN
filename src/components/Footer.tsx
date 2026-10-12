@@ -3,9 +3,11 @@
 import React from "react";
 import Link from "next/link";
 import { siteConfig } from "@/config/siteConfig";
+import { useLanguage } from "@/context/LanguageContext";
 import { Phone, Mail, MapPin, MessageCircle, Shield, ArrowUp } from "lucide-react";
 
 export const Footer: React.FC = () => {
+  const { t, language } = useLanguage();
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -20,7 +22,7 @@ export const Footer: React.FC = () => {
               {siteConfig.name}
             </span>
             <span className="text-xs uppercase tracking-[0.2em] text-[#C2A476] mt-1 block">
-              Da Nang • Vietnam
+              {t("brand.location", "Da Nang • Vietnam")}
             </span>
             <p className="text-xs sm:text-sm text-neutral-400 font-light mt-4 leading-relaxed">
               {siteConfig.description}
@@ -56,7 +58,7 @@ export const Footer: React.FC = () => {
           {/* Curated Villas Links */}
           <div>
             <h4 className="font-serif text-lg font-medium text-white mb-5">
-              The Residences
+              {language === "vi" ? "Bộ Sưu Tập Biệt Thự" : "The Residences"}
             </h4>
             <ul className="space-y-3 text-xs sm:text-sm text-neutral-400 font-light">
               {siteConfig.villas.map((villa) => (
@@ -78,7 +80,7 @@ export const Footer: React.FC = () => {
           {/* Direct Concierge Contact */}
           <div>
             <h4 className="font-serif text-lg font-medium text-white mb-5">
-              Private Concierge
+              {t("footer.direct_concierge", "Private Concierge")}
             </h4>
             <ul className="space-y-4 text-xs sm:text-sm text-neutral-400 font-light">
               <li className="flex items-start gap-3">
@@ -111,7 +113,7 @@ export const Footer: React.FC = () => {
                   rel="noreferrer"
                   className="hover:text-[#25D366] transition-colors"
                 >
-                  Direct WhatsApp Chat
+                  {language === "vi" ? "Trò Chuyện Zalo / WhatsApp" : "Direct WhatsApp Chat"}
                 </a>
               </li>
             </ul>
@@ -120,30 +122,32 @@ export const Footer: React.FC = () => {
           {/* Quick Info & Staff Portal */}
           <div>
             <h4 className="font-serif text-lg font-medium text-white mb-5">
-              Host Management
+              {language === "vi" ? "Quản Trị Viên" : "Host Management"}
             </h4>
             <p className="text-xs text-neutral-400 leading-relaxed font-light mb-4">
-              Owner and reservation management portal. Access booking logs and live guest requests.
+              {language === "vi"
+                ? "Cổng quản lý đơn và lịch biệt thự dành cho host. Cập nhật theo thời gian thực."
+                : "Owner and reservation management portal. Access booking logs and live guest requests."}
             </p>
             <Link
               href="/admin"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs text-neutral-200 hover:text-white transition-all"
             >
               <Shield className="w-4 h-4 text-[#C2A476]" />
-              <span>Open Admin Dashboard</span>
+              <span>{language === "vi" ? "Mở Cổng Quản Trị" : "Open Admin Dashboard"}</span>
             </Link>
           </div>
         </div>
 
         {/* Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500">
-          <p>© {new Date().getFullYear()} {siteConfig.name}. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {siteConfig.name}. {t("footer.rights", "All rights reserved.")}</p>
           <div className="flex items-center gap-6 mt-4 sm:mt-0">
             <button
               onClick={scrollToTop}
-              className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors"
+              className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer"
             >
-              <span>Back to top</span>
+              <span>{language === "vi" ? "Về đầu trang" : "Back to top"}</span>
               <ArrowUp className="w-3.5 h-3.5" />
             </button>
           </div>

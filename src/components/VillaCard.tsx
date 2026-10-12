@@ -3,7 +3,8 @@
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Villa } from "@/types";
-import { bookingStore } from "@/lib/bookingStore";
+import { bookingStore, formatPriceVnd, formatPriceUsd } from "@/lib/bookingStore";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   MapPin,
   Users,
@@ -30,6 +31,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
   onInquire,
   onOpenGallery,
 }) => {
+  const { t, language } = useLanguage();
   const [showDetails, setShowDetails] = useState(false);
   const [currentPhotoIdx, setCurrentPhotoIdx] = useState(0);
   const [maintenanceVer, setMaintenanceVer] = useState(0);
@@ -43,6 +45,8 @@ export const VillaCard: React.FC<VillaCardProps> = ({
 
   const isUnderMaintenance = bookingStore.isVillaUnderMaintenance(villa.id);
   const maintenanceInfo = bookingStore.getVillaMaintenanceInfo(villa.id);
+  const currentPrice = bookingStore.getVillaPrice(villa.id);
+  const usdRate = bookingStore.getUsdRate();
 
   const photos = villa.gallery && villa.gallery.length > 0 ? villa.gallery : [villa.image];
 
@@ -109,7 +113,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
           {isUnderMaintenance && (
             <span className="bg-amber-600/95 backdrop-blur-md text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1 border border-amber-300 animate-pulse">
               <Wrench className="w-3 h-3" />
-              <span>Under Maintenance</span>
+              <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
             </span>
           )}
         </div>
@@ -125,7 +129,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
           >
             <Camera className="w-3.5 h-3.5 text-[#C2A476]" />
             <span>
-              {currentPhotoIdx + 1}/{photos.length} Photos
+              {currentPhotoIdx + 1}/{photos.length} {language === "vi" ? "Ảnh" : "Photos"}
             </span>
           </button>
         </div>
@@ -211,9 +215,9 @@ export const VillaCard: React.FC<VillaCardProps> = ({
             >
               <Bed className="w-4 h-4 text-[#C2A476] mb-1" />
               <span className="text-xs font-semibold text-neutral-800">
-                {villa.bedrooms} Beds
+                {villa.bedrooms} {language === "vi" ? "Phòng" : "Beds"}
               </span>
-              <span className="text-[10px] text-neutral-400 uppercase">Suites</span>
+              <span className="text-[10px] text-neutral-400 uppercase">{language === "vi" ? "Khép Kín" : "Suites"}</span>
             </div>
             <div
               className="flex flex-col items-center justify-center p-1"
@@ -221,7 +225,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
             >
               <Bath className="w-4 h-4 text-[#C2A476] mb-1" />
               <span className="text-xs font-semibold text-neutral-800">
-                {villa.bathrooms} Baths
+                {villa.bathrooms} {language === "vi" ? "Tắm" : "Baths"}
               </span>
               <span className="text-[10px] text-neutral-400 uppercase">En-suite</span>
             </div>
@@ -231,17 +235,44 @@ export const VillaCard: React.FC<VillaCardProps> = ({
             >
               <Users className="w-4 h-4 text-[#C2A476] mb-1" />
               <span className="text-xs font-semibold text-neutral-800">
-                {villa.maxGuests} Guests
+                {villa.maxGuests} {language === "vi" ? "Khách" : "Guests"}
               </span>
-              <span className="text-[10px] text-neutral-400 uppercase">Capacity</span>
+              <span className="text-[10px] text-neutral-400 uppercase">{language === "vi" ? "Tối Đa" : "Capacity"}</span>
             </div>
             <div
               className="flex flex-col items-center justify-center p-1"
               style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}
             >
               <Waves className="w-4 h-4 text-[#C2A476] mb-1" />
-              <span className="text-xs font-semibold text-neutral-800">Private</span>
-              <span className="text-[10px] text-neutral-400 uppercase">Pool</span>
+              <span className="text-xs font-semibold text-neutral-800">{language === "vi" ? "Hồ Bơi" : "Private"}</span>
+              <span className="text-[10px] text-neutral-400 uppercase">{language === "vi" ? "Riêng" : "Pool"}</span>
+            </div>
+          </div>
+
+          {/* Villa Nightly Rate with Live USD Equivalent */}
+          <div className="my-4 p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center justify-between shadow-xs">
+            <div>
+              <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 block mb-0.5">
+                {language === "vi" ? "Đơn giá tiêu chuẩn" : "Standard Nightly Rate"}
+              </span>
+              <div className="flex items-baseline gap-1.5">
+                <span className="font-serif text-lg sm:text-xl font-bold text-neutral-900 tracking-tight">
+                  {formatPriceVnd(currentPrice)}
+                </span>
+                <span className="text-[11px] text-neutral-500 font-medium">
+                  {language === "vi" ? "/ đêm" : "/ night"}
+                </span>
+              </div>
+            </div>
+
+            {/* Direct Realtime USD Equivalent Conversion */}
+            <div className="text-right">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-400 block mb-0.5">
+                {language === "vi" ? "Quy đổi tương đương" : "USD Equivalent"}
+              </span>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold font-mono shadow-xs">
+                ≈ ${formatPriceUsd(currentPrice, usdRate)} USD
+              </span>
             </div>
           </div>
 
@@ -261,10 +292,10 @@ export const VillaCard: React.FC<VillaCardProps> = ({
               <Wrench className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
               <div>
                 <p className="font-bold text-amber-950 uppercase tracking-wide text-[11px]">
-                  Scheduled Maintenance Mode
+                  {language === "vi" ? "Chế Độ Bảo Trì Định Kỳ" : "Scheduled Maintenance Mode"}
                 </p>
                 <p className="text-[11px] text-amber-800 font-light mt-0.5 leading-relaxed">
-                  {maintenanceInfo?.reason || "This villa is undergoing scheduled luxury maintenance & renovation. Reservations are temporarily closed."}
+                  {maintenanceInfo?.reason || (language === "vi" ? "Biệt thự đang trong giai đoạn nâng cấp định kỳ. Tạm dừng nhận đặt phòng." : "This villa is undergoing scheduled luxury maintenance & renovation. Reservations are temporarily closed.")}
                 </p>
               </div>
             </div>
@@ -281,7 +312,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
                 className="flex-1 bg-neutral-200 text-neutral-500 py-3.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest cursor-not-allowed flex items-center justify-center gap-2 border border-neutral-300 shadow-none"
               >
                 <Wrench className="w-3.5 h-3.5 text-neutral-400" />
-                <span>Under Maintenance</span>
+                <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
               </button>
             ) : (
               <button
@@ -289,7 +320,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
                 className="flex-1 bg-[#14171A] hover:bg-[#C2A476] text-white py-3.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2 shadow-sm hover:shadow-lg active:scale-95 cursor-pointer"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>Request Availability</span>
+                <span>{language === "vi" ? "Gửi Yêu Cầu Đặt Biệt Thự" : "Request Availability"}</span>
               </button>
             )}
             <button

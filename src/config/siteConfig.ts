@@ -73,6 +73,7 @@ export const siteConfig: SiteConfig = {
         "Air Conditioning",
         "Daily Housekeeping",
       ],
+      priceVnd: 18000000,
     },
     {
       id: "b2-villa-4pn",
@@ -108,6 +109,7 @@ export const siteConfig: SiteConfig = {
         "High-speed Wi-Fi",
         "Dedicated Concierge",
       ],
+      priceVnd: 19500000,
     },
     {
       id: "b3-villa-2pn",
@@ -142,6 +144,7 @@ export const siteConfig: SiteConfig = {
         "In-room Safe",
         "Housekeeping",
       ],
+      priceVnd: 9500000,
     },
     {
       id: "b4-villa-4pn",
@@ -178,6 +181,7 @@ export const siteConfig: SiteConfig = {
         "Air Conditioning",
         "24/7 Security Support",
       ],
+      priceVnd: 17000000,
     },
   ],
 

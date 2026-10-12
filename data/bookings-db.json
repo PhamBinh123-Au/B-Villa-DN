@@ -28,6 +28,13 @@
     "INQ-5349"
   ],
   "maintenance": {},
-  "version": 43,
-  "lastUpdated": 1791698794593
+  "version": 44,
+  "lastUpdated": 1791778963570,
+  "prices": {
+    "b1-villa-4pn": 3000000,
+    "b2-villa-4pn": 19500000,
+    "b3-villa-2pn": 9500000,
+    "b4-villa-4pn": 17000000
+  },
+  "usdRate": 25400
 }

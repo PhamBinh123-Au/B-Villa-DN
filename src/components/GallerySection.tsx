@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
 import { GalleryItem, Villa } from "@/types";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   Sparkles,
   Maximize2,
@@ -18,6 +19,7 @@ interface GallerySectionProps {
 }
 
 export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => {
+  const { language } = useLanguage();
   const [activeTab, setActiveTab] = useState<string>("all");
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
 
@@ -48,31 +50,35 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
     );
   };
 
+  const galleryTabs = [
+    { id: "all", label: language === "vi" ? "Tất Cả Không Gian" : "All Spaces" },
+    { id: "pool", label: language === "vi" ? "Hồ Bơi Riêng" : "Private Pools" },
+    { id: "bedroom", label: language === "vi" ? "Phòng Ngủ Master" : "Master Suites" },
+    { id: "exterior", label: language === "vi" ? "Sân Vườn & Mặt Tiền" : "Garden & Facade" },
+    { id: "dining", label: language === "vi" ? "Phòng Bếp & Ăn" : "Dining & Kitchen" },
+  ];
+
   return (
     <section id="gallery" className="py-28 px-6 md:px-12 max-w-7xl mx-auto scroll-mt-20">
       {/* Section Header */}
       <div className="text-center max-w-3xl mx-auto mb-16">
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-[#EAE5DC] text-[#C2A476] text-xs uppercase tracking-[0.2em] mb-4">
           <Sparkles className="w-3.5 h-3.5" />
-          <span>Visual Walkthrough</span>
+          <span>{language === "vi" ? "Góc Nhìn Không Gian" : "Visual Walkthrough"}</span>
         </div>
         <h2 className="font-serif text-3xl sm:text-5xl font-light text-neutral-900 mb-4">
-          Spaces & Living Gallery
+          {language === "vi" ? "Bộ Sưu Tập Không Gian Kiến Trúc" : "Spaces & Living Gallery"}
         </h2>
         <div className="w-16 h-0.5 bg-[#C2A476] mx-auto mb-6" />
         <p className="text-neutral-600 text-sm sm:text-base font-light leading-relaxed">
-          Experience every dimension of our residences: from turquoise swimming pools and sunlit courtyards to minimalist master suites and gourmet open kitchens.
+          {language === "vi"
+            ? "Chiêm ngưỡng từng góc nhỏ tinh tế: hồ bơi xanh mát, sân vườn đón nắng, phòng ngủ master en-suite sang trọng và phòng bếp mở ấm cúng."
+            : "Experience every dimension of our residences: from turquoise swimming pools and sunlit courtyards to minimalist master suites and gourmet open kitchens."}
         </p>
 
         {/* Filter Tabs */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
-          {[
-            { id: "all", label: "All Spaces" },
-            { id: "pool", label: "Private Pools" },
-            { id: "bedroom", label: "Master Suites" },
-            { id: "exterior", label: "Garden & Facade" },
-            { id: "dining", label: "Dining & Kitchen" },
-          ].map((tab) => (
+          {galleryTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}

@@ -4,6 +4,7 @@ import React, { useState } from "react";
 import { siteConfig } from "@/config/siteConfig";
 import { Villa } from "@/types";
 import { VillaCard } from "./VillaCard";
+import { useLanguage } from "@/context/LanguageContext";
 
 interface VillasSectionProps {
   onInquire: (villa: Villa) => void;
@@ -14,6 +15,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
   onInquire,
   onOpenGallery,
 }) => {
+  const { t, language } = useLanguage();
   const [activeFilter, setActiveFilter] = useState<string>("all");
 
   const filteredVillas = siteConfig.villas.filter((v) => {
@@ -25,30 +27,32 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
     return true;
   });
 
+  const filterTabs = [
+    { id: "all", label: language === "vi" ? "Tất Cả Biệt Thự (4)" : "All Villas (4)" },
+    { id: "4bed", label: language === "vi" ? "4 Phòng Ngủ (3)" : "4-Bedroom Villas (3)" },
+    { id: "2bed", label: language === "vi" ? "2 Phòng Ngủ (1)" : "2-Bedroom Villa (1)" },
+    { id: "sontra", label: language === "vi" ? "Bán Đảo Sơn Trà (2)" : "Son Tra Coast (2)" },
+    { id: "nguhanhson", label: language === "vi" ? "Ngũ Hành Sơn (2)" : "Ngu Hanh Son (2)" },
+  ];
+
   return (
     <section id="villas" className="py-28 px-6 md:px-12 max-w-7xl mx-auto scroll-mt-20">
       {/* Section Header */}
       <div className="text-center max-w-3xl mx-auto mb-16">
         <span className="text-xs uppercase tracking-[0.25em] text-[#C2A476] font-semibold">
-          Curated Private Living
+          {t("villas.section_subtitle", "Curated Private Living")}
         </span>
         <h2 className="font-serif text-3xl sm:text-5xl font-light text-neutral-900 mt-2 mb-4">
-          The Villa Collection
+          {t("villas.section_title", "The Villa Collection")}
         </h2>
         <div className="w-16 h-0.5 bg-[#C2A476] mx-auto mb-6" />
         <p className="text-neutral-600 text-sm sm:text-base font-light leading-relaxed">
-          Each residence is an intimate architectural retreat bathed in coastal sunlight, featuring private swimming pools, expansive master bedrooms, and uncompromising discretion.
+          {t("villas.section_desc", "Each residence is an intimate architectural retreat bathed in coastal sunlight, featuring private swimming pools, expansive master bedrooms, and uncompromising discretion.")}
         </p>
 
         {/* Filter Tabs */}
         <div className="mt-10 flex flex-wrap items-center justify-center gap-2">
-          {[
-            { id: "all", label: "All Villas (4)" },
-            { id: "4bed", label: "4-Bedroom Villas (3)" },
-            { id: "2bed", label: "2-Bedroom Villa (1)" },
-            { id: "sontra", label: "Son Tra Coast (2)" },
-            { id: "nguhanhson", label: "Ngu Hanh Son (2)" },
-          ].map((tab) => (
+          {filterTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveFilter(tab.id)}

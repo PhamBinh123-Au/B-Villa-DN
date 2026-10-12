@@ -14,6 +14,7 @@ export interface Villa {
   description: string;
   highlights: string[];
   amenities: string[];
+  priceVnd?: number; // Base nightly rate in VND
 }
 
 export interface GalleryItem {
@@ -27,6 +28,7 @@ export interface GalleryItem {
 }
 
 export type InquiryStatus = "pending" | "contacted" | "confirmed" | "cancelled";
+export type CleaningStatus = "needs_cleaning" | "in_cleaning" | "cleaned";
 
 export interface BookingInquiry {
   id: string;
@@ -42,6 +44,15 @@ export interface BookingInquiry {
   specialRequests?: string;
   status: InquiryStatus;
   createdAt: string;
+  cleaningStatus?: CleaningStatus; // Housekeeping turnover status after stay expiration
+  cleaningNotes?: string;
+  cleanedAt?: string;
+}
+
+export interface VillaPriceConfig {
+  prices: Record<string, number>; // villaId -> priceVnd
+  usdRate: number; // e.g. 25400 VND = 1 USD
+  updatedAt?: string;
 }
 
 export interface VillaMaintenanceInfo {

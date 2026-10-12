@@ -1,11 +1,22 @@
 import fs from "fs";
 import path from "path";
-import { BookingInquiry, InquiryStatus, VillaMaintenanceInfo } from "@/types";
+import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo } from "@/types";
+
+export const DEFAULT_VILLA_PRICES: Record<string, number> = {
+  "b1-villa-4pn": 18000000,
+  "b2-villa-4pn": 19500000,
+  "b3-villa-2pn": 9500000,
+  "b4-villa-4pn": 17000000,
+};
+
+export const DEFAULT_USD_RATE = 25400;
 
 export interface ServerData {
   inquiries: BookingInquiry[];
   deletedIds: string[];
   maintenance: Record<string, VillaMaintenanceInfo>;
+  prices?: Record<string, number>;
+  usdRate?: number;
   version: number;
   lastUpdated: number;
 }
@@ -88,6 +99,8 @@ function getInitialData(): ServerData {
     inquiries: [...INITIAL_SAMPLE_INQUIRIES],
     deletedIds: [],
     maintenance: {},
+    prices: { ...DEFAULT_VILLA_PRICES },
+    usdRate: DEFAULT_USD_RATE,
     version: 1,
     lastUpdated: Date.now(),
   };
@@ -342,6 +355,9 @@ export const serverStore = {
       result.deletedIds = [];
     }
 
+    result.prices = { ...DEFAULT_VILLA_PRICES, ...(result.prices || {}) };
+    result.usdRate = result.usdRate || DEFAULT_USD_RATE;
+
     // Filter out deleted IDs and deduplicate
     const delSet = new Set(result.deletedIds);
     result.inquiries = deduplicateInquiries(result.inquiries).filter((i) => !delSet.has(i.id));
@@ -357,6 +373,9 @@ export const serverStore = {
     if (!Array.isArray(updated.deletedIds)) {
       updated.deletedIds = current.deletedIds || [];
     }
+
+    updated.prices = { ...DEFAULT_VILLA_PRICES, ...(updated.prices || current.prices || {}) };
+    updated.usdRate = updated.usdRate || current.usdRate || DEFAULT_USD_RATE;
 
     const delSet = new Set(updated.deletedIds);
     updated.inquiries = deduplicateInquiries(updated.inquiries).filter((i) => !delSet.has(i.id));
@@ -496,6 +515,31 @@ export const serverStore = {
   async getMaintenanceMap(): Promise<Record<string, VillaMaintenanceInfo>> {
     const data = await this.getData();
     return data.maintenance;
+  },
+
+  async getPrices(): Promise<{ prices: Record<string, number>; usdRate: number }> {
+    const data = await this.getData();
+    return {
+      prices: { ...DEFAULT_VILLA_PRICES, ...(data.prices || {}) },
+      usdRate: data.usdRate || DEFAULT_USD_RATE,
+    };
+  },
+
+  async setPrices(prices: Record<string, number>, usdRate?: number): Promise<{ prices: Record<string, number>; usdRate: number }> {
+    await this.setData((curr) => ({
+      ...curr,
+      prices: { ...(curr.prices || DEFAULT_VILLA_PRICES), ...prices },
+      usdRate: usdRate || curr.usdRate || DEFAULT_USD_RATE,
+    }));
+    return this.getPrices();
+  },
+
+  async updateCleaningStatus(inquiryId: string, cleaningStatus: CleaningStatus, notes?: string): Promise<BookingInquiry | null> {
+    return this.updateInquiry(inquiryId, {
+      cleaningStatus,
+      cleaningNotes: notes,
+      cleanedAt: cleaningStatus === "cleaned" ? new Date().toISOString() : undefined,
+    });
   },
 
   isCloudStorage(): boolean {
