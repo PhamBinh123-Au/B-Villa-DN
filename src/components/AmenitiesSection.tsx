@@ -1,13 +1,12 @@
 "use client";
 
 import React from "react";
+import { motion } from "framer-motion";
 import { useLanguage } from "@/context/LanguageContext";
 import {
   Waves,
-  ShieldCheck,
   Wifi,
   Sparkles,
-  Car,
   UtensilsCrossed,
 } from "lucide-react";
 
@@ -28,13 +27,6 @@ const AMENITIES_LIST: AmenityItem[] = [
     descEn: "Each villa is equipped with its own crystal-clear private pool, from sunlit garden lap pools to indoor skylight atriums.",
   },
   {
-    icon: "ShieldCheck",
-    titleVi: "Quản Gia Riêng 24/7",
-    titleEn: "24/7 Dedicated Concierge",
-    descVi: "Đội ngũ quản gia địa phương túc trực sẵn sàng hỗ trợ đưa đón, gợi ý ẩm thực và đáp ứng các yêu cầu đặc quyền.",
-    descEn: "Our local host is on standby around the clock to arrange private transfers, dining recommendations, and bespoke requests.",
-  },
-  {
     icon: "Wifi",
     titleVi: "Wi-Fi Tốc Độ Cao Liền Mạch",
     titleEn: "High-Speed Seamless Wi-Fi",
@@ -49,13 +41,6 @@ const AMENITIES_LIST: AmenityItem[] = [
     descEn: "Professional housekeeping service maintaining impeccable cleanliness, fresh linen, and luxury bath amenities.",
   },
   {
-    icon: "Car",
-    titleVi: "Dịch Vụ Đưa Đón Sân Bay Riêng",
-    titleEn: "Airport Chauffeur Service",
-    descVi: "Xe riêng đón tiễn tận nơi từ sân bay quốc tế Đà Nẵng về biệt thự một cách chu đáo, nhanh chóng và an toàn.",
-    descEn: "Seamless door-to-door private airport pickups and city transfers upon reservation inquiry.",
-  },
-  {
     icon: "UtensilsCrossed",
     titleVi: "Bếp Nấu Cao Cấp Đầy Đủ Tiện Nghi",
     titleEn: "Fully Equipped Gourmet Kitchen",
@@ -66,10 +51,8 @@ const AMENITIES_LIST: AmenityItem[] = [
 
 const iconMap: Record<string, React.ReactNode> = {
   Waves: <Waves className="w-6 h-6 text-[#C2A476]" />,
-  ShieldCheck: <ShieldCheck className="w-6 h-6 text-[#C2A476]" />,
   Wifi: <Wifi className="w-6 h-6 text-[#C2A476]" />,
   Sparkles: <Sparkles className="w-6 h-6 text-[#C2A476]" />,
-  Car: <Car className="w-6 h-6 text-[#C2A476]" />,
   UtensilsCrossed: <UtensilsCrossed className="w-6 h-6 text-[#C2A476]" />,
 };
 
@@ -77,43 +60,54 @@ export const AmenitiesSection: React.FC = () => {
   const { language } = useLanguage();
 
   return (
-    <section id="amenities" className="py-28 px-6 md:px-12 max-w-7xl mx-auto scroll-mt-20">
-      <div className="text-center max-w-3xl mx-auto mb-16">
-        <span className="text-xs uppercase tracking-[0.25em] text-[#C2A476] font-semibold">
+    <section id="amenities" className="py-24 px-6 md:px-12 max-w-7xl mx-auto scroll-mt-20">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true, margin: "-40px" }}
+        transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
+        className="text-center max-w-3xl mx-auto mb-16"
+      >
+        <span className="text-xs uppercase tracking-[0.25em] text-[#C2A476] font-bold">
           {language === "vi" ? "TIỆN NGHI TIÊU CHUẨN 5 SAO" : "Uncompromised Comfort"}
         </span>
-        <h2 className="font-serif text-3xl sm:text-5xl font-light text-neutral-900 mt-2 mb-4">
+        <h2 className="text-3xl sm:text-4xl font-bold text-neutral-900 mt-2 mb-4 tracking-tight">
           {language === "vi" ? "Tiện Ích Đẳng Cấp Chuẩn Nghỉ Dưỡng" : "Signature Amenities"}
         </h2>
-        <div className="w-16 h-0.5 bg-[#C2A476] mx-auto mb-6" />
-        <p className="text-neutral-600 text-sm sm:text-base font-light leading-relaxed">
+        <div className="w-16 h-1 bg-[#C2A476] rounded-full mx-auto mb-5" />
+        <p className="text-neutral-600 text-sm sm:text-base font-normal leading-relaxed">
           {language === "vi"
             ? "Từ hồ bơi riêng tư đến tiêu chuẩn dọn phòng tinh tươm hàng ngày, mỗi chi tiết đều được chăm chút để mang lại sự thư thái tuyệt đối."
             : "From the temperature-controlled plunge waters to the highest standard of daily housekeeping, every detail is tuned for pure relaxation."}
         </p>
-      </div>
+      </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
         {AMENITIES_LIST.map((item, index) => (
-          <div
+          <motion.div
             key={index}
-            className="p-8 rounded-3xl bg-white border border-[#EAE5DC] hover:border-[#C2A476]/50 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col justify-between"
+            initial={{ opacity: 0, y: 25 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.6, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
+            whileHover={{ y: -4, transition: { duration: 0.25 } }}
+            className="p-7 rounded-3xl bg-white border border-[#EAE5DC] hover:border-[#C2A476]/60 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col justify-between"
           >
             <div>
-              <div className="w-14 h-14 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center justify-center mb-6 group-hover:scale-110 group-hover:bg-[#14171A] group-hover:border-[#14171A] transition-all duration-300">
+              <div className="w-13 h-13 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center justify-center mb-5 group-hover:scale-110 group-hover:bg-[#14171A] group-hover:border-[#14171A] transition-all duration-300">
                 {iconMap[item.icon] || <Sparkles className="w-6 h-6 text-[#C2A476]" />}
               </div>
-              <h3 className="font-serif text-xl font-normal text-neutral-900 mb-2">
+              <h3 className="text-base sm:text-lg font-bold text-neutral-900 mb-2 leading-snug">
                 {language === "vi" ? item.titleVi : item.titleEn}
               </h3>
-              <p className="text-xs sm:text-sm text-neutral-600 font-light leading-relaxed">
+              <p className="text-xs sm:text-sm text-neutral-600 font-normal leading-relaxed">
                 {language === "vi" ? item.descVi : item.descEn}
               </p>
             </div>
-            <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center text-[11px] uppercase tracking-wider text-[#C2A476] font-semibold">
+            <div className="mt-6 pt-4 border-t border-neutral-100 flex items-center text-[11px] uppercase tracking-wider text-[#C2A476] font-bold">
               <span>{language === "vi" ? "Đã bao gồm trong kỳ nghỉ" : "Included in your stay"}</span>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
     </section>

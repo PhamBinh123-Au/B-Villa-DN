@@ -1,10 +1,9 @@
 "use client";
 
 import React from "react";
-import Link from "next/link";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
-import { Phone, Mail, MapPin, MessageCircle, Shield, ArrowUp } from "lucide-react";
+import { Phone, Mail, MapPin, MessageCircle, ArrowUp } from "lucide-react";
 
 export const Footer: React.FC = () => {
   const { t, language } = useLanguage();
@@ -15,10 +14,10 @@ export const Footer: React.FC = () => {
   return (
     <footer id="contact" className="bg-[#0E1114] text-white pt-20 pb-12 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 pb-16 border-b border-white/10">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16 pb-16 border-b border-white/10">
           {/* Brand Info */}
           <div>
-            <span className="font-serif text-2xl font-bold tracking-widest uppercase text-white block">
+            <span className="text-2xl font-extrabold tracking-widest uppercase text-white block">
               {siteConfig.name}
             </span>
             <span className="text-xs uppercase tracking-[0.2em] text-[#C2A476] mt-1 block">
@@ -29,18 +28,20 @@ export const Footer: React.FC = () => {
             </p>
             <div className="mt-6 flex items-center gap-3">
               <a
-                href={siteConfig.social.instagram}
+                href={siteConfig.social.zalo || `https://zalo.me/${siteConfig.contact.phone.replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noreferrer"
-                className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 hover:text-[#C2A476] hover:border-[#C2A476] transition-all text-xs"
+                className="px-3.5 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-200 hover:text-[#0068FF] hover:border-[#0068FF] hover:bg-[#0068FF]/10 transition-all text-xs font-bold shadow-2xs"
+                title="Liên hệ Zalo: 0854 252 821"
               >
-                IG
+                Zalo
               </a>
               <a
                 href={siteConfig.social.facebook}
                 target="_blank"
                 rel="noreferrer"
-                className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 hover:text-[#C2A476] hover:border-[#C2A476] transition-all text-xs"
+                className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 hover:text-[#C2A476] hover:border-[#C2A476] transition-all text-xs font-semibold"
+                title="Facebook"
               >
                 FB
               </a>
@@ -48,7 +49,8 @@ export const Footer: React.FC = () => {
                 href={siteConfig.social.tiktok}
                 target="_blank"
                 rel="noreferrer"
-                className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 hover:text-[#C2A476] hover:border-[#C2A476] transition-all text-xs"
+                className="w-9 h-9 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-neutral-300 hover:text-[#C2A476] hover:border-[#C2A476] transition-all text-xs font-semibold"
+                title="TikTok"
               >
                 TT
               </a>
@@ -57,10 +59,10 @@ export const Footer: React.FC = () => {
 
           {/* Curated Villas Links */}
           <div>
-            <h4 className="font-serif text-lg font-medium text-white mb-5">
+            <h4 className="text-lg font-bold text-white mb-5 tracking-tight">
               {language === "vi" ? "Bộ Sưu Tập Biệt Thự" : "The Residences"}
             </h4>
-            <ul className="space-y-3 text-xs sm:text-sm text-neutral-400 font-light">
+            <ul className="space-y-3 text-xs sm:text-sm text-neutral-400 font-normal">
               {siteConfig.villas.map((villa) => (
                 <li key={villa.id}>
                   <a
@@ -79,7 +81,7 @@ export const Footer: React.FC = () => {
 
           {/* Direct Concierge Contact */}
           <div>
-            <h4 className="font-serif text-lg font-medium text-white mb-5">
+            <h4 className="text-lg font-bold text-white mb-5 tracking-tight">
               {t("footer.direct_concierge", "Private Concierge")}
             </h4>
             <ul className="space-y-4 text-xs sm:text-sm text-neutral-400 font-light">
@@ -93,7 +95,8 @@ export const Footer: React.FC = () => {
                   href={`tel:${siteConfig.contact.phone.replace(/\s+/g, "")}`}
                   className="hover:text-white transition-colors"
                 >
-                  {siteConfig.contact.phone}
+                  <span className="font-bold text-[#C2A476] mr-1.5">Hotline:</span>
+                  <span>{siteConfig.contact.phone}</span>
                 </a>
               </li>
               <li className="flex items-center gap-3">
@@ -117,25 +120,6 @@ export const Footer: React.FC = () => {
                 </a>
               </li>
             </ul>
-          </div>
-
-          {/* Quick Info & Staff Portal */}
-          <div>
-            <h4 className="font-serif text-lg font-medium text-white mb-5">
-              {language === "vi" ? "Quản Trị Viên" : "Host Management"}
-            </h4>
-            <p className="text-xs text-neutral-400 leading-relaxed font-light mb-4">
-              {language === "vi"
-                ? "Cổng quản lý đơn và lịch biệt thự dành cho host. Cập nhật theo thời gian thực."
-                : "Owner and reservation management portal. Access booking logs and live guest requests."}
-            </p>
-            <Link
-              href="/admin"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-xs text-neutral-200 hover:text-white transition-all"
-            >
-              <Shield className="w-4 h-4 text-[#C2A476]" />
-              <span>{language === "vi" ? "Mở Cổng Quản Trị" : "Open Admin Dashboard"}</span>
-            </Link>
           </div>
         </div>
 

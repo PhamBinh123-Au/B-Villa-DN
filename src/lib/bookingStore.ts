@@ -1,4 +1,4 @@
-import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo } from "@/types";
+import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo, PaymentStatus } from "@/types";
 
 const STORAGE_KEY = "danang_villa_booking_inquiries_v1";
 const MAINTENANCE_STORAGE_KEY = "danang_villa_maintenance_v1";
@@ -25,6 +25,20 @@ export function formatPriceUsd(amountVnd: number, usdRate = DEFAULT_USD_RATE): s
   if (!amountVnd || isNaN(amountVnd)) return "0";
   const rate = usdRate > 0 ? usdRate : DEFAULT_USD_RATE;
   return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(Math.round(amountVnd / rate));
+}
+
+export function calculateStayNights(checkIn: string, checkOut: string): number {
+  if (!checkIn || !checkOut || checkOut <= checkIn) return 1;
+  const tIn = new Date(checkIn).getTime();
+  const tOut = new Date(checkOut).getTime();
+  if (isNaN(tIn) || isNaN(tOut)) return 1;
+  return Math.max(1, Math.round((tOut - tIn) / 86400000));
+}
+
+export function calculateStayTotal(checkIn: string, checkOut: string, villaIdOrNightly: string | number): number {
+  const nights = calculateStayNights(checkIn, checkOut);
+  const nightly = typeof villaIdOrNightly === "number" ? villaIdOrNightly : bookingStore.getVillaPrice(villaIdOrNightly);
+  return nights * nightly;
 }
 
 export function getStayStatus(checkIn: string, checkOut: string): "upcoming" | "in_house" | "checkout_today" | "expired" {
@@ -68,6 +82,10 @@ const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
     status: "confirmed",
     cleaningStatus: "needs_cleaning",
     cleaningNotes: "Cần thay toàn bộ drap giường 4PN, lau ban công & lọc hồ bơi.",
+    totalPriceVnd: 85000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 85000000,
+    paymentNotes: "Đã thu đủ 85.000.000 ₫ qua chuyển khoản quốc tế.",
     createdAt: "2026-10-05T09:00:00.000Z",
   },
   {
@@ -85,6 +103,10 @@ const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
     status: "confirmed",
     cleaningStatus: "in_cleaning",
     cleaningNotes: "Khách trả phòng 11:30. Đội dọn dẹp đang vệ sinh tầng 1 & hồ bơi atrium.",
+    totalPriceVnd: 97500000,
+    paymentStatus: "paid",
+    paidAmountVnd: 97500000,
+    paymentNotes: "Đã thanh toán đủ qua thẻ tín dụng Visa.",
     createdAt: "2026-10-06T11:00:00.000Z",
   },
   {
@@ -100,6 +122,10 @@ const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
     children: 2,
     specialRequests: "VIP arrival. Early check-in requested.",
     status: "confirmed",
+    totalPriceVnd: 90000000,
+    paymentStatus: "deposit",
+    paidAmountVnd: 45000000,
+    paymentNotes: "Đã cọc 50% (45.000.000 ₫). Còn lại thu khi nhận phòng.",
     createdAt: "2026-10-09T10:00:00.000Z",
   },
   {
@@ -115,6 +141,10 @@ const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
     children: 2,
     specialRequests: "Requesting early check-in at 12:00 PM and airport chauffeur pickup.",
     status: "confirmed",
+    totalPriceVnd: 90000000,
+    paymentStatus: "unpaid",
+    paidAmountVnd: 0,
+    paymentNotes: "Chưa thu tiền - chờ khách chốt vé máy bay.",
     createdAt: "2026-10-08T14:20:00.000Z",
   },
   {
@@ -130,6 +160,10 @@ const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
     children: 0,
     specialRequests: "Celebrating birthday. Need private chef dining setup for one evening.",
     status: "confirmed",
+    totalPriceVnd: 97500000,
+    paymentStatus: "deposit",
+    paidAmountVnd: 50000000,
+    paymentNotes: "Đã nhận cọc 50.000.000 ₫.",
     createdAt: "2026-10-09T08:15:00.000Z",
   },
   {
@@ -145,12 +179,16 @@ const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
     children: 0,
     specialRequests: "Honeymoon stay. Would love flower arrangements by the plunge pool.",
     status: "contacted",
+    totalPriceVnd: 47500000,
+    paymentStatus: "unpaid",
+    paidAmountVnd: 0,
+    paymentNotes: "Chưa thu tiền.",
     createdAt: "2026-10-09T18:45:00.000Z",
   },
 ];
 
 export interface RealtimeSyncPayload {
-  action: "ADD" | "UPDATE" | "DELETE" | "RESET" | "MAINTENANCE_UPDATE" | "PRICE_UPDATE" | "CLEANING_UPDATE";
+  action: "ADD" | "UPDATE" | "DELETE" | "RESET" | "MAINTENANCE_UPDATE" | "PRICE_UPDATE" | "CLEANING_UPDATE" | "PAYMENT_UPDATE";
   inquiry?: BookingInquiry;
   id?: string;
   villaId?: string;
@@ -159,6 +197,7 @@ export interface RealtimeSyncPayload {
   prices?: Record<string, number>;
   usdRate?: number;
   cleaningStatus?: CleaningStatus;
+  paymentStatus?: PaymentStatus;
   timestamp: number;
 }
 
@@ -565,10 +604,16 @@ export const bookingStore = {
     }
 
     // 1. Generate unique inquiry with deterministic ID once
+    const calculatedTotalAsync = inquiryData.checkIn && inquiryData.checkOut && inquiryData.villaId
+      ? calculateStayTotal(inquiryData.checkIn, inquiryData.checkOut, inquiryData.villaId)
+      : 0;
     const newInquiry: BookingInquiry = {
       ...inquiryData,
       id: `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
       status,
+      totalPriceVnd: inquiryData.totalPriceVnd ?? calculatedTotalAsync,
+      paymentStatus: inquiryData.paymentStatus || "unpaid",
+      paidAmountVnd: inquiryData.paidAmountVnd ?? (inquiryData.paymentStatus === "paid" ? calculatedTotalAsync : 0),
       createdAt: new Date().toISOString(),
     };
 
@@ -645,10 +690,16 @@ export const bookingStore = {
     }
 
     const inquiries = this.getInquiries();
+    const calculatedTotalSync = inquiryData.checkIn && inquiryData.checkOut && inquiryData.villaId
+      ? calculateStayTotal(inquiryData.checkIn, inquiryData.checkOut, inquiryData.villaId)
+      : 0;
     const newInquiry: BookingInquiry = {
       ...inquiryData,
       id: `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
       status,
+      totalPriceVnd: inquiryData.totalPriceVnd ?? calculatedTotalSync,
+      paymentStatus: inquiryData.paymentStatus || "unpaid",
+      paidAmountVnd: inquiryData.paidAmountVnd ?? (inquiryData.paymentStatus === "paid" ? calculatedTotalSync : 0),
       createdAt: new Date().toISOString(),
     };
 
@@ -1073,12 +1124,98 @@ export const bookingStore = {
     });
   },
 
+  async updatePaymentStatus(
+    id: string,
+    paymentStatus: PaymentStatus,
+    paidAmountVnd?: number,
+    paymentNotes?: string
+  ): Promise<void> {
+    const inquiries = this.getInquiries();
+    const target = inquiries.find((i) => i.id === id);
+    if (!target) return;
+
+    const total = target.totalPriceVnd ?? calculateStayTotal(target.checkIn, target.checkOut, target.villaId);
+    let finalPaidAmount = paidAmountVnd !== undefined ? paidAmountVnd : target.paidAmountVnd;
+    if (finalPaidAmount === undefined) {
+      if (paymentStatus === "paid") {
+        finalPaidAmount = total;
+      } else if (paymentStatus === "unpaid") {
+        finalPaidAmount = 0;
+      }
+    }
+
+    const updatedFields: Partial<BookingInquiry> = {
+      paymentStatus,
+      paidAmountVnd: finalPaidAmount,
+      totalPriceVnd: total,
+      paymentNotes: paymentNotes !== undefined ? paymentNotes : target.paymentNotes,
+    };
+
+    await this.updateInquiryAsync(id, updatedFields);
+    broadcastSync({
+      action: "PAYMENT_UPDATE",
+      id,
+      paymentStatus,
+      timestamp: Date.now(),
+    });
+  },
+
+  getPaymentSummary(): {
+    totalRevenueVnd: number;
+    paidRevenueVnd: number;
+    unpaidRevenueVnd: number;
+    paidCount: number;
+    unpaidCount: number;
+    depositCount: number;
+  } {
+    const inquiries = this.getInquiries();
+    let totalRevenueVnd = 0;
+    let paidRevenueVnd = 0;
+    let unpaidRevenueVnd = 0;
+    let paidCount = 0;
+    let unpaidCount = 0;
+    let depositCount = 0;
+
+    inquiries.forEach((inq) => {
+      if (inq.status === "cancelled") return;
+      const stayTotal = inq.totalPriceVnd ?? calculateStayTotal(inq.checkIn, inq.checkOut, inq.villaId);
+      totalRevenueVnd += stayTotal;
+
+      const pStatus = inq.paymentStatus || "unpaid";
+      if (pStatus === "paid") {
+        paidCount++;
+        paidRevenueVnd += stayTotal;
+      } else if (pStatus === "deposit") {
+        depositCount++;
+        const depositAmount = inq.paidAmountVnd ?? Math.round(stayTotal / 2);
+        paidRevenueVnd += depositAmount;
+        unpaidRevenueVnd += Math.max(0, stayTotal - depositAmount);
+      } else {
+        unpaidCount++;
+        unpaidRevenueVnd += stayTotal;
+      }
+    });
+
+    return {
+      totalRevenueVnd,
+      paidRevenueVnd,
+      unpaidRevenueVnd,
+      paidCount,
+      unpaidCount,
+      depositCount,
+    };
+  },
+
   getHousekeepingSummary(): {
     expiredCount: number;
     todayCount: number;
     needsCleaningCount: number;
     inCleaningCount: number;
     cleanedCount: number;
+    needsCleaning: number;
+    inCleaning: number;
+    cleaned: number;
+    total: number;
   } {
     const inquiries = this.getInquiries();
     let expiredCount = 0;
@@ -1110,6 +1247,10 @@ export const bookingStore = {
       needsCleaningCount,
       inCleaningCount,
       cleanedCount,
+      needsCleaning: needsCleaningCount,
+      inCleaning: inCleaningCount,
+      cleaned: cleanedCount,
+      total: needsCleaningCount + inCleaningCount + cleanedCount,
     };
   },
 

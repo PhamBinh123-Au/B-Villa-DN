@@ -2,45 +2,46 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { Sparkles, Sun, Compass, HeartHandshake, Waves } from "lucide-react";
 import { useLanguage } from "@/context/LanguageContext";
 
 const EXPERIENCE_PHOTOS = [
   {
-    src: "/images/experience/experience-pool-main.jpg",
-    tagVi: "Hồ Bơi Biệt Lập",
-    tagEn: "Private Pool Living",
-    titleVi: "Làn Nước Xanh Ngọc & Thác Nước Tự Nhiên",
-    titleEn: "Crystal Turquoise Waters & Cascading Waterfall",
-    descriptionVi: "Hồ bơi riêng dài tràn ngập ánh nắng, bao quanh bởi mảng xanh nhiệt đới và tường rào biệt lập.",
-    descriptionEn: "Sunlit linear swimming pool bordered by lush tropical greens and privacy walls.",
-  },
-  {
-    src: "/images/experience/experience-lounge.jpg",
-    tagVi: "Thư Giãn Ngoài Trời",
-    tagEn: "Alfresco Serenity",
-    titleVi: "Sàn Tắm Nắng Hồ Bơi Tràn Ngập Ánh Sáng",
-    titleEn: "Sun-Drenched Poolside Relaxation Deck",
-    descriptionVi: "Kiến trúc màu trắng trang nhã với cửa kính chạm trần mở thẳng ra không gian hồ bơi thoáng đãng.",
-    descriptionEn: "Pristine white architectural facade with seamless floor-to-ceiling glass access.",
-  },
-  {
-    src: "/images/experience/experience-bath.jpg",
-    tagVi: "Chăm Sóc Thân Tâm",
-    tagEn: "Bespoke Wellness",
-    titleVi: "Bồn Tắm Nằm Thư Giãn Phong Cách Spa",
-    titleEn: "Sculpted Freestanding Soaking Bathtub",
-    descriptionVi: "Phòng tắm khép kín sang trọng với gương led nghệ thuật và vòi sen tắm đứng chuẩn resort cao cấp.",
-    descriptionEn: "Serene en-suite bathrooms with illuminated organic mirrors and walk-in showers.",
-  },
-  {
-    src: "/images/experience/experience-waterfall.jpg",
+    src: "/images/B1/B1.11.jpg",
     tagVi: "Tĩnh Lặng Tuyệt Đối",
     tagEn: "Architectural Stillness",
     titleVi: "Vườn Nhiệt Đới & Âm Thanh Thác Nước Róc Rách",
     titleEn: "Lush Poolside Garden & Waterfall Jets",
-    descriptionVi: "Âm thanh êm dịu của dòng nước róc rách mang lại cảm giác bình yên và thư thái trọn vẹn.",
-    descriptionEn: "The gentle acoustic sound of cascading water for meditative coastal peace.",
+    descriptionVi: "Âm thanh êm dịu của dòng nước róc rách mang lại cảm giác bình yên và thư thái trọn vẹn trong không gian biệt lập.",
+    descriptionEn: "The gentle acoustic sound of cascading water for meditative coastal peace within your private sanctuary.",
+  },
+  {
+    src: "/images/B2/B2.5.jpg",
+    tagVi: "Hồ Bơi Biệt Lập",
+    tagEn: "Private Pool Living",
+    titleVi: "Làn Nước Xanh Ngọc & Giếng Trời Đón Nắng",
+    titleEn: "Crystal Turquoise Waters & Skylight Atrium",
+    descriptionVi: "Hồ bơi riêng dài với vòi phun thác nước, giếng trời đón trọn ánh sáng tự nhiên và mở trực tiếp ra các phòng ngủ master.",
+    descriptionEn: "Private linear swimming pool beneath a sunlit skylight atrium, with direct access from master suites.",
+  },
+  {
+    src: "/images/B1/B1.14.jpg",
+    tagVi: "Chăm Sóc Thân Tâm",
+    tagEn: "Bespoke Wellness",
+    titleVi: "Bồn Tắm Nằm Thư Giãn Chuẩn Spa Resort",
+    titleEn: "Sculpted Freestanding Soaking Bathtub",
+    descriptionVi: "Phòng tắm khép kín sang trọng với gương LED nghệ thuật, bồn tắm nằm thư giãn và thiết bị vệ sinh thông minh cao cấp.",
+    descriptionEn: "Serene en-suite bathrooms with illuminated organic mirrors, freestanding soaking tub, and smart modern amenities.",
+  },
+  {
+    src: "/images/B1/B1.15.jpg",
+    tagVi: "Thư Giãn Ngoài Trời",
+    tagEn: "Alfresco Serenity",
+    titleVi: "Sân Vườn Nhiệt Đới & Lối Đi Lát Đá Tự Nhiên",
+    titleEn: "Sun-Drenched Garden Deck & Natural Stone Walkway",
+    descriptionVi: "Kiến trúc đá trắng trang nhã với lối đi lát đá tự nhiên, ghế tắm nắng hồ bơi và không gian mở đón trọn gió biển Sơn Trà.",
+    descriptionEn: "Pristine white stone architecture with natural stone pathways, poolside sun loungers, and refreshing ocean breezes.",
   },
 ];
 
@@ -67,24 +68,29 @@ export const ExperienceSection: React.FC = () => {
       <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           {/* Left Column: Story & Philosophy */}
-          <div>
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+          >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-[#C2A476] text-xs uppercase tracking-[0.2em] mb-4">
               <Sparkles className="w-3.5 h-3.5" />
               <span>{language === "vi" ? "Triết Lý Nghỉ Dưỡng" : "The Sanctuary Philosophy"}</span>
             </div>
-            <h2 className="font-serif text-3xl sm:text-5xl font-light text-white leading-tight mb-6">
+            <h2 className="text-3xl sm:text-5xl font-extrabold text-white leading-tight mb-6 tracking-tight">
               {language === "vi" ? (
-                <>Nơi Kiến Trúc Ven Biển Gặp Gỡ <span className="italic text-[#C2A476]">Khoảng Lặng Bình Yên</span></>
+                <>Nơi Kiến Trúc Ven Biển Gặp Gỡ <span className="font-extrabold text-[#C2A476]">Khoảng Lặng Bình Yên</span></>
               ) : (
-                <>Where Coastal Architecture Meets <span className="italic text-[#C2A476]">Soulful Solitude</span></>
+                <>Where Coastal Architecture Meets <span className="font-extrabold text-[#C2A476]">Soulful Solitude</span></>
               )}
             </h2>
-            <p className="text-neutral-300 text-sm sm:text-base font-light leading-relaxed mb-6">
+            <p className="text-neutral-300 text-sm sm:text-base font-normal leading-relaxed mb-6">
               {language === "vi"
                 ? "Các biệt thự của chúng tôi được thiết kế tách biệt hoàn toàn khỏi sự ồn ào của khách sạn thông thường. Không sảnh đón đông đúc, bạn bước thẳng vào không gian riêng tư tuyệt đối với hồ bơi trong xanh, phòng khách bếp mở ngập tràn ánh sáng và phòng ngủ yên tĩnh bao quanh bởi mảng xanh nhiệt đới."
                 : "Our residences were conceived as an escape from the conventional hotel paradigm. Here, no lobbies crowd your arrival. Instead, you step directly into a private realm of serene swimming pools, luminous open-plan kitchens, and whisper-quiet bedrooms framed by tropical greenery."}
             </p>
-            <p className="text-neutral-400 text-sm font-light leading-relaxed mb-10">
+            <p className="text-neutral-400 text-sm font-normal leading-relaxed mb-10">
               {language === "vi"
                 ? "Dù bạn chọn biệt thự 4 phòng ngủ tại Sơn Trà hay biệt thự 2 phòng ngủ ấm cúng tại Ngũ Hành Sơn, từng phút giây đều được chăm chút cho sự tĩnh tại, tiện nghi và hiếu khách chuẩn mực."
                 : "Whether you choose our 4-bedroom sanctuaries in Son Tra or the intimate 2-bedroom plunge pool villa in Ngu Hanh Son, every hour is shaped around stillness, comfort, and gracious local hospitality."}
@@ -94,10 +100,10 @@ export const ExperienceSection: React.FC = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
               <div className="border-l-2 border-[#C2A476] pl-4">
                 <Sun className="w-5 h-5 text-[#C2A476] mb-2" />
-                <h3 className="font-serif text-lg text-white font-medium">
+                <h3 className="text-lg text-white font-bold tracking-tight">
                   {language === "vi" ? "Ánh Sáng Tự Nhiên Bất Tận" : "Endless Natural Light"}
                 </h3>
-                <p className="text-xs text-neutral-400 mt-1 font-light">
+                <p className="text-sm text-neutral-300 mt-1.5 leading-relaxed font-normal">
                   {language === "vi"
                     ? "Cửa kính chạm trần mở rộng kết nối liền mạch phòng khách với sàn hồ bơi ngoài trời."
                     : "Floor-to-ceiling glass sliding doors bridging indoor living with poolside decks."}
@@ -106,10 +112,10 @@ export const ExperienceSection: React.FC = () => {
 
               <div className="border-l-2 border-[#C2A476] pl-4">
                 <Compass className="w-5 h-5 text-[#C2A476] mb-2" />
-                <h3 className="font-serif text-lg text-white font-medium">
+                <h3 className="text-lg text-white font-bold tracking-tight">
                   {language === "vi" ? "Vị Trí Đắc Địa Ven Biển" : "Prime Enclaves"}
                 </h3>
-                <p className="text-xs text-neutral-400 mt-1 font-light">
+                <p className="text-sm text-neutral-300 mt-1.5 leading-relaxed font-normal">
                   {language === "vi"
                     ? "Khu phố yên bình, chỉ cách bãi biển Mỹ Khê và Bán đảo Sơn Trà vài phút di chuyển."
                     : "Quiet residential streets minutes from My Khe Beach and Son Tra Peninsula."}
@@ -118,10 +124,10 @@ export const ExperienceSection: React.FC = () => {
 
               <div className="border-l-2 border-[#C2A476] pl-4">
                 <HeartHandshake className="w-5 h-5 text-[#C2A476] mb-2" />
-                <h3 className="font-serif text-lg text-white font-medium">
+                <h3 className="text-lg text-white font-bold tracking-tight">
                   {language === "vi" ? "Quản Gia Tận Tâm Chu Đáo" : "Bespoke Concierge"}
                 </h3>
-                <p className="text-xs text-neutral-400 mt-1 font-light">
+                <p className="text-sm text-neutral-300 mt-1.5 leading-relaxed font-normal">
                   {language === "vi"
                     ? "Hỗ trợ 24/7 xe đưa đón sân bay, mua sắm chuẩn bị nguyên liệu và tổ chức tiệc BBQ riêng."
                     : "Direct support for airport chauffeurs, grocery stocking, and private BBQ setups."}
@@ -130,20 +136,26 @@ export const ExperienceSection: React.FC = () => {
 
               <div className="border-l-2 border-[#C2A476] pl-4">
                 <Waves className="w-5 h-5 text-[#C2A476] mb-2" />
-                <h3 className="font-serif text-lg text-white font-medium">
+                <h3 className="text-lg text-white font-bold tracking-tight">
                   {language === "vi" ? "Riêng Tư Tuyệt Đối" : "Pure Seclusion"}
                 </h3>
-                <p className="text-xs text-neutral-400 mt-1 font-light">
+                <p className="text-sm text-neutral-300 mt-1.5 leading-relaxed font-normal">
                   {language === "vi"
                     ? "Tường rào biệt lập, cổng khoá an ninh, hỗ trợ nhận phòng tự động hoặc đón tiếp trực tiếp."
                     : "High privacy walls, gated entrances, and dedicated self or host check-in."}
                 </p>
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* Right Column: Visual Showcase */}
-          <div className="relative">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true, margin: "-40px" }}
+            transition={{ duration: 0.9, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="relative"
+          >
             {/* Main Interactive Image Frame */}
             <div className="relative h-[480px] sm:h-[540px] rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-neutral-900 group">
               {EXPERIENCE_PHOTOS.map((photo, idx) => (
@@ -158,6 +170,8 @@ export const ExperienceSection: React.FC = () => {
                     alt={language === "vi" ? photo.titleVi : photo.titleEn}
                     fill
                     priority={idx === 0}
+                    quality={90}
+                    sizes="(max-width: 1024px) 100vw, 640px"
                     className="object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-700 ease-out"
                   />
                 </div>
@@ -196,7 +210,7 @@ export const ExperienceSection: React.FC = () => {
                   </div>
                 </div>
 
-                <h3 className="font-serif text-xl sm:text-2xl text-white font-medium leading-snug">
+                <h3 className="text-xl sm:text-2xl text-white font-bold leading-snug tracking-tight">
                   {language === "vi" ? currentPhoto.titleVi : currentPhoto.titleEn}
                 </h3>
                 <p className="text-xs text-neutral-300 font-light mt-1 line-clamp-2">
@@ -220,6 +234,8 @@ export const ExperienceSection: React.FC = () => {
                         src={thumb.src}
                         alt={language === "vi" ? thumb.tagVi : thumb.tagEn}
                         fill
+                        sizes="120px"
+                        quality={85}
                         className="object-cover"
                       />
                     </button>
@@ -227,22 +243,7 @@ export const ExperienceSection: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {/* Overlapping Guest Review Card */}
-            <div className="hidden sm:block absolute -bottom-6 -left-6 z-40 bg-[#1e2329]/95 backdrop-blur-xl border border-white/20 p-4 rounded-2xl shadow-2xl max-w-xs">
-              <p className="text-[11px] text-[#C2A476] uppercase tracking-widest font-semibold mb-1">
-                {language === "vi" ? "Đánh Giá Thực Tế Từ Khách" : "Verified Guest Experience"}
-              </p>
-              <p className="text-xs text-neutral-200 italic font-light leading-relaxed">
-                {language === "vi"
-                  ? "“Thức dậy với ánh nắng ban mai phản chiếu trên mặt hồ bơi riêng là khoảnh khắc đáng nhớ nhất trong chuyến du lịch Đà Nẵng của gia đình tôi.”"
-                  : "“Waking up to the morning sun reflecting off our private pool was the highlight of our Da Nang vacation.”"}
-              </p>
-              <p className="text-[10px] text-neutral-400 mt-2 font-medium">
-                {language === "vi" ? "— Trải Nghiệm Khách Nghỉ Dưỡng" : "— Private Villa Guest Review"}
-              </p>
-            </div>
-          </div>
+          </motion.div>
         </div>
       </div>
     </section>

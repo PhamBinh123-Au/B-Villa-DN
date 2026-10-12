@@ -66,11 +66,11 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
           <Sparkles className="w-3.5 h-3.5" />
           <span>{language === "vi" ? "Góc Nhìn Không Gian" : "Visual Walkthrough"}</span>
         </div>
-        <h2 className="font-serif text-3xl sm:text-5xl font-light text-neutral-900 mb-4">
+        <h2 className="text-3xl sm:text-5xl font-extrabold text-neutral-900 mb-4 tracking-tight">
           {language === "vi" ? "Bộ Sưu Tập Không Gian Kiến Trúc" : "Spaces & Living Gallery"}
         </h2>
-        <div className="w-16 h-0.5 bg-[#C2A476] mx-auto mb-6" />
-        <p className="text-neutral-600 text-sm sm:text-base font-light leading-relaxed">
+        <div className="w-16 h-1 bg-[#C2A476] rounded-full mx-auto mb-6" />
+        <p className="text-neutral-600 text-sm sm:text-base font-normal leading-relaxed">
           {language === "vi"
             ? "Chiêm ngưỡng từng góc nhỏ tinh tế: hồ bơi xanh mát, sân vườn đón nắng, phòng ngủ master en-suite sang trọng và phòng bếp mở ấm cúng."
             : "Experience every dimension of our residences: from turquoise swimming pools and sunlit courtyards to minimalist master suites and gourmet open kitchens."}
@@ -130,7 +130,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
               <span className="text-[10px] uppercase font-bold tracking-widest text-[#C2A476] block mb-1">
                 {item.villaCode}
               </span>
-              <h3 className="font-serif text-base font-normal leading-snug text-white group-hover:text-[#EAE4D7] transition-colors">
+              <h3 className="text-base font-bold leading-snug text-white group-hover:text-[#EAE4D7] transition-colors">
                 {item.title}
               </h3>
               <p className="text-[11px] text-neutral-300 font-light mt-1 line-clamp-1">
@@ -187,7 +187,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
                 <span className="text-xs uppercase font-bold tracking-widest text-[#C2A476]">
                   {filteredItems[lightboxIndex].villaCode} • {filteredItems[lightboxIndex].categoryLabel}
                 </span>
-                <h3 className="font-serif text-xl sm:text-2xl text-white font-light mt-1">
+                <h3 className="text-xl sm:text-2xl text-white font-bold mt-1 tracking-tight">
                   {filteredItems[lightboxIndex].title}
                 </h3>
                 <p className="text-xs text-neutral-400 font-light mt-1 max-w-xl">

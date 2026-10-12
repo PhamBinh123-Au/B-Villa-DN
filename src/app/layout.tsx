@@ -1,18 +1,13 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Plus_Jakarta_Sans } from "next/font/google";
+import { Quicksand } from "next/font/google";
 import { siteConfig } from "@/config/siteConfig";
 import { LanguageProvider } from "@/context/LanguageContext";
 import "./globals.css";
 
-const playfair = Playfair_Display({
-  subsets: ["latin"],
-  variable: "--font-serif",
-  display: "swap",
-});
-
-const plusJakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  variable: "--font-sans",
+const quicksand = Quicksand({
+  subsets: ["latin", "vietnamese"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-quicksand",
   display: "swap",
 });
 
@@ -44,9 +39,21 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`scroll-smooth ${playfair.variable} ${plusJakarta.variable}`}
+      suppressHydrationWarning
+      className={`scroll-smooth ${quicksand.variable}`}
     >
-      <body className="antialiased min-h-screen flex flex-col bg-[#FAF8F5] font-sans text-[#14171A]">
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body
+        suppressHydrationWarning
+        className={`${quicksand.className} antialiased min-h-screen flex flex-col bg-[#FAF8F5] text-[#14171A]`}
+      >
         <LanguageProvider>{children}</LanguageProvider>
       </body>
     </html>

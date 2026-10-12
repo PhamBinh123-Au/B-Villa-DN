@@ -5,7 +5,7 @@ import Link from "next/link";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Menu, X, Shield, Calendar, Phone } from "lucide-react";
+import { Menu, X, Calendar, Phone } from "lucide-react";
 
 interface NavbarProps {
   onOpenBooking: () => void;
@@ -35,10 +35,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
       <div className="max-w-7xl mx-auto px-5 sm:px-8 md:px-12 flex items-center justify-between gap-4">
         {/* Brand Logo */}
         <Link href="/" className="group flex flex-col flex-shrink-0">
-          <span className="font-serif text-lg sm:text-xl md:text-2xl font-bold tracking-widest text-white uppercase group-hover:text-[#C2A476] transition-colors">
+          <span className="text-lg sm:text-xl md:text-2xl font-extrabold tracking-wider text-white uppercase group-hover:text-[#C2A476] transition-colors">
             {siteConfig.name}
           </span>
-          <span className="text-[9px] sm:text-[10px] tracking-[0.25em] text-[#C2A476] uppercase">
+          <span className="text-[9px] sm:text-[10px] tracking-[0.25em] text-[#C2A476] uppercase font-semibold">
             {t("brand.location")}
           </span>
         </Link>
@@ -69,14 +69,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
           >
             {t("nav.contact")}
           </a>
-          <Link
-            href="/admin"
-            className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-white px-2.5 py-1 rounded-full border border-white/10 hover:border-[#C2A476]/40 hover:bg-white/5 transition-all"
-            title="Owner & Staff Portal"
-          >
-            <Shield className="w-3.5 h-3.5 text-[#C2A476]" />
-            <span>{t("nav.admin")}</span>
-          </Link>
         </nav>
 
         {/* Action Buttons & Language Switcher */}
@@ -86,11 +78,12 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
 
           <a
             href={`tel:${siteConfig.contact.phone.replace(/\s+/g, "")}`}
-            className="hidden xl:flex items-center gap-1.5 text-xs uppercase tracking-wider text-neutral-300 hover:text-white transition-colors whitespace-nowrap flex-shrink-0"
+            className="hidden xl:flex items-center gap-1.5 text-xs tracking-wider text-neutral-300 hover:text-white transition-colors whitespace-nowrap flex-shrink-0"
           >
             <Phone className="w-3.5 h-3.5 text-[#C2A476] flex-shrink-0" />
-            <span className="whitespace-nowrap font-medium tracking-normal text-xs">
-              {siteConfig.contact.phone}
+            <span className="whitespace-nowrap font-medium tracking-normal text-xs flex items-center">
+              <span className="font-bold text-[#C2A476] mr-1.5">Hotline:</span>
+              <span>{siteConfig.contact.phone}</span>
             </span>
           </a>
 
@@ -158,24 +151,15 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
               {t("nav.contact")}
             </a>
 
-            <div className="pt-2 flex items-center justify-between gap-3 flex-wrap">
-              <Link
-                href="/admin"
-                onClick={() => setMobileMenuOpen(false)}
-                className="flex items-center gap-2 text-xs text-neutral-300 hover:text-white px-3 py-1.5 rounded-full border border-white/15"
-              >
-                <Shield className="w-3.5 h-3.5 text-[#C2A476]" />
-                <span>{t("nav.admin")}</span>
-              </Link>
-
+            <div className="pt-3">
               <button
                 onClick={() => {
                   setMobileMenuOpen(false);
                   onOpenBooking();
                 }}
-                className="text-xs bg-[#C2A476] hover:bg-[#aa8c5b] text-white px-4 py-2 rounded-full font-semibold uppercase tracking-wider flex items-center gap-1.5 shadow-md"
+                className="w-full text-xs bg-[#C2A476] hover:bg-[#aa8c5b] text-white px-5 py-3 rounded-full font-semibold uppercase tracking-wider flex items-center justify-center gap-2 shadow-md"
               >
-                <Calendar className="w-3.5 h-3.5" />
+                <Calendar className="w-4 h-4" />
                 <span>{t("nav.inquire")}</span>
               </button>
             </div>

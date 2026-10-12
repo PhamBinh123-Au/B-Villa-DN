@@ -1,20 +1,37 @@
 export interface Villa {
   id: string;
   name: string;
+  nameVi?: string;
   code: string; // e.g. "B1", "B2", "B3", "B4"
   tagline: string;
+  taglineVi?: string;
+  fullTitle?: string;
+  fullTitleVi?: string;
   location: string;
+  locationVi?: string;
   district: string;
+  districtVi?: string;
   bedrooms: number;
   bathrooms: number;
   maxGuests: number;
   poolType: string;
+  poolTypeVi?: string;
   image: string;
   gallery: string[];
   description: string;
+  descriptionVi?: string;
   highlights: string[];
+  highlightsVi?: string[];
   amenities: string[];
+  amenitiesVi?: string[];
   priceVnd?: number; // Base nightly rate in VND
+  spaceDetails?: string[];
+  spaceDetailsVi?: string[];
+  furnitureAmenities?: string[];
+  furnitureAmenitiesVi?: string[];
+  suitableFor?: string;
+  suitableForVi?: string;
+  mapUrl?: string; // Google Maps directions link for the villa
 }
 
 export interface GalleryItem {
@@ -29,6 +46,7 @@ export interface GalleryItem {
 
 export type InquiryStatus = "pending" | "contacted" | "confirmed" | "cancelled";
 export type CleaningStatus = "needs_cleaning" | "in_cleaning" | "cleaned";
+export type PaymentStatus = "unpaid" | "paid" | "deposit";
 
 export interface BookingInquiry {
   id: string;
@@ -47,6 +65,10 @@ export interface BookingInquiry {
   cleaningStatus?: CleaningStatus; // Housekeeping turnover status after stay expiration
   cleaningNotes?: string;
   cleanedAt?: string;
+  totalPriceVnd?: number; // Total calculated or custom stay price in VND
+  paymentStatus?: PaymentStatus; // "unpaid" (Chưa thu) | "paid" (Đã thu) | "deposit" (Đã cọc)
+  paidAmountVnd?: number; // Amount collected so far
+  paymentNotes?: string; // e.g. "Chuyển khoản Vietcombank"
 }
 
 export interface VillaPriceConfig {
@@ -82,7 +104,8 @@ export interface SiteConfig {
     passcode: string;
   };
   social: {
-    instagram: string;
+    zalo?: string;
+    instagram?: string;
     facebook: string;
     tiktok: string;
   };

@@ -39,19 +39,29 @@ interface HeroProps {
 
 const HERO_SLIDES = [
   {
-    image: "/images/hero/hero-luxury-villa.jpg",
-    title: "Crystal Turquoise Swimming Pool",
-    subtitle: "Son Tra Coastline Sanctuary",
+    image: "/images/B1/B1.15.jpg",
+    title: "B1 Villa • Hồ Bơi Sân Vườn Biển Sơn Trà",
+    subtitle: "Thành Vinh 3, Sơn Trà • Vài Bước Chân Ra Biển",
   },
   {
-    image: "/images/gallery/garden-exterior.jpg",
-    title: "Architectural Stone Facade & Tropical Lawn",
-    subtitle: "Private Gated Coastal Living",
+    image: "/images/B2/B2.5.jpg",
+    title: "B2 Villa • Giếng Trời & Thác Nước Tự Nhiên",
+    subtitle: "Nước Mặn 3, Ngũ Hành Sơn • Biệt Thự Ven Sông Yên Bình",
   },
   {
-    image: "/images/gallery/bedroom-poolview.jpg",
-    title: "Poolside En-Suite Master Residence",
-    subtitle: "Floor-to-Ceiling Glass Harmony",
+    image: "/images/B4/B4.7.jpg",
+    title: "B4 Villa • Hồ Bơi Biệt Lập & Thác Nước Đôi",
+    subtitle: "Thành Vinh 2, Sơn Trà • Không Gian Nghỉ Dưỡng Riêng Tư",
+  },
+  {
+    image: "/images/B2/B2.1.jpg",
+    title: "B2 Villa • Phòng Khách Mở & Nội Thất Sang Trọng",
+    subtitle: "Ven Sông Ngũ Hành Sơn • Đầy Đủ Tiện Nghi Cao Cấp",
+  },
+  {
+    image: "/images/B4/B4.16.jpg",
+    title: "B4 Villa • Mặt Tiền Đá Trắng & Hoa Giấy Rực Rỡ",
+    subtitle: "Sơn Trà, Đà Nẵng • Kiến Trúc Nghỉ Dưỡng Tuyệt Mỹ",
   },
 ];
 
@@ -125,7 +135,10 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
   const todayStr = getTodayString();
 
   // Automatic slide rotation
+  const [mounted, setMounted] = useState(false);
+
   useEffect(() => {
+    setMounted(true);
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
     }, 6000);
@@ -299,6 +312,8 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
               alt={slide.title}
               fill
               priority={index === 0}
+              quality={90}
+              sizes="100vw"
               className="object-cover object-center scale-105 transition-transform duration-[8000ms] ease-out"
             />
           </div>
@@ -317,11 +332,11 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
         </div>
 
         {/* Headline */}
-        <h1 className="font-serif text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-light tracking-tight leading-[1.15] sm:leading-[1.1] text-white max-w-4xl drop-shadow-md">
+        <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.15] sm:leading-[1.1] text-white max-w-4xl drop-shadow-md">
           {language === "vi" ? (
-            <>Nghỉ Dưỡng Đẳng Cấp <span className="italic font-normal text-[#C2A476]">Bên Bờ Biển</span> Đà Nẵng</>
+            <>Nghỉ Dưỡng Đẳng Cấp <span className="font-extrabold text-[#C2A476]">Bên Bờ Biển</span> Đà Nẵng</>
           ) : (
-            <>A Symphony of <span className="italic font-normal text-[#C2A476]">Light, Water</span> & Architectural Serenity</>
+            <>A Symphony of <span className="font-extrabold text-[#C2A476]">Light, Water</span> & Architectural Serenity</>
           )}
         </h1>
 
@@ -376,10 +391,10 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="block text-[10px] uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
+                    <span className="block text-xs uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
                       {t("search.select_villa", "Select Sanctuary")}
                     </span>
-                    {isSelectedVillaUnderMaintenance && (
+                    {mounted && isSelectedVillaUnderMaintenance && (
                       <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5">
                         <Wrench className="w-2.5 h-2.5" />
                         <span>{t("villas.maintenance_badge", "Maintenance")}</span>
@@ -387,7 +402,9 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                     )}
                   </div>
                   <span className="block text-xs sm:text-sm font-bold text-neutral-900 truncate mt-0.5">
-                    {selectedVillaData ? selectedVillaData.name : t("search.all_villas", "All 4 Villas")}
+                    {selectedVillaData
+                      ? (language === "vi" ? (selectedVillaData.nameVi || selectedVillaData.name) : selectedVillaData.name)
+                      : t("search.all_villas", "All 4 Villas")}
                   </span>
                 </div>
 
@@ -486,7 +503,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                               <div className="min-w-0">
                                 <div className="flex items-center gap-1.5">
                                   <p className="text-xs sm:text-sm font-bold truncate group-hover:text-[#8A6B3D] transition-colors text-neutral-900">
-                                    {v.name}
+                                    {language === "vi" ? (v.nameVi || v.name) : v.name}
                                   </p>
                                   {isUnderMaintenance && (
                                     <span className="text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-1.5 py-0.5 rounded-full uppercase flex items-center gap-0.5 flex-shrink-0">
@@ -496,7 +513,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                                   )}
                                 </div>
                                 <p className="text-[11px] text-neutral-600 truncate mt-0.5 font-medium">
-                                  {v.district} • {v.bedrooms} PN • {v.poolType}
+                                  {language === "vi" ? (v.districtVi || v.district) : v.district} • {v.bedrooms} PN • {language === "vi" ? (v.poolTypeVi || v.poolType) : v.poolType}
                                 </p>
                               </div>
                             </div>
@@ -530,7 +547,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <span className="block text-[10px] uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
+                  <span className="block text-xs uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
                     {t("search.check_in", "Check-in Date")}
                   </span>
                   <span
@@ -568,7 +585,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                         <span className="text-[10px] uppercase tracking-wider font-bold text-[#8A6B3D] block">
                           Check-in Date
                         </span>
-                        <h4 className="font-serif font-bold text-lg text-neutral-900 leading-tight">
+                        <h4 className="font-extrabold text-lg text-neutral-900 leading-tight tracking-tight">
                           {MONTH_NAMES[calMonth]} {calYear}
                         </h4>
                       </div>
@@ -748,7 +765,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <span className="block text-[10px] uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
+                  <span className="block text-xs uppercase font-bold tracking-wider text-neutral-600 group-hover:text-[#8A6B3D] transition-colors">
                     {t("search.check_out", "Check-out Date")}
                   </span>
                   <span
@@ -786,7 +803,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                         <span className="text-[10px] uppercase tracking-wider font-bold text-[#8A6B3D] block">
                           Check-out Date
                         </span>
-                        <h4 className="font-serif font-bold text-lg text-neutral-900 leading-tight">
+                        <h4 className="font-extrabold text-lg text-neutral-900 leading-tight tracking-tight">
                           {MONTH_NAMES[calMonth]} {calYear}
                         </h4>
                       </div>

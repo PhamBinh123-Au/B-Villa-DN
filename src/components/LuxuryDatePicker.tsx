@@ -237,10 +237,10 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5] mb-2.5 bg-[#FAF7F2] -m-4 mb-2.5 p-3 rounded-t-2xl">
               <div>
-                <span className="text-[10px] uppercase tracking-wider font-bold text-[#8A6B3D] block">
+                <span className="text-xs uppercase tracking-wider font-bold text-[#8A6B3D] block">
                   {label}
                 </span>
-                <h4 className="font-serif font-bold text-base text-neutral-900 leading-tight">
+                <h4 className="font-extrabold text-base text-neutral-900 leading-tight tracking-tight">
                   {MONTH_NAMES[calMonth]} {calYear}
                 </h4>
               </div>
@@ -265,24 +265,24 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             </div>
 
             {/* Availability Legend */}
-            <div className="flex items-center justify-between text-[10px] text-neutral-600 py-1 px-2 bg-[#FAF8F5] rounded-lg mb-2 border border-[#EAE2D5]">
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#10B981]" />
-                <span>Available</span>
+            <div className="flex items-center justify-between text-xs text-neutral-700 py-1.5 px-2.5 bg-[#FAF8F5] rounded-lg mb-2 border border-[#EAE2D5]">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
+                <span className="font-medium">Available</span>
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#F43F5E]" />
-                <span>Booked</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#F43F5E]" />
+                <span className="font-medium">Booked</span>
               </span>
-              <span className="flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-[#C2A476]" />
-                <span>Selected</span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#C2A476]" />
+                <span className="font-medium">Selected</span>
               </span>
             </div>
 
             {/* Maintenance Warning Banner if Villa is Under Maintenance */}
             {villaId && bookingStore.isVillaUnderMaintenance(villaId) && (
-              <div className="mb-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-[10px] flex items-center gap-1.5 animate-fade-in">
+              <div className="mb-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-1.5 animate-fade-in">
                 <Wrench className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
                 <span className="font-semibold">Under Maintenance — Dates Unavailable</span>
               </div>
@@ -291,7 +291,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             {/* Weekdays */}
             <div className="grid grid-cols-7 gap-1 text-center mb-1">
               {DAY_LABELS.map((d) => (
-                <span key={d} className="text-[11px] font-bold text-neutral-500 py-0.5">
+                <span key={d} className="text-xs font-bold text-neutral-600 py-0.5">
                   {d}
                 </span>
               ))}

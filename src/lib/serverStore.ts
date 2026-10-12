@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo } from "@/types";
+import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo, PaymentStatus } from "@/types";
 
 export const DEFAULT_VILLA_PRICES: Record<string, number> = {
   "b1-villa-4pn": 18000000,
@@ -35,6 +35,10 @@ const INITIAL_SAMPLE_INQUIRIES: BookingInquiry[] = [
     children: 2,
     specialRequests: "VIP arrival. Early check-in requested.",
     status: "confirmed",
+    totalPriceVnd: 90000000,
+    paymentStatus: "deposit",
+    paidAmountVnd: 45000000,
+    paymentNotes: "Đã cọc 50% (45.000.000 ₫). Còn lại thu khi nhận phòng.",
     createdAt: "2026-10-09T10:00:00.000Z",
   },
   {
@@ -50,6 +54,10 @@ const INITIAL_SAMPLE_INQUIRIES: BookingInquiry[] = [
     children: 2,
     specialRequests: "Requesting early check-in at 12:00 PM and airport chauffeur pickup.",
     status: "confirmed",
+    totalPriceVnd: 90000000,
+    paymentStatus: "unpaid",
+    paidAmountVnd: 0,
+    paymentNotes: "Chưa thu tiền - chờ khách chốt vé máy bay.",
     createdAt: "2026-10-08T14:20:00.000Z",
   },
   {
@@ -65,6 +73,10 @@ const INITIAL_SAMPLE_INQUIRIES: BookingInquiry[] = [
     children: 0,
     specialRequests: "Celebrating birthday. Need private chef dining setup for one evening.",
     status: "confirmed",
+    totalPriceVnd: 97500000,
+    paymentStatus: "paid",
+    paidAmountVnd: 97500000,
+    paymentNotes: "Đã thu đủ 97.500.000 ₫.",
     createdAt: "2026-10-09T08:15:00.000Z",
   },
   {
@@ -80,6 +92,10 @@ const INITIAL_SAMPLE_INQUIRIES: BookingInquiry[] = [
     children: 0,
     specialRequests: "Honeymoon stay. Would love flower arrangements by the plunge pool.",
     status: "contacted",
+    totalPriceVnd: 47500000,
+    paymentStatus: "unpaid",
+    paidAmountVnd: 0,
+    paymentNotes: "Đang liên hệ tư vấn gói Honeymoon.",
     createdAt: "2026-10-09T18:45:00.000Z",
   },
 ];
@@ -431,10 +447,22 @@ export const serverStore = {
       }
     }
 
+    let calculatedTotal = inquiryData.totalPriceVnd;
+    if (calculatedTotal === undefined && inquiryData.checkIn && inquiryData.checkOut) {
+      const nightly = (data.prices && data.prices[inquiryData.villaId]) || DEFAULT_VILLA_PRICES[inquiryData.villaId] || 15000000;
+      const tIn = new Date(inquiryData.checkIn).getTime();
+      const tOut = new Date(inquiryData.checkOut).getTime();
+      const nights = !isNaN(tIn) && !isNaN(tOut) ? Math.max(1, Math.round((tOut - tIn) / 86400000)) : 1;
+      calculatedTotal = nights * nightly;
+    }
+
     const newInquiry: BookingInquiry = {
       ...inquiryData,
       id: requestedId || `INQ-${Math.floor(1000 + Math.random() * 9000)}`,
       status,
+      totalPriceVnd: calculatedTotal,
+      paymentStatus: inquiryData.paymentStatus || "unpaid",
+      paidAmountVnd: inquiryData.paidAmountVnd ?? (inquiryData.paymentStatus === "paid" ? calculatedTotal : 0),
       createdAt: (inquiryData as any).createdAt || new Date().toISOString(),
     };
 

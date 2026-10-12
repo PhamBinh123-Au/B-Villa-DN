@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { motion, AnimatePresence } from "framer-motion";
 import { siteConfig } from "@/config/siteConfig";
 import {
   bookingStore,
@@ -10,11 +11,13 @@ import {
   getInquirySignature,
   formatPriceVnd,
   formatPriceUsd,
+  calculateStayNights,
+  calculateStayTotal,
   getStayStatus,
   isCheckoutExpired,
   isCheckoutToday,
 } from "@/lib/bookingStore";
-import { BookingInquiry, InquiryStatus, Villa, VillaMaintenanceInfo, CleaningStatus } from "@/types";
+import { BookingInquiry, InquiryStatus, Villa, VillaMaintenanceInfo, CleaningStatus, PaymentStatus } from "@/types";
 import {
   LuxuryDatePicker,
   addDays,
@@ -62,6 +65,11 @@ import {
   ExternalLink,
   Tag,
   DollarSign,
+  CreditCard,
+  ChevronDown,
+  ChevronUp,
+  Home,
+  Zap,
 } from "lucide-react";
 
 // Web Audio Luxury Chime generator (Pure synthesized browser audio)
@@ -112,6 +120,7 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [villaFilter, setVillaFilter] = useState<string>("all");
+  const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [toastMessage, setToastMessage] = useState<{ title: string; subtitle?: string } | null>(null);
   const [newlyArrivedId, setNewlyArrivedId] = useState<string | null>(null);
 
@@ -131,6 +140,7 @@ export default function AdminPage() {
     children: 0,
     specialRequests: "Host blocked dates or direct reservation.",
     status: "confirmed" as InquiryStatus,
+    paymentStatus: "unpaid" as PaymentStatus,
   });
 
   // Maintenance State & Dialog
@@ -139,7 +149,14 @@ export default function AdminPage() {
   const [maintenanceNoteInput, setMaintenanceNoteInput] = useState("");
 
   // Admin Active View Tab
-  const [adminViewTab, setAdminViewTab] = useState<"all_bookings" | "housekeeping" | "pricing" | "maintenance">("all_bookings");
+  const [adminViewTab, setAdminViewTab] = useState<"all_bookings" | "turnover" | "pricing" | "maintenance">("all_bookings");
+
+  // Turnover & Housekeeping States
+  const [turnoverFilter, setTurnoverFilter] = useState<"all" | "needs_cleaning" | "in_cleaning" | "cleaned" | "today">("all");
+  const [turnoverSearchQuery, setTurnoverSearchQuery] = useState("");
+  const [editingTurnoverNoteId, setEditingTurnoverNoteId] = useState<string | null>(null);
+  const [turnoverNoteInput, setTurnoverNoteInput] = useState("");
+  const [isUpdatingTurnover, setIsUpdatingTurnover] = useState(false);
 
   // Villa Pricing & USD Rate States
   const [villaPrices, setVillaPrices] = useState<Record<string, number>>(() => bookingStore.getAllVillaPrices());
@@ -147,11 +164,7 @@ export default function AdminPage() {
   const [isSavingPrices, setIsSavingPrices] = useState(false);
   const [priceSaveFeedback, setPriceSaveFeedback] = useState(false);
 
-  // Housekeeping Turnover States
-  const [housekeepingSubFilter, setHousekeepingSubFilter] = useState<"all" | "needs_cleaning" | "in_cleaning" | "cleaned" | "today">("all");
-  const [editingCleaningNotesId, setEditingCleaningNotesId] = useState<string | null>(null);
-  const [cleaningNotesInput, setCleaningNotesInput] = useState("");
-  const [isUpdatingCleaning, setIsUpdatingCleaning] = useState(false);
+
 
   // Luxury Dialog States
   const [inquiryToDelete, setInquiryToDelete] = useState<BookingInquiry | null>(null);
@@ -188,6 +201,7 @@ export default function AdminPage() {
 
   // Cloud Sync & Multi-Device State
   const [isCloudStorage, setIsCloudStorage] = useState(false);
+  const [isSyncBannerCollapsed, setIsSyncBannerCollapsed] = useState(true);
   const [storageType, setStorageType] = useState("Checking cloud storage...");
   const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [syncModalTab, setSyncModalTab] = useState<"guide" | "export" | "import">("guide");
@@ -306,33 +320,68 @@ export default function AdminPage() {
     return list;
   };
 
-  // Housekeeping status update handler
-  const handleUpdateCleaningStatus = async (inquiryId: string, status: CleaningStatus, notes?: string) => {
+
+
+  // Housekeeping & Turnover status update handler
+  const handleUpdateTurnoverStatus = async (
+    inquiryId: string,
+    status: CleaningStatus,
+    notes?: string
+  ) => {
     try {
-      setIsUpdatingCleaning(true);
+      setIsUpdatingTurnover(true);
       await bookingStore.updateCleaningStatus(inquiryId, status, notes);
       reloadInquiries();
       playLuxuryChime();
       const statusLabel =
         status === "cleaned"
-          ? (language === "vi" ? "✨ Đã dọn dẹp sạch sẽ & sẵn sàng đón khách mới" : "✨ Marked as Cleaned & Inspected")
+          ? (language === "vi" ? "✨ Đã dọn dẹp sạch & sẵn sàng nhận khách" : "✨ Marked as Cleaned & Inspected")
           : status === "in_cleaning"
           ? (language === "vi" ? "🟡 Đang tiến hành dọn dẹp buồng phòng" : "🟡 In Cleaning Progress")
-          : (language === "vi" ? "🔴 Đã chuyển về Cần dọn dẹp" : "🔴 Marked as Needs Cleaning");
+          : (language === "vi" ? "🔴 Đã chuyển về Cần dọn phòng" : "🔴 Marked as Needs Cleaning");
       showNotification(
-        language === "vi" ? "Cập nhật buồng phòng thành công!" : "Housekeeping Updated!",
+        language === "vi" ? "Cập nhật buồng phòng thành công!" : "Turnover Updated!",
         `${inquiryId}: ${statusLabel}`
       );
-      if (editingCleaningNotesId === inquiryId) {
-        setEditingCleaningNotesId(null);
+      if (editingTurnoverNoteId === inquiryId) {
+        setEditingTurnoverNoteId(null);
       }
     } catch (err: any) {
       showAdminNotice(
-        language === "vi" ? "Lỗi cập nhật buồng phòng" : "Cleaning Update Failed",
+        language === "vi" ? "Lỗi cập nhật buồng phòng" : "Turnover Update Failed",
         err.message || "Could not update housekeeping status."
       );
     } finally {
-      setIsUpdatingCleaning(false);
+      setIsUpdatingTurnover(false);
+    }
+  };
+
+  // Payment status update handler (1-Click toggle between Chưa thu / Đã cọc / Đã thu)
+  const handleUpdatePaymentStatus = async (
+    inquiryId: string,
+    paymentStatus: PaymentStatus,
+    paidAmount?: number,
+    notes?: string
+  ) => {
+    try {
+      await bookingStore.updatePaymentStatus(inquiryId, paymentStatus, paidAmount, notes);
+      reloadInquiries();
+      playLuxuryChime();
+      const statusLabel =
+        paymentStatus === "paid"
+          ? (language === "vi" ? "🟢 Đã thu đủ tiền phòng" : "🟢 Fully Paid & Collected")
+          : paymentStatus === "deposit"
+          ? (language === "vi" ? "🟡 Đã thu tiền đặt cọc" : "🟡 Deposit Collected")
+          : (language === "vi" ? "🔴 Đã chuyển về Chưa thu tiền" : "🔴 Marked as Unpaid");
+      showNotification(
+        language === "vi" ? "Cập nhật thanh toán thành công!" : "Payment Status Updated!",
+        `${inquiryId}: ${statusLabel}`
+      );
+    } catch (err: any) {
+      showAdminNotice(
+        language === "vi" ? "Lỗi cập nhật thanh toán" : "Payment Update Failed",
+        err.message || "Could not update payment status."
+      );
     }
   };
 
@@ -450,6 +499,11 @@ export default function AdminPage() {
         reloadInquiries();
         showNotification(
           language === "vi" ? "Trạng thái buồng phòng vừa cập nhật." : "Housekeeping status updated."
+        );
+      } else if (payload.action === "PAYMENT_UPDATE") {
+        reloadInquiries();
+        showNotification(
+          language === "vi" ? "Trạng thái thanh toán vừa cập nhật." : "Payment status updated."
         );
       } else if (payload.action === "UPDATE") {
         showNotification("Reservation updated & synced across public site.");
@@ -734,6 +788,7 @@ export default function AdminPage() {
   const confirmedCount = inquiries.filter((i) => i.status === "confirmed").length;
   const maintenanceCount = siteConfig.villas.filter((v) => Boolean(maintenanceMap[v.id]?.isMaintenance)).length;
   const hkSummary = bookingStore.getHousekeepingSummary();
+  const paySummary = bookingStore.getPaymentSummary();
 
   // Filtered List for All Bookings Tab
   const filteredInquiries = inquiries.filter((inq) => {
@@ -747,15 +802,10 @@ export default function AdminPage() {
     let matchesStatus = true;
     if (statusFilter === "all") {
       matchesStatus = true;
-    } else if (statusFilter === "expired_needs_cleaning") {
-      const stay = getStayStatus(inq.checkIn, inq.checkOut);
-      matchesStatus = (stay === "expired" || stay === "checkout_today") && (inq.cleaningStatus === "needs_cleaning" || !inq.cleaningStatus);
     } else if (statusFilter === "checkout_today") {
       matchesStatus = isCheckoutToday(inq.checkOut);
-    } else if (statusFilter === "cleaned") {
-      matchesStatus = inq.cleaningStatus === "cleaned";
-    } else if (statusFilter === "in_cleaning") {
-      matchesStatus = inq.cleaningStatus === "in_cleaning";
+    } else if (statusFilter === "expired") {
+      matchesStatus = getStayStatus(inq.checkIn, inq.checkOut) === "expired";
     } else if (statusFilter === "in_house") {
       matchesStatus = getStayStatus(inq.checkIn, inq.checkOut) === "in_house";
     } else {
@@ -765,21 +815,28 @@ export default function AdminPage() {
     const matchesVilla =
       villaFilter === "all" ? true : inq.villaId === villaFilter;
 
-    return matchesSearch && matchesStatus && matchesVilla;
+    let matchesPayment = true;
+    if (paymentFilter !== "all") {
+      const pStatus = inq.paymentStatus || "unpaid";
+      matchesPayment = pStatus === paymentFilter;
+    }
+
+    return matchesSearch && matchesStatus && matchesVilla && matchesPayment;
   });
 
-  // Dedicated Inquiries list for Housekeeping Turnover tab (completed or checkout today)
-  const housekeepingInquiries = inquiries.filter((inq) => {
+  // Filtered List for Turnover & Housekeeping Tab (completed stays or checkout today)
+  const turnoverFilteredInquiries = inquiries.filter((inq) => {
     if (inq.status === "cancelled") return false;
     const stay = getStayStatus(inq.checkIn, inq.checkOut);
     const isTargetStay = stay === "expired" || stay === "checkout_today";
     if (!isTargetStay) return false;
 
     const matchesSearch =
-      searchQuery === "" ||
-      inq.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inq.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      inq.villaName.toLowerCase().includes(searchQuery.toLowerCase());
+      turnoverSearchQuery === "" ||
+      inq.guestName.toLowerCase().includes(turnoverSearchQuery.toLowerCase()) ||
+      inq.id.toLowerCase().includes(turnoverSearchQuery.toLowerCase()) ||
+      inq.villaName.toLowerCase().includes(turnoverSearchQuery.toLowerCase()) ||
+      inq.phone.includes(turnoverSearchQuery);
 
     const matchesVilla =
       villaFilter === "all" ? true : inq.villaId === villaFilter;
@@ -787,14 +844,12 @@ export default function AdminPage() {
     if (!matchesSearch || !matchesVilla) return false;
 
     const cStatus = inq.cleaningStatus || "needs_cleaning";
-    if (housekeepingSubFilter === "needs_cleaning") return cStatus === "needs_cleaning";
-    if (housekeepingSubFilter === "in_cleaning") return cStatus === "in_cleaning";
-    if (housekeepingSubFilter === "cleaned") return cStatus === "cleaned";
-    if (housekeepingSubFilter === "today") return stay === "checkout_today";
+    if (turnoverFilter === "needs_cleaning") return cStatus === "needs_cleaning";
+    if (turnoverFilter === "in_cleaning") return cStatus === "in_cleaning";
+    if (turnoverFilter === "cleaned") return cStatus === "cleaned";
+    if (turnoverFilter === "today") return stay === "checkout_today";
     return true;
   });
-
-  // Login Screen
   if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#111315] text-white flex flex-col items-center justify-center p-6 relative">
@@ -816,10 +871,10 @@ export default function AdminPage() {
             <Shield className="w-7 h-7 text-[#C2A476]" />
           </div>
 
-          <h1 className="font-serif text-2xl sm:text-3xl font-light text-center text-white mb-2">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-center text-white tracking-tight mb-2">
             {t("admin.login_title", "Host Administration")}
           </h1>
-          <p className="text-xs text-neutral-400 text-center font-light mb-8">
+          <p className="text-xs text-neutral-400 text-center font-normal mb-8">
             {t("admin.login_desc", "Enter your secret passcode to access booking logs and customer inquiries.")}
           </p>
 
@@ -855,13 +910,6 @@ export default function AdminPage() {
               {t("admin.unlock_btn", "Unlock Dashboard")}
             </button>
           </form>
-
-          <div className="mt-8 pt-6 border-t border-white/5 text-center">
-            <p className="text-[11px] text-neutral-500">
-              {language === "vi" ? "Mã mặc định cấu hình:" : "Default passcode configured:"}{" "}
-              <span className="font-mono text-neutral-400">{siteConfig.admin.passcode}</span>
-            </p>
-          </div>
         </div>
       </div>
     );
@@ -896,22 +944,22 @@ export default function AdminPage() {
       )}
 
       {/* Admin Header */}
-      <header className="bg-[#14171A] text-white border-b border-white/10 sticky top-0 z-30 shadow-lg">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <header className="bg-[#14171A]/95 backdrop-blur-md text-white border-b border-white/10 sticky top-0 z-30 shadow-lg">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <Link
               href="/"
-              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-colors"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white transition-all hover:scale-105 active:scale-95"
               title={t("admin.return_home", "Return to Public Website")}
             >
               <ArrowLeft className="w-4 h-4" />
             </Link>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="font-serif text-lg sm:text-xl font-bold tracking-wide">
+                <h1 className="text-base sm:text-lg font-black tracking-tight text-white">
                   {siteConfig.name}
                 </h1>
-                <span className="bg-[#C2A476]/20 text-[#C2A476] border border-[#C2A476]/40 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
+                <span className="bg-[#C2A476]/20 text-[#C2A476] border border-[#C2A476]/40 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full shadow-2xs">
                   {t("admin.portal", "Admin Portal")}
                 </span>
               </div>
@@ -927,298 +975,274 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2.5 sm:gap-3 flex-wrap">
-            {/* Quick Dual Flag Language Switcher */}
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            {/* Dual Flag Language Switcher */}
             <LanguageSwitcher size="sm" />
 
             {/* Cloud Database / Device Sync Status Button */}
-            <button
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => {
                 setSyncModalTab(isCloudStorage ? "guide" : "guide");
                 setIsSyncModalOpen(true);
               }}
-              className={`text-xs px-3 py-1.5 rounded-lg border transition-all flex items-center gap-1.5 cursor-pointer font-medium ${
+              className={`text-xs px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer font-medium ${
                 isCloudStorage
-                  ? "bg-emerald-950/70 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/80 shadow-sm"
-                  : "bg-amber-950/70 text-amber-300 border-amber-500/50 hover:bg-amber-900/80 shadow-sm"
+                  ? "bg-emerald-950/70 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900/80 shadow-xs"
+                  : "bg-amber-950/70 text-amber-300 border-amber-500/50 hover:bg-amber-900/80 shadow-xs"
               }`}
               title="Click to manage multi-device synchronization and cloud database"
             >
               <Cloud className="w-3.5 h-3.5" />
-              <span>{isCloudStorage ? t("admin.cloud_synced", "Cloud Synced 🟢") : t("admin.device_sync_btn", "Đồng bộ Đa Thiết bị ⚡")}</span>
-            </button>
+              <span className="hidden sm:inline">{isCloudStorage ? t("admin.cloud_synced", "Cloud Synced 🟢") : t("admin.device_sync_btn", "Đồng bộ Đa Thiết bị ⚡")}</span>
+              <span className="sm:hidden">{isCloudStorage ? "Cloud 🟢" : "Đồng bộ ⚡"}</span>
+            </motion.button>
 
-            {/* Button to Block Dates / Add Reservation */}
-            <button
+            {/* Primary Action Button: Block Dates / Add Reservation */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={() => setIsAddModalOpen(true)}
-              className="text-xs bg-[#C2A476] hover:bg-[#aa8c5b] text-white px-3.5 py-1.5 rounded-lg transition-colors font-semibold flex items-center gap-1.5 shadow-md cursor-pointer"
+              className="text-xs bg-gradient-to-r from-[#C2A476] to-[#ad8f5c] hover:brightness-110 text-white px-3.5 py-1.5 rounded-xl transition-all font-bold flex items-center gap-1.5 shadow-md cursor-pointer border border-[#E8D8BA]/30"
             >
               <Plus className="w-4 h-4" />
               <span>{t("admin.block_dates_btn", "Block Dates / New Booking")}</span>
-            </button>
+            </motion.button>
 
-            <button
+            {/* Sample Demo Data Reset */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               onClick={handleRequestResetSample}
-              className="text-xs text-neutral-400 hover:text-white px-3 py-1.5 rounded-lg border border-white/10 hover:border-white/30 transition-colors flex items-center gap-1.5 cursor-pointer"
+              className="text-xs text-neutral-400 hover:text-white p-2 rounded-xl border border-white/10 hover:border-white/30 transition-all cursor-pointer"
               title="Reset Sample Data"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{t("admin.reset_demo_btn", "Reset Demo")}</span>
-            </button>
+            </motion.button>
 
-            <button
+            {/* Logout Button */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
               onClick={handleLogout}
-              className="text-xs bg-white/10 hover:bg-white/20 text-neutral-200 px-4 py-1.5 rounded-lg transition-colors font-medium cursor-pointer"
+              className="text-xs bg-white/10 hover:bg-rose-500/20 hover:text-rose-300 text-neutral-200 px-3.5 py-1.5 rounded-xl transition-all font-medium cursor-pointer border border-white/5 hover:border-rose-400/30"
             >
               {t("admin.logout", "Log Out")}
-            </button>
+            </motion.button>
           </div>
         </div>
       </header>
 
       {/* Dashboard Content */}
-      <main className="max-w-7xl mx-auto px-6 pt-8">
-        {/* Cloud Synchronization Status Banner */}
-        {isCloudStorage ? (
-          <div className="mb-6 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-900 animate-fade-in">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-xl bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 flex-shrink-0">
-                <Cloud className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="font-bold flex items-center gap-2">
-                  <span>🟢 Đã kết nối Cloud Database ({storageType})</span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900">
-                    Tất cả thiết bị kết nối Live
-                  </span>
-                </p>
-                <p className="text-[11px] text-emerald-700 mt-0.5">
-                  Mọi đơn đặt phòng trên điện thoại, máy tính, iPad đều được đồng bộ thời gian thực và lưu vĩnh viễn trên đám mây.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleOpenExport}
-                className="px-3 py-1.5 rounded-lg bg-emerald-800 text-white text-[11px] font-semibold hover:bg-emerald-900 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Sao lưu Dữ liệu</span>
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="mb-6 p-4 rounded-2xl bg-amber-50 border border-amber-300 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-950 animate-fade-in shadow-sm">
-            <div className="flex items-start sm:items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 flex-shrink-0 mt-0.5 sm:mt-0">
-                <AlertTriangle className="w-4 h-4" />
-              </div>
-              <div>
-                <p className="font-bold flex items-center gap-2">
-                  <span>⚡ Đang chạy chế độ Cục bộ (Chưa bật Vercel KV trên đám mây)</span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
-                    Thiết bị khác chưa thấy
-                  </span>
-                </p>
-                <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                  Khi dùng nhiều thiết bị (iPhone, Android, Laptop), hãy liên kết <strong>Vercel KV</strong> (miễn phí 100%) để mọi thiết bị thấy đơn của nhau tức thì.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={() => {
-                  setSyncModalTab("guide");
-                  setIsSyncModalOpen(true);
-                }}
-                className="px-3.5 py-1.5 rounded-xl bg-amber-700 text-white text-[11px] font-semibold hover:bg-amber-800 transition-colors shadow-sm cursor-pointer flex items-center gap-1.5"
-              >
-                <span>Hướng dẫn Bật Vercel KV (1 Click)</span>
-              </button>
-              <button
-                onClick={handleOpenExport}
-                className="px-3 py-1.5 rounded-xl border border-amber-400 bg-white text-amber-900 text-[11px] font-semibold hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <Download className="w-3.5 h-3.5" />
-                <span>Chuyển sang máy khác</span>
-              </button>
-              <button
-                onClick={handleOpenImport}
-                className="px-3 py-1.5 rounded-xl border border-amber-400 bg-white text-amber-900 text-[11px] font-semibold hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
-              >
-                <Upload className="w-3.5 h-3.5" />
-                <span>Nạp từ máy khác</span>
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* KPI Metric Cards (6 cards) */}
-        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3.5 sm:gap-4 mb-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+        {/* KPI Metric Cards (6 cards - Modern Sans Geometry) */}
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-3.5 mb-6">
           {/* 1. Total Inquiries */}
-          <div
+          <motion.div
+            whileHover={{ y: -3, scale: 1.015 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
             onClick={() => {
               setAdminViewTab("all_bookings");
               setStatusFilter("all");
             }}
-            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group cursor-pointer hover:border-[#C2A476]"
+            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
+              adminViewTab === "all_bookings" && statusFilter === "all"
+                ? "bg-white border-[#C2A476] ring-2 ring-[#C2A476]/30 shadow-md"
+                : "bg-white/90 border-[#EAE5DC] hover:border-[#C2A476]/60 hover:shadow-sm"
+            }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-500">
+              <span className="text-xs font-bold uppercase tracking-wider text-neutral-600">
                 {t("admin.kpi_total", "Total Inquiries")}
               </span>
-              <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] text-[#8A6B3D] flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] text-[#8A6B3D] flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                 <Calendar className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-1.5">
-              <p className="text-2xl sm:text-3xl font-serif font-bold text-neutral-900">
+            <div className="my-1">
+              <p className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900">
                 {totalCount}
               </p>
             </div>
-            <p className="text-[10px] text-neutral-400 font-light truncate">
+            <p className="text-xs text-neutral-500 font-medium truncate">
               {language === "vi" ? "Tất cả yêu cầu gửi về" : "All submissions"}
             </p>
-          </div>
+          </motion.div>
 
           {/* 2. Pending Action */}
-          <div
+          <motion.div
+            whileHover={{ y: -3, scale: 1.015 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
             onClick={() => {
               setAdminViewTab("all_bookings");
               setStatusFilter("pending");
             }}
-            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group hover:border-amber-300 cursor-pointer"
+            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
+              adminViewTab === "all_bookings" && statusFilter === "pending"
+                ? "bg-amber-50/50 border-amber-400 ring-2 ring-amber-400/30 shadow-md"
+                : "bg-white/90 border-[#EAE5DC] hover:border-amber-300 hover:shadow-sm"
+            }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+              <span className="text-xs font-bold uppercase tracking-wider text-amber-800">
                 {t("admin.kpi_pending", "Pending Action")}
               </span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                 <Clock className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-1.5">
-              <p className="text-2xl sm:text-3xl font-serif font-bold text-amber-600">
+            <div className="my-1">
+              <p className="text-2xl sm:text-3xl font-black tracking-tight text-amber-600">
                 {pendingCount}
               </p>
             </div>
-            <p className="text-[10px] text-amber-600/80 font-medium truncate">
+            <p className="text-xs text-amber-700 font-medium truncate">
               {pendingCount > 0
                 ? language === "vi" ? "Cần phản hồi khách" : "Requires reply"
                 : language === "vi" ? "Đã xử lý hết" : "All caught up"}
             </p>
-          </div>
+          </motion.div>
 
           {/* 3. Contacted */}
-          <div
+          <motion.div
+            whileHover={{ y: -3, scale: 1.015 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
             onClick={() => {
               setAdminViewTab("all_bookings");
               setStatusFilter("contacted");
             }}
-            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group hover:border-blue-300 cursor-pointer"
+            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
+              adminViewTab === "all_bookings" && statusFilter === "contacted"
+                ? "bg-blue-50/50 border-blue-400 ring-2 ring-blue-400/30 shadow-md"
+                : "bg-white/90 border-[#EAE5DC] hover:border-blue-300 hover:shadow-sm"
+            }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-800">
                 {t("admin.kpi_contacted", "Contacted")}
               </span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                 <PhoneCall className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-1.5">
-              <p className="text-2xl sm:text-3xl font-serif font-bold text-blue-600">
+            <div className="my-1">
+              <p className="text-2xl sm:text-3xl font-black tracking-tight text-blue-600">
                 {contactedCount}
               </p>
             </div>
-            <p className="text-[10px] text-blue-600/80 font-medium truncate">
+            <p className="text-xs text-blue-700 font-medium truncate">
               {language === "vi" ? "Đang trao đổi trực tiếp" : "In communication"}
             </p>
-          </div>
+          </motion.div>
 
           {/* 4. Confirmed */}
-          <div
+          <motion.div
+            whileHover={{ y: -3, scale: 1.015 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
             onClick={() => {
               setAdminViewTab("all_bookings");
               setStatusFilter("confirmed");
             }}
-            className="bg-white p-4 sm:p-5 rounded-3xl border border-[#EAE5DC] shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group hover:border-emerald-300 cursor-pointer"
+            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
+              adminViewTab === "all_bookings" && statusFilter === "confirmed"
+                ? "bg-emerald-50/50 border-emerald-400 ring-2 ring-emerald-400/30 shadow-md"
+                : "bg-white/90 border-[#EAE5DC] hover:border-emerald-300 hover:shadow-sm"
+            }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+              <span className="text-xs font-bold uppercase tracking-wider text-emerald-800">
                 {t("admin.kpi_confirmed", "Confirmed")}
               </span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-8 h-8 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                 <CheckCircle2 className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-1.5">
-              <p className="text-2xl sm:text-3xl font-serif font-bold text-emerald-600">
+            <div className="my-1">
+              <p className="text-2xl sm:text-3xl font-black tracking-tight text-emerald-600">
                 {confirmedCount}
               </p>
             </div>
-            <p className="text-[10px] text-emerald-600/80 font-medium truncate">
+            <p className="text-xs text-emerald-700 font-medium truncate">
               {language === "vi" ? "Đã chốt & giữ lịch" : "Dates secured"}
             </p>
-          </div>
+          </motion.div>
 
-          {/* 5. Housekeeping & Turnover KPI Card */}
-          <div
-            onClick={() => setAdminViewTab("housekeeping")}
-            className={`p-4 sm:p-5 rounded-3xl border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group cursor-pointer ${
-              hkSummary.needsCleaningCount > 0
-                ? "bg-rose-50/60 border-rose-300 ring-2 ring-rose-400/20 hover:border-rose-400"
-                : "bg-white border-[#EAE5DC] hover:border-emerald-300"
+          {/* 5. Housekeeping & Turnover */}
+          <motion.div
+            whileHover={{ y: -3, scale: 1.015 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
+            onClick={() => {
+              setAdminViewTab("turnover");
+              setTurnoverFilter("needs_cleaning");
+            }}
+            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
+              adminViewTab === "turnover"
+                ? "bg-indigo-50/40 border-indigo-400 ring-2 ring-indigo-400/30 shadow-md"
+                : hkSummary.needsCleaning > 0
+                ? "bg-[#FFF9F9] border-rose-300 hover:border-rose-400 hover:shadow-sm"
+                : "bg-white/90 border-[#EAE5DC] hover:border-indigo-300 hover:shadow-sm"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                hkSummary.needsCleaningCount > 0 ? "text-rose-700" : "text-emerald-700"
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                hkSummary.needsCleaning > 0 ? "text-rose-700" : "text-neutral-600"
               }`}>
-                {language === "vi" ? "Dọn Dẹp Buồng Phòng" : "Housekeeping"}
+                {language === "vi" ? "Cần Dọn Dẹp" : "Housekeeping"}
               </span>
-              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${
-                hkSummary.needsCleaningCount > 0
+              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${
+                hkSummary.needsCleaning > 0
                   ? "bg-rose-100 border-rose-300 text-rose-700"
-                  : "bg-emerald-50 border-emerald-200 text-emerald-600"
+                  : "bg-indigo-50 border-indigo-200 text-indigo-600"
               }`}>
-                <Sparkles className={`w-4 h-4 ${hkSummary.needsCleaningCount > 0 ? "animate-pulse" : ""}`} />
+                <Sparkles className="w-4 h-4" />
               </div>
             </div>
-            <div className="my-1.5 flex items-baseline gap-1.5">
-              <p className={`text-2xl sm:text-3xl font-serif font-bold ${
-                hkSummary.needsCleaningCount > 0 ? "text-rose-600" : "text-emerald-600"
+            <div className="my-1 flex items-baseline gap-1.5">
+              <p className={`text-2xl sm:text-3xl font-black tracking-tight ${
+                hkSummary.needsCleaning > 0 ? "text-rose-600" : "text-indigo-600"
               }`}>
-                {hkSummary.needsCleaningCount}
+                {hkSummary.needsCleaning}
               </p>
-              <span className="text-[11px] text-neutral-500 font-medium">
-                {language === "vi" ? "cần dọn" : "to clean"}
+              <span className="text-xs text-neutral-500 font-medium">
+                / {hkSummary.total} {language === "vi" ? "phòng" : "stays"}
               </span>
             </div>
-            <p className={`text-[10px] font-medium truncate ${
-              hkSummary.needsCleaningCount > 0 ? "text-rose-700" : "text-emerald-700"
+            <p className={`text-xs font-medium truncate ${
+              hkSummary.needsCleaning > 0 ? "text-rose-600 font-semibold" : "text-neutral-500"
             }`}>
-              {hkSummary.needsCleaningCount > 0
-                ? (language === "vi" ? `🔴 ${hkSummary.needsCleaningCount} phòng chờ dọn dẹp` : `🔴 ${hkSummary.needsCleaningCount} turnover pending`)
-                : (language === "vi" ? `✨ ${hkSummary.cleanedCount} phòng đã hoàn tất` : `✨ ${hkSummary.cleanedCount} cleaned & ready`)}
+              {hkSummary.needsCleaning > 0
+                ? language === "vi" ? "Cần điều phối buồng phòng" : "Needs cleaning action"
+                : language === "vi" ? "Đã dọn sạch tất cả" : "All rooms cleaned"}
             </p>
-          </div>
+          </motion.div>
 
           {/* 6. Under Maintenance */}
-          <div
+          <motion.div
+            whileHover={{ y: -3, scale: 1.015 }}
+            whileTap={{ scale: 0.98 }}
+            transition={{ type: "spring", stiffness: 400, damping: 25 }}
             onClick={() => setAdminViewTab("maintenance")}
-            className={`p-4 sm:p-5 rounded-3xl border shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between min-h-[135px] group cursor-pointer ${
-              maintenanceCount > 0
-                ? "bg-[#FFFBF5] border-amber-300 ring-2 ring-amber-400/20 hover:border-amber-400"
-                : "bg-white border-[#EAE5DC] hover:border-[#C2A476]"
+            className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
+              adminViewTab === "maintenance"
+                ? "bg-amber-50/50 border-amber-400 ring-2 ring-amber-400/30 shadow-md"
+                : maintenanceCount > 0
+                ? "bg-[#FFFBF5] border-amber-300 hover:border-amber-400 hover:shadow-sm"
+                : "bg-white/90 border-[#EAE5DC] hover:border-[#C2A476] hover:shadow-sm"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className={`text-[10px] font-bold uppercase tracking-wider ${
-                maintenanceCount > 0 ? "text-amber-800" : "text-neutral-500"
+              <span className={`text-xs font-bold uppercase tracking-wider ${
+                maintenanceCount > 0 ? "text-amber-800" : "text-neutral-600"
               }`}>
                 {t("admin.kpi_maintenance", "Maintenance")}
               </span>
-              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform ${
+              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${
                 maintenanceCount > 0
                   ? "bg-amber-100 border-amber-300 text-amber-700"
                   : "bg-neutral-50 border-neutral-200 text-neutral-400"
@@ -1226,425 +1250,593 @@ export default function AdminPage() {
                 <Wrench className={`w-4 h-4 ${maintenanceCount > 0 ? "animate-pulse" : ""}`} />
               </div>
             </div>
-            <div className="my-1.5 flex items-baseline gap-1.5">
-              <p className={`text-2xl sm:text-3xl font-serif font-bold ${
+            <div className="my-1 flex items-baseline gap-1.5">
+              <p className={`text-2xl sm:text-3xl font-black tracking-tight ${
                 maintenanceCount > 0 ? "text-amber-700" : "text-neutral-900"
               }`}>
                 {maintenanceCount}
               </p>
-              <span className="text-[11px] text-neutral-400 font-medium">/ 4 Villas</span>
+              <span className="text-xs text-neutral-500 font-medium">/ 4 Villas</span>
             </div>
-            <p className={`text-[10px] font-medium truncate ${
-              maintenanceCount > 0 ? "text-amber-700" : "text-neutral-400"
+            <p className={`text-xs font-medium truncate ${
+              maintenanceCount > 0 ? "text-amber-700" : "text-neutral-500"
             }`}>
               {maintenanceCount > 0
                 ? language === "vi" ? `${maintenanceCount} villa tạm khoá lịch` : `${maintenanceCount} villa locked`
                 : language === "vi" ? "Cả 4 villa sẵn sàng nhận khách" : "All 4 villas operational"}
             </p>
-          </div>
+          </motion.div>
         </div>
 
-        {/* Navigation Tab Switcher */}
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-6 p-2 rounded-2xl bg-white border border-[#EAE5DC] shadow-xs">
+        {/* Navigation Tab Switcher (Modern Fluid Segmented Bar with Sliding Highlight) */}
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-6 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-[#EAE5DC] shadow-xs">
           <button
             type="button"
             onClick={() => setAdminViewTab("all_bookings")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
               adminViewTab === "all_bookings"
-                ? "bg-[#14171A] text-white shadow-md ring-2 ring-[#C2A476]/30"
+                ? "text-white"
                 : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
             }`}
           >
-            <Calendar className="w-4 h-4 text-[#C2A476]" />
-            <span>{language === "vi" ? "📋 Tất Cả Đơn Đặt Phòng" : "📋 All Reservations"}</span>
-            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-white/20 font-mono">
-              {totalCount}
+            {adminViewTab === "all_bookings" && (
+              <motion.div
+                layoutId="activeAdminTabIndicator"
+                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <Calendar className={`w-4 h-4 ${adminViewTab === "all_bookings" ? "text-[#C2A476]" : "text-neutral-400"}`} />
+              <span>{language === "vi" ? "📋 Quản Lý Đơn Đặt Phòng" : "📋 All Reservations"}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                adminViewTab === "all_bookings" ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-700"
+              }`}>
+                {totalCount}
+              </span>
             </span>
           </button>
 
           <button
             type="button"
-            onClick={() => setAdminViewTab("housekeeping")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
-              adminViewTab === "housekeeping"
-                ? "bg-[#14171A] text-white shadow-md ring-2 ring-rose-400/30"
+            onClick={() => setAdminViewTab("turnover")}
+            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
+              adminViewTab === "turnover"
+                ? "text-white"
                 : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-400" />
-            <span>{language === "vi" ? "🧹 Quản Lý Dọn Dẹp & Trả Phòng" : "🧹 Housekeeping & Turnover"}</span>
-            {hkSummary.needsCleaningCount > 0 ? (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-mono animate-pulse">
-                {hkSummary.needsCleaningCount} {language === "vi" ? "cần dọn" : "to clean"}
-              </span>
-            ) : (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-mono">
-                {hkSummary.cleanedCount} {language === "vi" ? "sạch" : "ready"}
-              </span>
+            {adminViewTab === "turnover" && (
+              <motion.div
+                layoutId="activeAdminTabIndicator"
+                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
             )}
+            <span className="relative z-10 flex items-center gap-2">
+              <Sparkles className={`w-4 h-4 ${adminViewTab === "turnover" ? "text-indigo-400" : "text-neutral-400"}`} />
+              <span>{language === "vi" ? "🧹 Trả Phòng & Dọn Dẹp" : "🧹 Turnover & Housekeeping"}</span>
+              {hkSummary.needsCleaning > 0 ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-mono animate-pulse">
+                  {hkSummary.needsCleaning}
+                </span>
+              ) : (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                  adminViewTab === "turnover" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                }`}>
+                  {hkSummary.cleaned}
+                </span>
+              )}
+            </span>
           </button>
 
           <button
             type="button"
             onClick={() => setAdminViewTab("pricing")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
               adminViewTab === "pricing"
-                ? "bg-[#14171A] text-white shadow-md ring-2 ring-emerald-400/30"
+                ? "text-white"
                 : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
             }`}
           >
-            <Tag className="w-4 h-4 text-emerald-400" />
-            <span>{language === "vi" ? "💵 Đơn Giá Villa & Tỷ Giá USD" : "💵 Villa Pricing & USD Rates"}</span>
-            <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-emerald-50 text-emerald-800 font-mono border border-emerald-200">
-              4 Villas
+            {adminViewTab === "pricing" && (
+              <motion.div
+                layoutId="activeAdminTabIndicator"
+                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
+            )}
+            <span className="relative z-10 flex items-center gap-2">
+              <Tag className={`w-4 h-4 ${adminViewTab === "pricing" ? "text-emerald-400" : "text-neutral-400"}`} />
+              <span>{language === "vi" ? "💵 Đơn Giá Villa & Tỷ Giá USD" : "💵 Villa Pricing & USD Rates"}</span>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                adminViewTab === "pricing" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+              }`}>
+                4 Villas
+              </span>
             </span>
           </button>
 
           <button
             type="button"
             onClick={() => setAdminViewTab("maintenance")}
-            className={`px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all flex items-center gap-2 cursor-pointer ${
+            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
               adminViewTab === "maintenance"
-                ? "bg-[#14171A] text-white shadow-md ring-2 ring-amber-400/30"
+                ? "text-white"
                 : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
             }`}
           >
-            <Wrench className="w-4 h-4 text-amber-400" />
-            <span>{language === "vi" ? "🛠️ Quản Lý Bảo Trì Villa" : "🛠️ Villa Maintenance"}</span>
-            {maintenanceCount > 0 && (
-              <span className="ml-1 px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-mono">
-                {maintenanceCount}
-              </span>
+            {adminViewTab === "maintenance" && (
+              <motion.div
+                layoutId="activeAdminTabIndicator"
+                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
+                transition={{ type: "spring", stiffness: 450, damping: 35 }}
+              />
             )}
+            <span className="relative z-10 flex items-center gap-2">
+              <Wrench className={`w-4 h-4 ${adminViewTab === "maintenance" ? "text-amber-400" : "text-neutral-400"}`} />
+              <span>{language === "vi" ? "🛠️ Quản Lý Bảo Trì Villa" : "🛠️ Villa Maintenance"}</span>
+              {maintenanceCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-mono">
+                  {maintenanceCount}
+                </span>
+              )}
+            </span>
           </button>
         </div>
 
-        {/* PANEL 1: HOUSEKEEPING & TURNOVER MANAGEMENT */}
-        {adminViewTab === "housekeeping" && (
-          <div className="space-y-6 mb-8 animate-fade-in">
+        {/* PANEL: DEDICATED TURNOVER & HOUSEKEEPING MANAGEMENT */}
+        {adminViewTab === "turnover" && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-6 mb-8"
+          >
             <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-6">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 flex-shrink-0 shadow-sm">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600 flex-shrink-0 shadow-sm">
                     <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
-                        {language === "vi" ? "Quản Lý Đơn Đã Hết Hạn & Dọn Dẹp Buồng Phòng" : "Housekeeping Turnover & Departure Management"}
+                      <h2 className="text-base sm:text-lg font-bold text-neutral-900 tracking-tight">
+                        {language === "vi"
+                          ? "Quản Lý Trả Phòng & Điều Phối Dọn Dẹp Buồng Phòng"
+                          : "Checkout & Housekeeping Coordination"}
                       </h2>
-                      <span className="bg-rose-100 text-rose-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-rose-300 uppercase tracking-wider hidden sm:inline">
-                        {hkSummary.needsCleaningCount} {language === "vi" ? "Cần Dọn Ngay" : "Pending Turnover"}
+                      <span className="bg-indigo-100 text-indigo-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-indigo-300 uppercase tracking-wider hidden sm:inline">
+                        {language === "vi" ? "Buồng Phòng Live" : "Turnover Live"}
                       </span>
                     </div>
-                    <p className="text-xs text-neutral-500 font-light mt-0.5">
+                    <p className="text-xs text-neutral-500 font-normal mt-0.5">
                       {language === "vi"
-                        ? "Theo dõi các lượt khách đã trả phòng hoặc trả phòng hôm nay để sắp xếp vệ sinh, thay ga gối, khử khuẩn và nghiệm thu bàn giao sẵn sàng đón khách mới."
-                        : "Track departures and completed stays to schedule turnovers, linen changes, and inspections before subsequent arrivals."}
+                        ? "Hệ thống tự động lọc các đơn trả phòng hôm nay hoặc đã hoàn tất lưu trú. Nhân viên buồng phòng dễ dàng cập nhật tiến độ dọn dẹp, kiểm tra cơ sở vật chất và bàn giao phòng sẵn sàng đón khách mới."
+                        : "Automatically tracks completed stays and today's checkouts. Coordinate housekeeping teams, log room notes, and mark villas ready for next check-in."}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs font-semibold px-3 py-1 rounded-full border bg-neutral-50 text-neutral-700 border-neutral-200">
-                    {language === "vi" ? `Tổng: ${hkSummary.expiredCount + hkSummary.todayCount} đơn trả phòng` : `Total: ${hkSummary.expiredCount + hkSummary.todayCount} turnover stays`}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      reloadInquiries();
+                      playLuxuryChime();
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-[#FAF8F5] hover:bg-[#EAE5DC] text-neutral-700 text-xs font-semibold transition-all border border-[#EAE5DC] flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>{language === "vi" ? "Làm mới dữ liệu" : "Refresh"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Turnover Sub-KPIs */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
+                {/* 1. Needs Cleaning */}
+                <div
+                  onClick={() => setTurnoverFilter("needs_cleaning")}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                    turnoverFilter === "needs_cleaning"
+                      ? "bg-rose-50 border-rose-300 ring-2 ring-rose-400/30 shadow-xs"
+                      : "bg-[#FFFBFB] border-rose-200/70 hover:border-rose-300 hover:shadow-xs"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-rose-700">
+                      {language === "vi" ? "🔴 Cần Dọn Dẹp" : "🔴 Needs Cleaning"}
+                    </span>
+                    <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping"></span>
+                  </div>
+                  <div className="my-1.5">
+                    <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-rose-700">
+                      {hkSummary.needsCleaning}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-rose-600/90 font-medium">
+                    {language === "vi" ? "Phòng chờ nhân viên dọn" : "Awaiting housekeeping"}
+                  </p>
+                </div>
+
+                {/* 2. In Cleaning */}
+                <div
+                  onClick={() => setTurnoverFilter("in_cleaning")}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                    turnoverFilter === "in_cleaning"
+                      ? "bg-amber-50 border-amber-300 ring-2 ring-amber-400/30 shadow-xs"
+                      : "bg-[#FFFDFB] border-amber-200/70 hover:border-amber-300 hover:shadow-xs"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-amber-700">
+                      {language === "vi" ? "🟡 Đang Dọn Dẹp" : "🟡 In Progress"}
+                    </span>
+                    <Clock className="w-4 h-4 text-amber-500 animate-spin" />
+                  </div>
+                  <div className="my-1.5">
+                    <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-amber-700">
+                      {hkSummary.inCleaning}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-amber-600/90 font-medium">
+                    {language === "vi" ? "Nhân viên đang xử lý" : "Currently cleaning"}
+                  </p>
+                </div>
+
+                {/* 3. Cleaned & Ready */}
+                <div
+                  onClick={() => setTurnoverFilter("cleaned")}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                    turnoverFilter === "cleaned"
+                      ? "bg-emerald-50 border-emerald-300 ring-2 ring-emerald-400/30 shadow-xs"
+                      : "bg-[#FBFFFD] border-emerald-200/70 hover:border-emerald-300 hover:shadow-xs"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700">
+                      {language === "vi" ? "✨ Đã Dọn Xong" : "✨ Clean & Ready"}
+                    </span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  </div>
+                  <div className="my-1.5">
+                    <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-emerald-700">
+                      {hkSummary.cleaned}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-emerald-600/90 font-medium">
+                    {language === "vi" ? "Sẵn sàng đón khách mới" : "Ready for next check-in"}
+                  </p>
+                </div>
+
+                {/* 4. Checkout Today */}
+                <div
+                  onClick={() => setTurnoverFilter("today")}
+                  className={`p-4 rounded-2xl border transition-all cursor-pointer ${
+                    turnoverFilter === "today"
+                      ? "bg-indigo-50 border-indigo-300 ring-2 ring-indigo-400/30 shadow-xs"
+                      : "bg-[#FBFBFF] border-indigo-200/70 hover:border-indigo-300 hover:shadow-xs"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700">
+                      {language === "vi" ? "⏰ Trả Hôm Nay" : "⏰ Checkout Today"}
+                    </span>
+                    <Calendar className="w-4 h-4 text-indigo-500" />
+                  </div>
+                  <div className="my-1.5">
+                    <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-indigo-700">
+                      {inquiries.filter((i) => isCheckoutToday(i.checkOut) && i.status !== "cancelled").length}
+                    </p>
+                  </div>
+                  <p className="text-[11px] text-indigo-600/90 font-medium">
+                    {language === "vi" ? "Cần chuẩn bị nhận phòng" : "Departing today"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Turnover Filters & Search Bar */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] mb-6">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider px-2">
+                    {language === "vi" ? "Bộ lọc:" : "Filter:"}
                   </span>
+                  {[
+                    { id: "all", labelVi: "Tất Cả", labelEn: "All Stays", count: inquiries.filter((i) => (isCheckoutExpired(i.checkOut) || isCheckoutToday(i.checkOut)) && i.status !== "cancelled").length },
+                    { id: "needs_cleaning", labelVi: "🔴 Cần Dọn", labelEn: "🔴 Needs Cleaning", count: hkSummary.needsCleaning },
+                    { id: "in_cleaning", labelVi: "🟡 Đang Dọn", labelEn: "🟡 In Progress", count: hkSummary.inCleaning },
+                    { id: "cleaned", labelVi: "🟢 Đã Sạch", labelEn: "🟢 Cleaned", count: hkSummary.cleaned },
+                    { id: "today", labelVi: "⏰ Trả Hôm Nay", labelEn: "⏰ Today", count: inquiries.filter((i) => isCheckoutToday(i.checkOut) && i.status !== "cancelled").length },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => setTurnoverFilter(tab.id as any)}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                        turnoverFilter === tab.id
+                          ? "bg-[#14171A] text-white shadow-xs"
+                          : "bg-white text-neutral-700 border border-neutral-200 hover:bg-neutral-100"
+                      }`}
+                    >
+                      <span>{language === "vi" ? tab.labelVi : tab.labelEn}</span>
+                      <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-neutral-200/60 font-mono text-neutral-800">
+                        {tab.count}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 md:w-64">
+                    <Search className="w-3.5 h-3.5 text-neutral-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      placeholder={language === "vi" ? "Tìm khách, villa, mã đơn..." : "Search guest, villa, ID..."}
+                      value={turnoverSearchQuery}
+                      onChange={(e) => setTurnoverSearchQuery(e.target.value)}
+                      className="w-full bg-white border border-neutral-200 rounded-xl pl-9 pr-3 py-1.5 text-xs text-neutral-800 placeholder-neutral-400 focus:outline-none focus:border-[#C2A476]"
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* Housekeeping Sub-Filter Pills & Search */}
-              <div className="flex flex-col md:flex-row gap-3 items-center justify-between mb-5">
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setHousekeepingSubFilter("all")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                      housekeepingSubFilter === "all"
-                        ? "bg-[#14171A] text-white shadow-sm"
-                        : "bg-[#FAF8F5] text-neutral-600 hover:bg-neutral-100 border border-neutral-200"
-                    }`}
-                  >
-                    {language === "vi" ? "Tất cả lượt trả phòng" : "All Departures"} ({hkSummary.expiredCount + hkSummary.todayCount})
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setHousekeepingSubFilter("needs_cleaning")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      housekeepingSubFilter === "needs_cleaning"
-                        ? "bg-rose-600 text-white shadow-sm"
-                        : "bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200"
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-rose-500" />
-                    <span>{language === "vi" ? "🔴 Cần dọn ngay" : "🔴 Needs Cleaning"}</span>
-                    <span className="font-bold">({hkSummary.needsCleaningCount})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setHousekeepingSubFilter("in_cleaning")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      housekeepingSubFilter === "in_cleaning"
-                        ? "bg-amber-600 text-white shadow-sm"
-                        : "bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200"
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span>{language === "vi" ? "🟡 Đang dọn dẹp" : "🟡 In Cleaning"}</span>
-                    <span className="font-bold">({hkSummary.inCleaningCount})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setHousekeepingSubFilter("cleaned")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      housekeepingSubFilter === "cleaned"
-                        ? "bg-emerald-600 text-white shadow-sm"
-                        : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
-                    }`}
-                  >
-                    <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                    <span>{language === "vi" ? "🟢 Đã dọn xong" : "🟢 Cleaned & Ready"}</span>
-                    <span className="font-bold">({hkSummary.cleanedCount})</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setHousekeepingSubFilter("today")}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
-                      housekeepingSubFilter === "today"
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200"
-                    }`}
-                  >
-                    <span>⏰ {language === "vi" ? "Trả phòng hôm nay" : "Checkout Today"}</span>
-                    <span className="font-bold">({hkSummary.todayCount})</span>
-                  </button>
-                </div>
-
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                  <select
-                    value={villaFilter}
-                    onChange={(e) => setVillaFilter(e.target.value)}
-                    className="bg-[#FAF8F5] border border-neutral-200 rounded-xl px-3 py-1.5 text-xs font-medium text-neutral-800 focus:outline-none"
-                  >
-                    <option value="all">{t("admin.all_villas_option", "All 4 Villas")}</option>
-                    {siteConfig.villas.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.code} ({v.district})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Housekeeping Inquiries Cards */}
-              {housekeepingInquiries.length === 0 ? (
-                <div className="bg-[#FAF8F5] rounded-2xl p-8 text-center border border-neutral-200">
-                  <p className="text-neutral-500 text-xs">
+              {/* Turnover Cards List */}
+              {turnoverFilteredInquiries.length === 0 ? (
+                <div className="bg-[#FAF8F5] rounded-3xl p-10 sm:p-14 text-center border border-dashed border-[#EAE5DC]">
+                  <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto mb-3 shadow-2xs">
+                    <CheckCircle2 className="w-7 h-7" />
+                  </div>
+                  <h3 className="font-bold text-base text-neutral-900">
+                    {language === "vi" ? "Không có đơn nào cần xử lý dọn phòng" : "No Pending Turnover Tasks"}
+                  </h3>
+                  <p className="text-xs text-neutral-500 max-w-md mx-auto mt-1 leading-relaxed">
                     {language === "vi"
-                      ? "Không có đơn lưu trú nào hết hạn hoặc trả phòng cần dọn dẹp trong tiêu chí này."
-                      : "No departure stays matching this turnover filter."}
+                      ? "Tất cả các biệt thự đã hoàn tất lưu trú đều đã được dọn sạch và kiểm tra, hoặc không có đơn nào trùng khớp với bộ lọc hiện tại."
+                      : "All completed stays have been cleaned and inspected, or no inquiries match your current filter."}
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {housekeepingInquiries.map((inq) => {
-                    const stay = getStayStatus(inq.checkIn, inq.checkOut);
-                    const cStatus = inq.cleaningStatus || "needs_cleaning";
-                    const isNotesEditing = editingCleaningNotesId === inq.id;
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {turnoverFilteredInquiries.map((inq) => {
+                    const isToday = isCheckoutToday(inq.checkOut);
+                    const cleaningStatus = inq.cleaningStatus || "needs_cleaning";
+                    const nights = calculateStayNights(inq.checkIn, inq.checkOut);
                     const vMatch = siteConfig.villas.find((v) => v.id === inq.villaId);
+                    const villaNightly = villaPrices[inq.villaId] ?? vMatch?.priceVnd ?? 18000000;
+                    const stayTotalVnd = calculateStayTotal(inq.checkIn, inq.checkOut, villaNightly);
 
                     return (
-                      <div
+                      <motion.div
                         key={inq.id}
-                        className={`rounded-2xl border p-4 sm:p-5 transition-all shadow-xs ${
-                          cStatus === "needs_cleaning"
-                            ? "bg-rose-50/30 border-rose-200 hover:border-rose-300"
-                            : cStatus === "in_cleaning"
-                            ? "bg-amber-50/30 border-amber-200 hover:border-amber-300"
-                            : "bg-emerald-50/30 border-emerald-200 hover:border-emerald-300"
+                        layout
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.2 }}
+                        className={`rounded-2xl p-4 sm:p-5 border transition-all flex flex-col justify-between shadow-xs hover:shadow-md ${
+                          cleaningStatus === "needs_cleaning"
+                            ? "bg-[#FFFBFB] border-rose-200 hover:border-rose-300"
+                            : cleaningStatus === "in_cleaning"
+                            ? "bg-[#FFFDFB] border-amber-200 hover:border-amber-300"
+                            : "bg-[#FBFFFD] border-emerald-200 hover:border-emerald-300"
                         }`}
                       >
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-neutral-200/60">
-                          <div className="flex items-center gap-3">
-                            <span className="font-mono text-xs font-bold text-neutral-800 bg-white border border-neutral-200 px-2.5 py-1 rounded-md">
-                              {inq.id}
-                            </span>
+                        <div>
+                          {/* Card Top Header */}
+                          <div className="flex items-start justify-between gap-2 pb-3 border-b border-neutral-100">
                             <div>
-                              <h3 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
-                                {inq.villaName}
-                              </h3>
-                              <p className="text-xs text-neutral-500">
-                                {language === "vi" ? "Khách lưu trú:" : "Guest:"}{" "}
-                                <span className="font-semibold text-neutral-800">{inq.guestName}</span>
-                                {inq.phone && ` • ${inq.phone}`}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-extrabold text-sm sm:text-base text-neutral-900 tracking-tight">
+                                  {inq.villaName}
+                                </span>
+                                {isToday ? (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800 border border-blue-300 uppercase tracking-wider animate-pulse">
+                                    {language === "vi" ? "⏰ Trả Phòng Hôm Nay" : "⏰ Checkout Today"}
+                                  </span>
+                                ) : (
+                                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-neutral-100 text-neutral-700 border border-neutral-200 uppercase tracking-wider">
+                                    {language === "vi" ? "⌛ Đã Hết Hạn Ở" : "⌛ Stay Completed"}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-neutral-400 font-mono mt-0.5">
+                                #{inq.id} • {inq.guestName}
                               </p>
+                            </div>
+
+                            {/* Cleaning Badge */}
+                            <div>
+                              {cleaningStatus === "needs_cleaning" && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
+                                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping"></span>
+                                  <span>{language === "vi" ? "🔴 CẦN DỌN" : "🔴 NEEDS CLEANING"}</span>
+                                </span>
+                              )}
+                              {cleaningStatus === "in_cleaning" && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 shadow-2xs">
+                                  <Clock className="w-3.5 h-3.5 text-amber-600 animate-spin" />
+                                  <span>{language === "vi" ? "🟡 ĐANG DỌN" : "🟡 IN CLEANING"}</span>
+                                </span>
+                              )}
+                              {cleaningStatus === "cleaned" && (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                  <span>{language === "vi" ? "✨ ĐÃ SẠCH SẼ" : "✨ CLEAN & READY"}</span>
+                                </span>
+                              )}
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {/* Stay Duration Tag */}
-                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
-                              stay === "checkout_today"
-                                ? "bg-amber-100 text-amber-900 border-amber-300"
-                                : "bg-neutral-100 text-neutral-800 border-neutral-300"
-                            }`}>
-                              {stay === "checkout_today"
-                                ? (language === "vi" ? "⏰ Trả phòng hôm nay" : "⏰ Checkout Today")
-                                : (language === "vi" ? "🔴 Đã trả phòng" : "🔴 Checked Out")}
-                            </span>
+                          {/* Middle Details Grid */}
+                          <div className="grid grid-cols-2 gap-3 py-3 text-xs border-b border-neutral-100">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
+                                {language === "vi" ? "Thời Gian Lưu Trú:" : "Stay Period:"}
+                              </span>
+                              <p className="font-semibold text-neutral-800 mt-0.5">
+                                {formatLuxuryDate(inq.checkIn)} → {formatLuxuryDate(inq.checkOut)}
+                              </p>
+                              <span className="text-[11px] text-neutral-500 font-mono">
+                                ({nights} {language === "vi" ? "đêm" : "nights"})
+                              </span>
+                            </div>
 
-                            {/* Cleaning Status Pill */}
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider border shadow-xs ${
-                              cStatus === "needs_cleaning"
-                                ? "bg-rose-600 text-white border-rose-700 animate-pulse"
-                                : cStatus === "in_cleaning"
-                                ? "bg-amber-500 text-white border-amber-600"
-                                : "bg-emerald-600 text-white border-emerald-700"
-                            }`}>
-                              {cStatus === "needs_cleaning"
-                                ? (language === "vi" ? "🔴 Cần Dọn Dẹp" : "🔴 Needs Cleaning")
-                                : cStatus === "in_cleaning"
-                                ? (language === "vi" ? "🟡 Đang Dọn Dẹp" : "🟡 In Cleaning")
-                                : (language === "vi" ? "🟢 Đã Dọn Xong ✨" : "🟢 Cleaned & Ready ✨")}
-                            </span>
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-neutral-400 block tracking-wider">
+                                {language === "vi" ? "Khách & Thanh Toán:" : "Guest & Payment:"}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <a
+                                  href={`tel:${inq.phone}`}
+                                  className="font-semibold text-neutral-800 hover:text-[#C2A476] transition-colors"
+                                >
+                                  {inq.phone}
+                                </a>
+                              </div>
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <span className="text-[11px] font-mono font-bold text-neutral-900">
+                                  {formatPriceVnd(stayTotalVnd)}
+                                </span>
+                                <span
+                                  className={`px-1.5 py-0.2 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                    inq.paymentStatus === "paid"
+                                      ? "bg-emerald-100 text-emerald-800"
+                                      : inq.paymentStatus === "deposit"
+                                      ? "bg-amber-100 text-amber-800"
+                                      : "bg-rose-100 text-rose-800"
+                                  }`}
+                                >
+                                  {inq.paymentStatus === "paid"
+                                    ? (language === "vi" ? "Đã thu" : "Paid")
+                                    : inq.paymentStatus === "deposit"
+                                    ? (language === "vi" ? "Đã cọc" : "Deposit")
+                                    : (language === "vi" ? "Chưa thu" : "Unpaid")}
+                                </span>
+                              </div>
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Stay Dates and Notes Grid */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 my-3 text-xs">
-                          <div className="p-2.5 rounded-xl bg-white/80 border border-neutral-200/70">
-                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
-                              {language === "vi" ? "Khoảng Ngày Lưu Trú" : "Stay Timeframe"}
-                            </span>
-                            <span className="font-semibold text-neutral-800 mt-0.5 block">
-                              {inq.checkIn} → {inq.checkOut}
-                            </span>
-                          </div>
-
-                          <div className="p-2.5 rounded-xl bg-white/80 border border-neutral-200/70">
-                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
-                              {language === "vi" ? "Thông Số Biệt Thự" : "Villa Specs"}
-                            </span>
-                            <span className="font-semibold text-neutral-800 mt-0.5 block">
-                              {vMatch?.bedrooms || 4} PN • {vMatch?.maxGuests || 8} khách • {vMatch?.poolType || "Private Pool"}
-                            </span>
-                          </div>
-
-                          <div className="p-2.5 rounded-xl bg-white/80 border border-neutral-200/70">
-                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
-                              {language === "vi" ? "Thời Điểm Nghiệm Thu" : "Housekeeping Timestamp"}
-                            </span>
-                            <span className="font-medium text-neutral-700 mt-0.5 block">
-                              {inq.cleanedAt && cStatus === "cleaned"
-                                ? `✨ ${new Date(inq.cleanedAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}`
-                                : (language === "vi" ? "Chưa nghiệm thu" : "Pending completion")}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Housekeeping Notes Box */}
-                        <div className="p-3 rounded-xl bg-white border border-neutral-200 mb-3">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[11px] font-bold text-neutral-700 uppercase tracking-wider flex items-center gap-1.5">
-                              <Edit3 className="w-3.5 h-3.5 text-[#C2A476]" />
-                              <span>{language === "vi" ? "Ghi Chú Buồng Phòng & Vệ Sinh:" : "Housekeeping & Linen Turnover Notes:"}</span>
-                            </span>
-                            {!isNotesEditing && (
+                          {/* Housekeeping Note Box */}
+                          <div className="py-2.5">
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500">
+                                {language === "vi" ? "📝 Ghi Chú Buồng Phòng & Vật Dụng:" : "📝 Housekeeping Notes:"}
+                              </span>
                               <button
                                 type="button"
                                 onClick={() => {
-                                  setEditingCleaningNotesId(inq.id);
-                                  setCleaningNotesInput(inq.cleaningNotes || "");
+                                  if (editingTurnoverNoteId === inq.id) {
+                                    setEditingTurnoverNoteId(null);
+                                  } else {
+                                    setEditingTurnoverNoteId(inq.id);
+                                    setTurnoverNoteInput(inq.cleaningNotes || "");
+                                  }
                                 }}
-                                className="text-[11px] text-[#8A6B3D] hover:underline font-semibold cursor-pointer"
+                                className="text-[10px] font-semibold text-[#8A6B3D] hover:underline cursor-pointer"
                               >
-                                {inq.cleaningNotes ? (language === "vi" ? "Sửa ghi chú" : "Edit Notes") : (language === "vi" ? "+ Thêm ghi chú" : "+ Add Notes")}
+                                {editingTurnoverNoteId === inq.id
+                                  ? (language === "vi" ? "Đóng" : "Cancel")
+                                  : (language === "vi" ? "Chỉnh sửa" : "Edit note")}
                               </button>
-                            )}
-                          </div>
+                            </div>
 
-                          {isNotesEditing ? (
-                            <div className="space-y-2 animate-fade-in">
-                              <textarea
-                                rows={2}
-                                value={cleaningNotesInput}
-                                onChange={(e) => setCleaningNotesInput(e.target.value)}
-                                placeholder={language === "vi" ? "Ví dụ: Đã thay 4 bộ ga giường, lau ban công, khử khuẩn hồ bơi, bổ sung đồ tiêu hao minibar..." : "e.g. Linens replaced, terrace cleaned, pool filtered, minibar restocked..."}
-                                className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl p-2.5 text-xs text-neutral-800 focus:outline-none focus:border-[#C2A476] resize-none"
-                              />
-                              <div className="flex items-center justify-end gap-2">
+                            {editingTurnoverNoteId === inq.id ? (
+                              <div className="space-y-2">
+                                <textarea
+                                  rows={2}
+                                  value={turnoverNoteInput}
+                                  onChange={(e) => setTurnoverNoteInput(e.target.value)}
+                                  placeholder={
+                                    language === "vi"
+                                      ? "Ví dụ: Đã thay ga giường tầng 2, bổ sung 4 khăn tắm, minibar đầy đủ..."
+                                      : "e.g., Master bed remade, replenished 4 towels, minibar inspected..."
+                                  }
+                                  className="w-full text-xs p-2.5 rounded-xl border border-neutral-300 bg-white focus:outline-none focus:border-[#C2A476]"
+                                />
                                 <button
                                   type="button"
-                                  onClick={() => setEditingCleaningNotesId(null)}
-                                  className="px-3 py-1 rounded-lg border border-neutral-300 text-[11px] text-neutral-600 hover:bg-neutral-50 cursor-pointer"
+                                  onClick={() => handleUpdateTurnoverStatus(inq.id, cleaningStatus, turnoverNoteInput)}
+                                  className="px-3 py-1 rounded-lg bg-[#14171A] hover:bg-[#C2A476] text-white text-[11px] font-semibold transition-all cursor-pointer shadow-xs"
                                 >
-                                  {language === "vi" ? "Hủy" : "Cancel"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleUpdateCleaningStatus(inq.id, cStatus, cleaningNotesInput)}
-                                  className="px-3 py-1 rounded-lg bg-[#14171A] hover:bg-[#C2A476] text-white text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors"
-                                >
-                                  <Save className="w-3 h-3" />
-                                  <span>{language === "vi" ? "Lưu Ghi Chú" : "Save Notes"}</span>
+                                  {language === "vi" ? "Lưu Ghi Chú" : "Save Note"}
                                 </button>
                               </div>
-                            </div>
-                          ) : (
-                            <p className="text-xs text-neutral-600 italic">
-                              {inq.cleaningNotes || (language === "vi" ? "Chưa có ghi chú đặc biệt cho buồng phòng." : "No specific housekeeping notes added.")}
-                            </p>
-                          )}
-                        </div>
-
-                        {/* Quick One-Click Action Status Buttons */}
-                        <div className="flex items-center justify-between flex-wrap gap-2 pt-2 border-t border-neutral-200/50">
-                          <span className="text-[11px] text-neutral-400">
-                            {language === "vi" ? "Chuyển nhanh trạng thái buồng phòng:" : "Transition turnover status:"}
-                          </span>
-
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {cStatus !== "in_cleaning" && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateCleaningStatus(inq.id, "in_cleaning")}
-                                className="px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
-                              >
-                                <span>🟡 {language === "vi" ? "Bắt Đầu Dọn Dẹp" : "Start Cleaning"}</span>
-                              </button>
-                            )}
-
-                            {cStatus !== "cleaned" && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateCleaningStatus(inq.id, "cleaned")}
-                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
-                              >
-                                <span>🟢 {language === "vi" ? "Nghiệm Thu • Đã Dọn Xong" : "Mark Cleaned & Ready"}</span>
-                              </button>
-                            )}
-
-                            {cStatus !== "needs_cleaning" && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateCleaningStatus(inq.id, "needs_cleaning")}
-                                className="px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
-                              >
-                                <span>🔴 {language === "vi" ? "Cần Dọn Lại" : "Mark Needs Cleaning"}</span>
-                              </button>
+                            ) : inq.cleaningNotes ? (
+                              <p className="text-xs text-neutral-700 bg-white/70 p-2.5 rounded-xl border border-neutral-200/60 leading-relaxed italic">
+                                &ldquo;{inq.cleaningNotes}&rdquo;
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-neutral-400 italic">
+                                {language === "vi" ? "Chưa có ghi chú đặc biệt cho phòng này." : "No specific housekeeping notes added."}
+                              </p>
                             )}
                           </div>
                         </div>
-                      </div>
+
+                        {/* Bottom 1-Click Status Controls */}
+                        <div className="pt-3 border-t border-neutral-100 flex flex-wrap items-center justify-between gap-2 mt-2">
+                          <span className="text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+                            {language === "vi" ? "Đổi Trạng Thái 1-Chạm:" : "1-Click Status:"}
+                          </span>
+
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTurnoverStatus(inq.id, "needs_cleaning", inq.cleaningNotes)}
+                              disabled={isUpdatingTurnover || cleaningStatus === "needs_cleaning"}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                cleaningStatus === "needs_cleaning"
+                                  ? "bg-rose-600 text-white shadow-xs"
+                                  : "bg-white text-rose-700 border border-rose-200 hover:bg-rose-50"
+                              }`}
+                            >
+                              🔴 {language === "vi" ? "Cần Dọn" : "Needs Cleaning"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTurnoverStatus(inq.id, "in_cleaning", inq.cleaningNotes)}
+                              disabled={isUpdatingTurnover || cleaningStatus === "in_cleaning"}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                cleaningStatus === "in_cleaning"
+                                  ? "bg-amber-500 text-white shadow-xs"
+                                  : "bg-white text-amber-700 border border-amber-200 hover:bg-amber-50"
+                              }`}
+                            >
+                              🟡 {language === "vi" ? "Đang Dọn" : "In Progress"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleUpdateTurnoverStatus(inq.id, "cleaned", inq.cleaningNotes)}
+                              disabled={isUpdatingTurnover || cleaningStatus === "cleaned"}
+                              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                                cleaningStatus === "cleaned"
+                                  ? "bg-emerald-600 text-white shadow-xs"
+                                  : "bg-white text-emerald-700 border border-emerald-200 hover:bg-emerald-50"
+                              }`}
+                            >
+                              ✨ {language === "vi" ? "Đã Dọn Xong" : "Cleaned & Ready"}
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setEditingInquiry(inq)}
+                              className="px-2 py-1.5 rounded-xl text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100 transition-colors cursor-pointer text-xs"
+                              title={language === "vi" ? "Xem chi tiết đơn" : "View full booking"}
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
                     );
                   })}
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* PANEL 2: VILLA PRICING & DIRECT USD CONVERSION MANAGEMENT */}
@@ -1658,14 +1850,14 @@ export default function AdminPage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <h2 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
+                      <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-neutral-900">
                         {language === "vi" ? "Quản Lý Đơn Giá Villa & Tỷ Giá Quy Đổi USD" : "Villa Nightly Rates & Real-Time USD Currency Conversion"}
                       </h2>
                       <span className="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-300 uppercase tracking-wider hidden sm:inline">
                         {language === "vi" ? "Đồng Bộ Trực Tiếp" : "Live Sync"}
                       </span>
                     </div>
-                    <p className="text-xs text-neutral-500 font-light mt-0.5">
+                    <p className="text-xs text-neutral-500 font-normal mt-0.5">
                       {language === "vi"
                         ? "Điều chỉnh đơn giá mỗi đêm (VND) cho từng căn biệt thự và tỷ giá USD. Website công khai và modal đặt phòng sẽ tự động quy đổi và hiển thị giá mới tức thì trên mọi thiết bị."
                         : "Configure nightly rates (VND) per villa and USD exchange rate. The public website and booking modal recalculate and mirror rates instantly across all devices."}
@@ -1702,7 +1894,7 @@ export default function AdminPage() {
                     <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 block">
                       {language === "vi" ? "Tỷ Giá Ngoại Tệ (USD / VND)" : "Foreign Exchange Rate (USD / VND)"}
                     </span>
-                    <h3 className="font-serif text-base sm:text-lg font-bold text-neutral-900 mt-0.5">
+                    <h3 className="text-base sm:text-lg font-extrabold tracking-tight text-neutral-900 mt-0.5">
                       1 USD = {formatPriceVnd(usdRate).replace(" ₫", "")} VND
                     </h3>
                     <p className="text-[11px] text-neutral-500 mt-0.5 leading-relaxed">
@@ -1773,14 +1965,14 @@ export default function AdminPage() {
                             </div>
                           </div>
                           <div className="min-w-0 flex-1">
-                            <h3 className="font-serif text-sm sm:text-base font-bold text-neutral-900 truncate">
-                              {villa.name}
+                            <h3 className="text-sm sm:text-base font-extrabold tracking-tight text-neutral-900 truncate">
+                              {language === "vi" ? (villa.nameVi || villa.name) : villa.name}
                             </h3>
-                            <p className="text-[11px] text-neutral-500 mt-0.5">
-                              {villa.district} • {villa.bedrooms} PN • {villa.maxGuests} khách tối đa
+                            <p className="text-[11px] text-neutral-500 mt-0.5 truncate">
+                              {language === "vi" ? (villa.locationVi || villa.location) : villa.location} • {villa.bedrooms} PN • {villa.maxGuests} {language === "vi" ? "khách tối đa" : "max guests"}
                             </p>
                             <span className="text-[10px] text-neutral-400 block truncate">
-                              {villa.poolType}
+                              {language === "vi" ? (villa.poolTypeVi || villa.poolType) : villa.poolType}
                             </span>
                           </div>
                         </div>
@@ -1869,7 +2061,7 @@ export default function AdminPage() {
                             <span className="text-[10px] uppercase font-bold text-emerald-800 block">
                               {language === "vi" ? "Hiển Thị Website Công Khai:" : "Public Live Display:"}
                             </span>
-                            <span className="font-serif text-sm font-bold text-emerald-950">
+                            <span className="text-sm font-extrabold text-emerald-950 tracking-tight">
                               {formatPriceVnd(currentPrice)}/đêm
                             </span>
                           </div>
@@ -1910,7 +2102,7 @@ export default function AdminPage() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="font-serif text-base sm:text-lg font-bold text-neutral-900">
+                    <h2 className="text-base sm:text-lg font-extrabold tracking-tight text-neutral-900">
                       {language === "vi" ? "Kiểm Soát Vận Hành & Bảo Trì Villa" : "Villa Maintenance & Operational Status Control"}
                     </h2>
                     <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-300 uppercase tracking-wider hidden sm:inline">
@@ -1967,10 +2159,10 @@ export default function AdminPage() {
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="text-xs sm:text-sm font-bold text-neutral-900 truncate">
-                            {villa.name}
+                            {language === "vi" ? (villa.nameVi || villa.name) : villa.name}
                           </h3>
                           <p className="text-[11px] text-neutral-500 truncate">
-                            {villa.district} • {villa.bedrooms} PN
+                            {language === "vi" ? (villa.locationVi || villa.location) : villa.location} • {villa.bedrooms} PN
                           </p>
                         </div>
                       </div>
@@ -2057,391 +2249,604 @@ export default function AdminPage() {
 
         {/* PANEL 4: ALL RESERVATIONS (DEFAULT VIEW) */}
         {adminViewTab === "all_bookings" && (
-          <div className="space-y-6 animate-fade-in">
-            {/* Filter and Search Bar */}
-            <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm mb-6 flex flex-col md:flex-row gap-3 items-center justify-between">
-              <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
-            <input
-              type="text"
-              placeholder={t("admin.search_placeholder", "Search guest, ID, villa, phone...")}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#FAF8F5] border border-neutral-200 rounded-xl pl-10 pr-4 py-2 text-xs focus:outline-none focus:border-[#C2A476]"
-            />
-          </div>
+          <div className="space-y-5 animate-fade-in">
+            {/* Unified Command & Filter Toolbar */}
+            <div className="bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-[#EAE5DC] shadow-xs flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+              {/* Search input with clear button */}
+              <div className="relative flex-1 max-w-full lg:max-w-md">
+                <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+                <input
+                  type="text"
+                  placeholder={t("admin.search_placeholder", "Search guest, ID, villa, phone...")}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#FAF8F5] border border-neutral-200 hover:border-neutral-300 focus:border-[#C2A476] rounded-xl pl-10 pr-9 py-2 text-xs transition-colors focus:outline-none"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-700 p-0.5 rounded-md cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
 
-          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
-            {/* Status Filter */}
-            <div className="flex items-center gap-1.5 text-xs text-neutral-600">
-              <Filter className="w-3.5 h-3.5 text-neutral-400" />
-              <span>{t("admin.filter_status", "Status")}:</span>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="bg-[#FAF8F5] border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-800 focus:outline-none"
-              >
-                <option value="all">{t("admin.all_statuses", "All Statuses")}</option>
-                <option value="pending">⏳ {t("admin.status_pending", "Pending")}</option>
-                <option value="contacted">📞 {t("admin.status_contacted", "Contacted")}</option>
-                <option value="confirmed">✅ {t("admin.status_confirmed", "Confirmed")}</option>
-                <option value="cancelled">❌ {t("admin.status_cancelled", "Cancelled")}</option>
-                <option value="expired_needs_cleaning">
-                  🧹 {language === "vi" ? "Hết hạn • Cần dọn dẹp" : "Stay Ended • Needs Cleaning"} ({hkSummary.needsCleaningCount})
-                </option>
-                <option value="checkout_today">
-                  ⏰ {language === "vi" ? "Trả phòng hôm nay" : "Checkout Today"} ({hkSummary.todayCount})
-                </option>
-                <option value="in_cleaning">
-                  🟡 {language === "vi" ? "Đang dọn dẹp" : "In Cleaning"} ({hkSummary.inCleaningCount})
-                </option>
-                <option value="cleaned">
-                  ✨ {language === "vi" ? "Đã dọn dẹp xong" : "Cleaned & Inspected"} ({hkSummary.cleanedCount})
-                </option>
-                <option value="in_house">
-                  🏡 {language === "vi" ? "Đang lưu trú" : "Currently In-House"}
-                </option>
-              </select>
+              {/* Filter pills & Reset button */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Status Filter */}
+                <div className="relative">
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
+                  >
+                    <option value="all">📋 {t("admin.all_statuses", "All Statuses")}</option>
+                    <option value="pending">⏳ {t("admin.status_pending", "Pending")}</option>
+                    <option value="contacted">📞 {t("admin.status_contacted", "Contacted")}</option>
+                    <option value="confirmed">✅ {t("admin.status_confirmed", "Confirmed")}</option>
+                    <option value="cancelled">❌ {t("admin.status_cancelled", "Cancelled")}</option>
+                    <option value="checkout_today">⏰ {language === "vi" ? "Trả phòng hôm nay" : "Checkout Today"}</option>
+                    <option value="expired">🏁 {language === "vi" ? "Đã trả phòng / Hết hạn" : "Stay Ended"}</option>
+                    <option value="in_house">🏡 {language === "vi" ? "Đang lưu trú" : "Currently In-House"}</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
+                </div>
+
+                {/* Villa Filter */}
+                <div className="relative">
+                  <select
+                    value={villaFilter}
+                    onChange={(e) => setVillaFilter(e.target.value)}
+                    className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
+                  >
+                    <option value="all">🏛️ {t("admin.all_villas_option", "All 4 Villas")}</option>
+                    {siteConfig.villas.map((v) => (
+                      <option key={v.id} value={v.id}>
+                        {v.code} ({v.district})
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
+                </div>
+
+                {/* Payment Filter */}
+                <div className="relative">
+                  <select
+                    value={paymentFilter}
+                    onChange={(e) => setPaymentFilter(e.target.value)}
+                    className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
+                  >
+                    <option value="all">💳 {language === "vi" ? "Tất Cả Khoản Thu" : "All Payments"}</option>
+                    <option value="unpaid">🔴 {language === "vi" ? "Chưa thu" : "Unpaid"} ({paySummary.unpaidCount})</option>
+                    <option value="deposit">🟡 {language === "vi" ? "Đã đặt cọc" : "Deposit"} ({paySummary.depositCount})</option>
+                    <option value="paid">🟢 {language === "vi" ? "Đã thu đủ" : "Paid"} ({paySummary.paidCount})</option>
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
+                </div>
+
+                {/* Reset Filters button if active */}
+                {(statusFilter !== "all" || villaFilter !== "all" || paymentFilter !== "all" || searchQuery) && (
+                  <button
+                    onClick={() => {
+                      setStatusFilter("all");
+                      setVillaFilter("all");
+                      setPaymentFilter("all");
+                      setSearchQuery("");
+                    }}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                    title="Xoá tất cả bộ lọc"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    <span>{language === "vi" ? "Xoá lọc" : "Reset"}</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Revenue quick stat pill */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] text-xs self-start lg:self-auto shrink-0">
+                <span className="text-xs font-bold text-neutral-600 uppercase tracking-wide">{language === "vi" ? "Doanh thu:" : "Rev:"}</span>
+                <span className="font-extrabold text-neutral-900 font-mono">{formatPriceVnd(paySummary.totalRevenueVnd)}</span>
+                <span className="text-xs text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md font-bold font-mono border border-emerald-200">
+                  ✓ {formatPriceVnd(paySummary.paidRevenueVnd)}
+                </span>
+                {paySummary.unpaidRevenueVnd > 0 && (
+                  <span className="text-xs text-rose-800 bg-rose-50 px-2 py-0.5 rounded-md font-bold font-mono border border-rose-200">
+                    ! {formatPriceVnd(paySummary.unpaidRevenueVnd)}
+                  </span>
+                )}
+              </div>
             </div>
 
-            {/* Villa Filter */}
-            <div className="flex items-center gap-1.5 text-xs text-neutral-600">
-              <span>{t("admin.filter_villa", "Villa")}:</span>
-              <select
-                value={villaFilter}
-                onChange={(e) => setVillaFilter(e.target.value)}
-                className="bg-[#FAF8F5] border border-neutral-200 rounded-lg px-2.5 py-1.5 text-xs font-medium text-neutral-800 focus:outline-none"
-              >
-                <option value="all">{t("admin.all_villas_option", "All 4 Villas")}</option>
-                {siteConfig.villas.map((v) => (
-                  <option key={v.id} value={v.id}>
-                    {v.code} ({v.district})
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-        </div>
+            {/* Inquiries List */}
+            {filteredInquiries.length === 0 ? (
+              <div className="bg-white rounded-3xl p-12 text-center border border-neutral-200">
+                <p className="text-neutral-500 text-sm mb-4">
+                  {inquiries.length === 0
+                    ? "No reservations logged yet."
+                    : "No reservation inquiries match your current filters."}
+                </p>
+                {inquiries.length === 0 && (
+                  <button
+                    type="button"
+                    onClick={handleRequestResetSample}
+                    className="inline-flex items-center gap-2 bg-[#14171A] hover:bg-[#C2A476] text-white py-2.5 px-5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Load Sample Inquiries</span>
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <AnimatePresence mode="popLayout">
+                  {filteredInquiries.map((inq) => {
+                    const isNewlyArrived = inq.id === newlyArrivedId;
+                    const whatsappLink = `https://wa.me/${inq.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(inq.guestName)},%20thank%20you%20for%20inquiring%20about%20${encodeURIComponent(inq.villaName)}%20(Ref:%20${inq.id}).`;
+                    const stayNights = calculateStayNights(inq.checkIn, inq.checkOut);
+                    const nightlyPrice = bookingStore.getVillaPrice(inq.villaId);
+                    const totalPrice = inq.totalPriceVnd ?? (stayNights * nightlyPrice);
+                    const currentPaymentStatus: PaymentStatus = inq.paymentStatus || "unpaid";
+                    const convertedStayUsd = formatPriceUsd(totalPrice, usdRate);
 
-        {/* Inquiries Table / Cards */}
-        {filteredInquiries.length === 0 ? (
-          <div className="bg-white rounded-3xl p-12 text-center border border-neutral-200">
-            <p className="text-neutral-500 text-sm mb-4">
-              {inquiries.length === 0
-                ? "No reservations logged yet."
-                : "No reservation inquiries match your current filters."}
-            </p>
-            {inquiries.length === 0 && (
-              <button
-                type="button"
-                onClick={handleRequestResetSample}
-                className="inline-flex items-center gap-2 bg-[#14171A] hover:bg-[#C2A476] text-white py-2.5 px-5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-md cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5" />
-                <span>Load Sample Inquiries</span>
-              </button>
+                    return (
+                      <motion.div
+                        key={inq.id}
+                        layout
+                        initial={{ opacity: 0, y: 15 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.96 }}
+                        transition={{ duration: 0.25 }}
+                        whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                        className={`bg-white rounded-3xl border p-5 sm:p-6 shadow-xs hover:shadow-lg transition-all duration-300 relative ${
+                          isNewlyArrived
+                            ? "border-[#C2A476] ring-4 ring-[#C2A476]/30 bg-amber-50/20"
+                            : "border-[#EAE5DC] hover:border-[#C2A476]/50"
+                        }`}
+                      >
+                        {/* Flashing Tag if just arrived via real-time sync */}
+                        {isNewlyArrived && (
+                          <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C2A476] text-white text-[10px] font-bold uppercase tracking-wider animate-pulse">
+                            <Sparkles className="w-3 h-3" />
+                            <span>Just Received (Real-Time Live)</span>
+                          </div>
+                        )}
+
+                        {/* Overlapping Conflict Alert Banner */}
+                        {(() => {
+                          const conflicts = bookingStore.findConflictsForInquiry(inq);
+                          if (conflicts.length === 0) return null;
+                          return (
+                            <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-2xs">
+                              <div className="flex items-start gap-2.5">
+                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="font-bold text-rose-900 text-xs sm:text-sm">
+                                    Trùng Lịch Lưu Trú Cần Xử Lý!
+                                  </p>
+                                  <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
+                                    Đơn này trùng lịch với #{conflicts.map((c) => `${c.id} (${c.guestName}: ${c.checkIn} → ${c.checkOut})`).join(", ")}. Vui lòng đổi ngày hoặc huỷ đơn trùng.
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingInquiry({ ...inq })}
+                                  className="px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-colors"
+                                >
+                                  Đổi Ngày
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickStatusChange(inq.id, "cancelled")}
+                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-colors"
+                                >
+                                  Huỷ Đơn
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()}
+
+                        {/* Card Header: Guest info on left, Status and Actions on right */}
+                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#F0ECE1]">
+                          <div className="flex items-start sm:items-center gap-3">
+                            <span className="font-mono text-xs font-black text-[#8A6B3D] bg-[#FAF8F5] border border-[#EAE5DC] px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
+                              #{inq.id}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h3 className="text-base sm:text-lg font-black tracking-tight text-neutral-900">
+                                  {inq.guestName}
+                                </h3>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FAF8F5] text-[#8A6B3D] border border-[#EAE5DC]">
+                                  🏛️ {inq.villaName}
+                                </span>
+                                {(() => {
+                                  const stay = getStayStatus(inq.checkIn, inq.checkOut);
+                                  if (stay === "checkout_today") {
+                                    return (
+                                      <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200 animate-pulse">
+                                        {language === "vi" ? "⏰ Trả phòng hôm nay" : "⏰ Checkout Today"}
+                                      </span>
+                                    );
+                                  }
+                                  if (stay === "expired") {
+                                    return (
+                                      <span className="text-[10px] font-bold bg-neutral-100 text-neutral-600 px-2.5 py-0.5 rounded-full border border-neutral-200">
+                                        {language === "vi" ? "🏁 Đã trả phòng" : "Checked Out"}
+                                      </span>
+                                    );
+                                  }
+                                  if (stay === "in_house") {
+                                    return (
+                                      <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                        {language === "vi" ? "🏡 Đang lưu trú" : "In-House"}
+                                      </span>
+                                    );
+                                  }
+                                  return null;
+                                })()}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+                            {/* Status Selector Dropdown */}
+                            <select
+                              value={inq.status}
+                              onChange={(e) => handleQuickStatusChange(inq.id, e.target.value as InquiryStatus)}
+                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer transition-colors shadow-2xs ${
+                                inq.status === "pending"
+                                  ? "bg-amber-50 text-amber-800 border-amber-300"
+                                  : inq.status === "contacted"
+                                  ? "bg-blue-50 text-blue-800 border-blue-300"
+                                  : inq.status === "confirmed"
+                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
+                                  : "bg-neutral-100 text-neutral-500 border-neutral-200"
+                              }`}
+                            >
+                              <option value="pending">● {t("admin.status_pending", "Pending")}</option>
+                              <option value="contacted">● {t("admin.status_contacted", "Contacted")}</option>
+                              <option value="confirmed">● {t("admin.status_confirmed", "Confirmed")}</option>
+                              <option value="cancelled">● {language === "vi" ? "Đã Huỷ (Nhả Lịch)" : "Cancelled (Release Dates)"}</option>
+                            </select>
+
+                            {/* Edit Button */}
+                            <motion.button
+                              whileHover={{ scale: 1.04 }}
+                              whileTap={{ scale: 0.96 }}
+                              onClick={() => setEditingInquiry({ ...inq })}
+                              className="inline-flex items-center gap-1.5 bg-[#FAF7F2] hover:bg-[#f3ede1] text-[#8A6B3D] border border-[#E8E0D2] text-xs font-bold px-3 py-1.5 rounded-xl transition-colors cursor-pointer shadow-2xs"
+                              title="Chỉnh sửa thông tin đơn & ngày lưu trú"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-[#C2A476]" />
+                              <span>{t("admin.edit_dates", "Edit")}</span>
+                            </motion.button>
+
+                            {/* WhatsApp Button */}
+                            <motion.a
+                              whileHover={{ scale: 1.04 }}
+                              whileTap={{ scale: 0.96 }}
+                              href={whatsappLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors shadow-2xs cursor-pointer"
+                              title="Chat WhatsApp trực tiếp với khách"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>WhatsApp</span>
+                            </motion.a>
+
+                            {/* Delete Button */}
+                            <motion.button
+                              whileHover={{ scale: 1.08 }}
+                              whileTap={{ scale: 0.92 }}
+                              onClick={() => handleRequestDelete(inq)}
+                              className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Xoá đơn và giải phóng ngày trên lịch"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </motion.button>
+                          </div>
+                        </div>
+
+                        {/* Booking Details Grid (Clean 4-column modern card) */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-3 text-xs">
+                          <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
+                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
+                              📅 {t("admin.stay_dates", "Stay Dates")}
+                            </span>
+                            <p className="font-bold text-neutral-800 mt-1 truncate">
+                              {inq.checkIn} → {inq.checkOut}
+                            </p>
+                            <span className="text-xs text-neutral-500 font-medium">
+                              ({stayNights} {language === "vi" ? "đêm lưu trú" : "nights"})
+                            </span>
+                          </div>
+
+                          <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
+                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
+                              👥 {t("admin.guest_count", "Guest Count")}
+                            </span>
+                            <p className="font-bold text-neutral-800 mt-1">
+                              {inq.adults} {language === "vi" ? "Người lớn" : "Adults"}
+                              {inq.children > 0 ? `, ${inq.children} ${language === "vi" ? "Trẻ em" : "Kids"}` : ""}
+                            </p>
+                          </div>
+
+                          <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
+                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
+                              📞 {language === "vi" ? "Điện thoại / Hotline" : "Phone / Contact"}
+                            </span>
+                            <a
+                              href={`tel:${inq.phone}`}
+                              className="font-bold text-neutral-800 hover:text-[#C2A476] mt-1 block truncate transition-colors"
+                            >
+                              {inq.phone}
+                            </a>
+                          </div>
+
+                          <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
+                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
+                              ✉️ {language === "vi" ? "Email khách hàng" : "Guest Email"}
+                            </span>
+                            <a
+                              href={`mailto:${inq.email}`}
+                              className="font-bold text-neutral-800 hover:text-[#C2A476] mt-1 block truncate transition-colors"
+                            >
+                              {inq.email}
+                            </a>
+                          </div>
+                        </div>
+
+                        {/* FINANCIAL & PAYMENT STATUS ROW */}
+                        <div className="mt-2 pt-3 border-t border-[#F0ECE1] flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-[#FAF8F5] via-white to-[#FAF8F5] p-3 rounded-2xl border border-[#EAE5DC]">
+                          {/* Total Price & Nights Breakdown */}
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-[#8A6B3D] shrink-0 shadow-2xs">
+                              <CreditCard className="w-4 h-4 text-[#C2A476]" />
+                            </div>
+                            <div>
+                              <div className="flex items-baseline gap-2 flex-wrap">
+                                <span className="text-base sm:text-lg font-black text-neutral-900 tracking-tight font-mono">
+                                  {formatPriceVnd(totalPrice)}
+                                </span>
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 font-mono shadow-2xs">
+                                  <span>≈</span>
+                                  <span>${convertedStayUsd}</span>
+                                  <span className="text-xs font-normal text-emerald-700">USD</span>
+                                </span>
+                                <span className="text-xs text-neutral-600 font-medium hidden sm:inline">
+                                  • {stayNights} đêm × {formatPriceVnd(nightlyPrice)}/đêm
+                                </span>
+                              </div>
+                              {inq.paidAmountVnd !== undefined && currentPaymentStatus === "deposit" && (
+                                <p className="text-xs text-amber-700 font-bold mt-0.5">
+                                  {language === "vi" ? "Đã cọc:" : "Deposit:"} {formatPriceVnd(inq.paidAmountVnd)}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Payment Status & Quick 1-Click Action Buttons */}
+                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap pt-2 md:pt-0 border-t md:border-t-0 border-[#F0ECE1]">
+                            <span className="text-xs font-bold text-neutral-600 whitespace-nowrap">
+                              {language === "vi" ? "Thu Tiền:" : "Payment:"}
+                            </span>
+
+                            <div className="inline-flex items-center p-1 bg-white rounded-xl border border-neutral-200 shadow-2xs gap-1">
+                              {/* Chưa thu (Unpaid) */}
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                type="button"
+                                onClick={() => handleUpdatePaymentStatus(inq.id, "unpaid")}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                  currentPaymentStatus === "unpaid"
+                                    ? "bg-rose-600 text-white shadow-xs"
+                                    : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
+                                }`}
+                                title="Đánh dấu Chưa thu tiền"
+                              >
+                                <span className={`w-2 h-2 rounded-full ${currentPaymentStatus === "unpaid" ? "bg-white" : "bg-rose-500"}`} />
+                                <span>{language === "vi" ? "Chưa thu" : "Unpaid"}</span>
+                              </motion.button>
+
+                              {/* Đã cọc (Deposit) */}
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                type="button"
+                                onClick={() => handleUpdatePaymentStatus(inq.id, "deposit")}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                  currentPaymentStatus === "deposit"
+                                    ? "bg-amber-500 text-white shadow-xs"
+                                    : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
+                                }`}
+                                title="Đánh dấu Đã cọc tiền phòng"
+                              >
+                                <span className={`w-2 h-2 rounded-full ${currentPaymentStatus === "deposit" ? "bg-white" : "bg-amber-500"}`} />
+                                <span>{language === "vi" ? "Đã cọc" : "Deposit"}</span>
+                              </motion.button>
+
+                              {/* Đã thu (Paid) */}
+                              <motion.button
+                                whileTap={{ scale: 0.95 }}
+                                type="button"
+                                onClick={() => handleUpdatePaymentStatus(inq.id, "paid")}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                                  currentPaymentStatus === "paid"
+                                    ? "bg-emerald-600 text-white shadow-xs"
+                                    : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
+                                }`}
+                                title="Đánh dấu Đã thu đủ tiền phòng"
+                              >
+                                <CheckCircle2 className={`w-3.5 h-3.5 ${currentPaymentStatus === "paid" ? "text-white" : "text-emerald-600"}`} />
+                                <span>{language === "vi" ? "Đã thu" : "Paid"}</span>
+                              </motion.button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Special Requests */}
+                        {inq.specialRequests && (
+                          <div className="mt-2.5 p-2.5 bg-[#FAF8F5] rounded-xl text-xs text-neutral-700 border border-neutral-100">
+                            <span className="font-bold text-neutral-900 block mb-0.5">
+                              {t("admin.special_notes", "Guest Special Notes / Reason:")}
+                            </span>
+                            <p className="italic text-neutral-600">&ldquo;{inq.specialRequests}&rdquo;</p>
+                          </div>
+                        )}
+
+                        <div className="mt-2 text-[10px] text-neutral-400 text-right">
+                          {t("admin.created_at", "Received on")}: {new Date(inq.createdAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+              </div>
             )}
           </div>
-        ) : (
-          <div className="space-y-4">
-            {filteredInquiries.map((inq) => {
-              const isNewlyArrived = inq.id === newlyArrivedId;
-              const whatsappLink = `https://wa.me/${inq.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(inq.guestName)},%20thank%20you%20for%20inquiring%20about%20${encodeURIComponent(inq.villaName)}%20(Ref:%20${inq.id}).`;
+        )}
 
-              return (
-                <div
-                  key={inq.id}
-                  className={`bg-white rounded-2xl border p-5 shadow-sm transition-all duration-500 relative ${
-                    isNewlyArrived
-                      ? "border-[#C2A476] ring-4 ring-[#C2A476]/30 bg-amber-50/20"
-                      : "border-neutral-200 hover:shadow-md"
-                  }`}
-                >
-                  {/* Flashing Tag if just arrived via real-time sync */}
-                  {isNewlyArrived && (
-                    <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C2A476] text-white text-[10px] font-bold uppercase tracking-wider animate-pulse">
-                      <Sparkles className="w-3 h-3" />
-                      <span>Just Received (Real-Time Live)</span>
+        {/* Sleek Collapsible Cloud Synchronization Status Banner (Moved to bottom of page for a cleaner workspace) */}
+        <div className="mt-10 pt-6 border-t border-neutral-200/80">
+          {isCloudStorage ? (
+            <div className="px-4 py-2.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-900 shadow-2xs">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-100 border border-emerald-300 flex items-center justify-center text-emerald-700 shrink-0">
+                  <Cloud className="w-3.5 h-3.5" />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-bold">🟢 Cloud Database ({storageType})</span>
+                  <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-200/80 text-emerald-900">
+                    Live Sync 2 Chiều
+                  </span>
+                  <span className="text-emerald-700 hidden md:inline text-xs">
+                    • Mọi thiết bị (iPhone, Android, PC) đều cập nhật tức thì.
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={handleOpenExport}
+                className="px-3 py-1 rounded-xl bg-emerald-800 text-white text-xs font-semibold hover:bg-emerald-900 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+              >
+                <Download className="w-3 h-3" />
+                <span>Sao lưu Dữ liệu</span>
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-2xl border border-amber-300 bg-amber-50/90 text-amber-950 shadow-2xs transition-all">
+              {isSyncBannerCollapsed ? (
+                /* Compact 1-line view (Clean & Uncluttered) */
+                <div className="px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-6 h-6 rounded-lg bg-amber-200/70 border border-amber-300 flex items-center justify-center text-amber-800 shrink-0">
+                      <AlertTriangle className="w-3.5 h-3.5" />
                     </div>
-                  )}
-
-                  {/* Overlapping Conflict Alert Banner */}
-                  {(() => {
-                    const conflicts = bookingStore.findConflictsForInquiry(inq);
-                    if (conflicts.length === 0) return null;
-                    return (
-                      <div className="mb-4 p-3.5 rounded-xl bg-rose-50 border-2 border-rose-300 text-rose-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-sm">
-                        <div className="flex items-start gap-2.5">
-                          <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
-                          <div>
-                            <p className="font-bold text-rose-900 text-xs sm:text-sm">
-                              Overlapping Date Conflict Detected!
-                            </p>
-                            <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
-                              This booking overlaps with #{conflicts.map((c) => `${c.id} (${c.guestName}: ${c.checkIn} → ${c.checkOut})`).join(", ")}. Please adjust dates or cancel one reservation to release calendar dates.
-                            </p>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => setEditingInquiry({ ...inq })}
-                            className="px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 rounded-lg text-xs font-bold shadow-sm cursor-pointer transition-colors"
-                          >
-                            Adjust Dates
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleQuickStatusChange(inq.id, "cancelled")}
-                            className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-xs font-bold shadow-sm cursor-pointer transition-colors"
-                          >
-                            Cancel Reservation
-                          </button>
-                        </div>
+                    <span className="font-bold text-amber-900">
+                      ⚡ Chế độ Cục bộ (Offline)
+                    </span>
+                    <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                      Lưu an toàn trên máy này
+                    </span>
+                    <span className="text-xs text-amber-800/80 hidden lg:inline">
+                      • Mọi đơn và lịch đặt phòng đều được lưu an toàn trên trình duyệt hiện tại.
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setIsSyncBannerCollapsed(false)}
+                      className="px-3 py-1 rounded-xl bg-amber-200/80 hover:bg-amber-300/80 text-amber-900 font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+                    >
+                      <span>Chi tiết & Kết nối Cloud</span>
+                      <ChevronDown className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Expanded view with guide and device switch buttons */
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="p-4 sm:p-5"
+                >
+                  <div className="flex items-start justify-between gap-3 pb-3 border-b border-amber-200/70">
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-amber-700 shrink-0 mt-0.5">
+                        <AlertTriangle className="w-4 h-4" />
                       </div>
-                    );
-                  })()}
-
-                  {/* Stay Expiration & Housekeeping Turnover Banner */}
-                  {(() => {
-                    const stay = getStayStatus(inq.checkIn, inq.checkOut);
-                    const isExpiredOrToday = stay === "expired" || stay === "checkout_today";
-                    if (!isExpiredOrToday || inq.status === "cancelled") return null;
-
-                    const cStatus = inq.cleaningStatus || "needs_cleaning";
-
-                    return (
-                      <div className={`mb-4 p-3.5 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs animate-fade-in ${
-                        cStatus === "needs_cleaning"
-                          ? "bg-rose-50 border-rose-300 text-rose-900"
-                          : cStatus === "in_cleaning"
-                          ? "bg-amber-50 border-amber-300 text-amber-900"
-                          : "bg-emerald-50 border-emerald-300 text-emerald-900"
-                      }`}>
-                        <div className="flex items-start gap-2.5">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-white font-bold ${
-                            cStatus === "needs_cleaning"
-                              ? "bg-rose-600"
-                              : cStatus === "in_cleaning"
-                              ? "bg-amber-500"
-                              : "bg-emerald-600"
-                          }`}>
-                            <Sparkles className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-xs">
-                                {stay === "checkout_today"
-                                  ? (language === "vi" ? "⏰ Hôm Nay Trả Phòng" : "⏰ Checkout Today")
-                                  : (language === "vi" ? "🔴 Đã Hết Hạn Lưu Trú" : "🔴 Stay Concluded")}
-                              </span>
-                              <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full ${
-                                cStatus === "needs_cleaning"
-                                  ? "bg-rose-200 text-rose-900 border border-rose-300"
-                                  : cStatus === "in_cleaning"
-                                  ? "bg-amber-200 text-amber-900 border border-amber-300"
-                                  : "bg-emerald-200 text-emerald-900 border border-emerald-300"
-                              }`}>
-                                {cStatus === "needs_cleaning"
-                                  ? (language === "vi" ? "Chưa Dọn Dẹp" : "Needs Cleaning")
-                                  : cStatus === "in_cleaning"
-                                  ? (language === "vi" ? "Đang Dọn Dẹp" : "In Cleaning")
-                                  : (language === "vi" ? "Đã Dọn Xong ✨" : "Cleaned ✨")}
-                              </span>
-                            </div>
-                            <p className="text-[11px] mt-0.5 leading-snug opacity-90">
-                              {inq.cleaningNotes || (language === "vi" ? "Cần kiểm tra phòng, thay ga giường và vệ sinh trước khi đón khách tiếp theo." : "Inspect room, replace linens and sanitize before next arrival.")}
-                            </p>
-                            {inq.cleanedAt && cStatus === "cleaned" && (
-                              <p className="text-[10px] text-emerald-700 mt-1 font-medium">
-                                ✨ {language === "vi" ? "Dọn xong lúc:" : "Cleaned at:"} {new Date(inq.cleanedAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Quick Action Status Switcher */}
-                        <div className="flex items-center gap-1.5 flex-shrink-0 flex-wrap">
-                          {cStatus !== "in_cleaning" && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateCleaningStatus(inq.id, "in_cleaning")}
-                              className="px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer transition-colors"
-                            >
-                              {language === "vi" ? "🟡 Bắt đầu dọn" : "🟡 Start Cleaning"}
-                            </button>
-                          )}
-                          {cStatus !== "cleaned" && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateCleaningStatus(inq.id, "cleaned")}
-                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer transition-colors"
-                            >
-                              {language === "vi" ? "🟢 Đã dọn xong" : "🟢 Mark Cleaned"}
-                            </button>
-                          )}
-                          {cStatus !== "needs_cleaning" && (
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateCleaningStatus(inq.id, "needs_cleaning")}
-                              className="px-2.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer transition-colors"
-                            >
-                              {language === "vi" ? "🔴 Đặt lại cần dọn" : "🔴 Reset Needs Cleaning"}
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-neutral-100">
-                    <div className="flex items-start sm:items-center gap-3">
-                      <span className="font-mono text-xs font-bold text-neutral-800 bg-neutral-100 px-2.5 py-1 rounded-md">
-                        {inq.id}
-                      </span>
                       <div>
-                        <h3 className="font-serif text-lg font-bold text-neutral-900">
-                          {inq.guestName}
-                        </h3>
-                        <p className="text-xs text-neutral-500 font-medium">
-                          Villa: <span className="text-[#C2A476] font-semibold">{inq.villaName}</span>
+                        <p className="font-bold flex items-center gap-2">
+                          <span>⚡ Đang chạy chế độ Cục bộ (Chưa bật Vercel KV trên đám mây)</span>
+                          <span className="text-xs uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-amber-200 text-amber-900 border border-amber-300">
+                            Chưa đồng bộ xuyên thiết bị
+                          </span>
+                        </p>
+                        <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                          Dữ liệu hiện được lưu trên máy tính này. Nếu bạn muốn quản lý trên cả iPhone, Android và Laptop cùng lúc, hãy liên kết <strong>Vercel KV (miễn phí 100%)</strong> để dữ liệu tự động đồng bộ Live.
                         </p>
                       </div>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-3">
-                      {/* Status Selector */}
-                      <select
-                        value={inq.status}
-                        onChange={(e) => handleQuickStatusChange(inq.id, e.target.value as InquiryStatus)}
-                        className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-full border focus:outline-none cursor-pointer ${
-                          inq.status === "pending"
-                            ? "bg-amber-50 text-amber-700 border-amber-300"
-                            : inq.status === "contacted"
-                            ? "bg-blue-50 text-blue-700 border-blue-300"
-                            : inq.status === "confirmed"
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                            : "bg-neutral-100 text-neutral-500 border-neutral-200"
-                        }`}
-                      >
-                        <option value="pending">● {t("admin.status_pending", "Pending")}</option>
-                        <option value="contacted">● {t("admin.status_contacted", "Contacted")}</option>
-                        <option value="confirmed">● {t("admin.status_confirmed", "Confirmed")}</option>
-                        <option value="cancelled">● {language === "vi" ? "Đã Huỷ (Nhả Lịch)" : "Cancelled (Release Dates)"}</option>
-                      </select>
-
-                      {/* Edit Button */}
-                      <button
-                        onClick={() => setEditingInquiry({ ...inq })}
-                        className="inline-flex items-center gap-1.5 bg-[#FAF7F2] hover:bg-[#f3ede1] text-[#8A6B3D] border border-[#E8E0D2] text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors cursor-pointer"
-                        title="Edit Dates & Reservation Info"
-                      >
-                        <Edit3 className="w-3.5 h-3.5 text-[#C2A476]" />
-                        <span>{t("admin.edit_dates", "Edit")}</span>
-                      </button>
-
-                      {/* Direct WhatsApp Contact */}
-                      <a
-                        href={whatsappLink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#1fb355] text-white text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors shadow-sm"
-                        title="Chat with Guest on WhatsApp"
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        <span>WhatsApp</span>
-                      </a>
-
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleRequestDelete(inq)}
-                        className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
-                        title="Delete Inquiry & Release Dates"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setIsSyncBannerCollapsed(true)}
+                      className="p-1.5 rounded-lg text-amber-800 hover:bg-amber-200/60 transition-colors cursor-pointer text-xs flex items-center gap-1 shrink-0 font-medium"
+                      title="Thu gọn thông báo"
+                    >
+                      <span>Thu gọn</span>
+                      <ChevronUp className="w-3.5 h-3.5" />
+                    </button>
                   </div>
 
-                  {/* Booking Details Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 text-xs">
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        {t("admin.stay_dates", "Stay Dates")}
-                      </span>
-                      <p className="font-semibold text-neutral-800 mt-0.5">
-                        {inq.checkIn} → {inq.checkOut}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        {t("admin.guest_count", "Guest Count")}
-                      </span>
-                      <p className="font-semibold text-neutral-800 mt-0.5">
-                        {inq.adults} {language === "vi" ? "Người lớn" : "Adults"} {inq.children > 0 ? `, ${inq.children} ${language === "vi" ? "Trẻ em" : "Children"}` : ""}
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        {language === "vi" ? "Điện Thoại / WhatsApp" : "Guest Phone / WhatsApp"}
-                      </span>
-                      <a
-                        href={`tel:${inq.phone}`}
-                        className="font-medium text-neutral-800 hover:text-[#C2A476] mt-0.5 flex items-center gap-1"
-                      >
-                        <Phone className="w-3 h-3 text-[#C2A476]" />
-                        <span>{inq.phone}</span>
-                      </a>
-                    </div>
-
-                    <div>
-                      <span className="text-neutral-400 block text-[10px] uppercase font-bold tracking-wider">
-                        {language === "vi" ? "Email Khách" : "Guest Email"}
-                      </span>
-                      <a
-                        href={`mailto:${inq.email}`}
-                        className="font-medium text-neutral-800 hover:text-[#C2A476] mt-0.5 flex items-center gap-1 truncate"
-                      >
-                        <Mail className="w-3 h-3 text-[#C2A476]" />
-                        <span className="truncate">{inq.email}</span>
-                      </a>
-                    </div>
+                  <div className="pt-3 flex items-center gap-2 flex-wrap">
+                    <button
+                      onClick={() => {
+                        setSyncModalTab("guide");
+                        setIsSyncModalOpen(true);
+                      }}
+                      className="px-3.5 py-1.5 rounded-xl bg-amber-700 text-white text-xs font-semibold hover:bg-amber-800 transition-colors shadow-2xs cursor-pointer flex items-center gap-1.5"
+                    >
+                      <span>Hướng dẫn Bật Vercel KV (1 Click)</span>
+                    </button>
+                    <button
+                      onClick={handleOpenExport}
+                      className="px-3 py-1 rounded-xl border border-amber-400 bg-white text-amber-900 text-xs font-semibold hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Chuyển sang máy khác</span>
+                    </button>
+                    <button
+                      onClick={handleOpenImport}
+                      className="px-3 py-1 rounded-xl border border-amber-400 bg-white text-amber-900 text-xs font-semibold hover:bg-amber-100 transition-colors flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Nạp từ máy khác</span>
+                    </button>
                   </div>
-
-                  {/* Special Requests */}
-                  {inq.specialRequests && (
-                    <div className="mt-3 p-3 bg-[#FAF8F5] rounded-xl text-xs text-neutral-700 border border-neutral-100">
-                      <span className="font-semibold text-neutral-900 block mb-0.5">
-                        {t("admin.special_notes", "Guest Special Notes / Reason:")}
-                      </span>
-                      <p className="italic">{inq.specialRequests}</p>
-                    </div>
-                  )}
-
-                  <div className="mt-3 text-[10px] text-neutral-400 text-right">
-                    {t("admin.created_at", "Received on")}: {new Date(inq.createdAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    )}
-  </main>
+                </motion.div>
+              )}
+            </div>
+          )}
+        </div>
+      </main>
 
       {/* MODAL 1: EDIT RESERVATION & DATES */}
       {editingInquiry && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setEditingInquiry(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
+        >
           <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-neutral-200 overflow-hidden my-8">
             <div className="bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-[#C2A476] font-semibold">
                   {language === "vi" ? "Chỉnh sửa đơn đặt phòng Host" : "Host Reservation Editor"}
                 </span>
-                <h3 className="font-serif text-lg font-medium text-white">
+                <h3 className="text-lg font-bold text-white tracking-tight">
                   {language === "vi" ? `Sửa đơn đặt phòng #${editingInquiry.id}` : `Edit Reservation #${editingInquiry.id}`}
                 </h3>
               </div>
@@ -2665,6 +3070,120 @@ export default function AdminPage() {
                 />
               </div>
 
+              {/* Payment & Financial Section */}
+              <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-neutral-800 flex items-center gap-1.5">
+                    <CreditCard className="w-3.5 h-3.5 text-[#C2A476]" />
+                    <span>{language === "vi" ? "Thông Tin Thanh Toán & Tiền Phòng" : "Stay Price & Payment Details"}</span>
+                  </span>
+                  {/* Button to auto-calculate price */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nights = calculateStayNights(editingInquiry.checkIn, editingInquiry.checkOut);
+                      const nightly = bookingStore.getVillaPrice(editingInquiry.villaId);
+                      setEditingInquiry({
+                        ...editingInquiry,
+                        totalPriceVnd: nights * nightly,
+                      });
+                    }}
+                    className="text-[11px] text-[#8A6B3D] hover:underline font-semibold cursor-pointer"
+                  >
+                    {language === "vi" ? "⚡ Tính tự động theo ngày" : "⚡ Recalculate from dates"}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Total Stay Price (VND) */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                      {language === "vi" ? "Tổng tiền phòng (VNĐ)" : "Total Stay Price (VND)"}
+                    </label>
+                    <input
+                      type="number"
+                      step="500000"
+                      min="0"
+                      value={editingInquiry.totalPriceVnd ?? calculateStayTotal(editingInquiry.checkIn, editingInquiry.checkOut, editingInquiry.villaId)}
+                      onChange={(e) =>
+                        setEditingInquiry({
+                          ...editingInquiry,
+                          totalPriceVnd: Math.max(0, Number(e.target.value)),
+                        })
+                      }
+                      className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs font-mono font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
+                    />
+                    <span className="text-[10px] text-neutral-400 mt-0.5 block">
+                      ≈ ${formatPriceUsd(editingInquiry.totalPriceVnd ?? calculateStayTotal(editingInquiry.checkIn, editingInquiry.checkOut, editingInquiry.villaId), usdRate)} USD
+                    </span>
+                  </div>
+
+                  {/* Payment Status Dropdown */}
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                      {language === "vi" ? "Trạng thái thanh toán" : "Payment Status"}
+                    </label>
+                    <select
+                      value={editingInquiry.paymentStatus || "unpaid"}
+                      onChange={(e) => {
+                        const newStatus = e.target.value as PaymentStatus;
+                        const total = editingInquiry.totalPriceVnd ?? calculateStayTotal(editingInquiry.checkIn, editingInquiry.checkOut, editingInquiry.villaId);
+                        setEditingInquiry({
+                          ...editingInquiry,
+                          paymentStatus: newStatus,
+                          paidAmountVnd: newStatus === "paid" ? total : newStatus === "unpaid" ? 0 : editingInquiry.paidAmountVnd,
+                        });
+                      }}
+                      className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs font-bold text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
+                    >
+                      <option value="unpaid">🔴 {language === "vi" ? "Chưa thu tiền" : "Unpaid"}</option>
+                      <option value="deposit">🟡 {language === "vi" ? "Đã đặt cọc" : "Deposit Paid"}</option>
+                      <option value="paid">🟢 {language === "vi" ? "Đã thu tiền đủ" : "Fully Paid"}</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Paid Amount and Notes */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                      {language === "vi" ? "Số tiền đã thu (VNĐ)" : "Amount Collected (VND)"}
+                    </label>
+                    <input
+                      type="number"
+                      step="500000"
+                      min="0"
+                      placeholder="0"
+                      value={editingInquiry.paidAmountVnd ?? ""}
+                      onChange={(e) =>
+                        setEditingInquiry({
+                          ...editingInquiry,
+                          paidAmountVnd: Number(e.target.value),
+                        })
+                      }
+                      className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs font-mono text-neutral-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                      {language === "vi" ? "Ghi chú thanh toán" : "Payment Notes / Reference"}
+                    </label>
+                    <input
+                      type="text"
+                      placeholder={language === "vi" ? "Ví dụ: Đã CK Vietcombank..." : "e.g. Bank wire transfer received..."}
+                      value={editingInquiry.paymentNotes || ""}
+                      onChange={(e) =>
+                        setEditingInquiry({
+                          ...editingInquiry,
+                          paymentNotes: e.target.value,
+                        })
+                      }
+                      className="w-full bg-white border border-neutral-300 rounded-xl px-3 py-2 text-xs text-neutral-900"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Action Buttons */}
               <div className="flex gap-3 pt-3 border-t border-neutral-100">
                 <button
@@ -2710,14 +3229,19 @@ export default function AdminPage() {
 
       {/* MODAL 2: MANUAL NEW BOOKING / BLOCK DATES */}
       {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setIsAddModalOpen(false);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
+        >
           <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-neutral-200 overflow-hidden my-8">
             <div className="bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-[#C2A476] font-semibold">
                   {language === "vi" ? "Quản lý lịch phòng Host" : "Host Calendar Management"}
                 </span>
-                <h3 className="font-serif text-lg font-medium text-white">
+                <h3 className="text-lg font-bold text-white tracking-tight">
                   {language === "vi" ? "Khóa ngày hoặc Thêm đơn đặt phòng offline" : "Block Dates or Add Offline Reservation"}
                 </h3>
               </div>
@@ -2877,6 +3401,45 @@ export default function AdminPage() {
                 />
               </div>
 
+              {/* Payment Status & Calculation Preview */}
+              {newBookingData.checkIn && newBookingData.checkOut && newBookingData.checkIn < newBookingData.checkOut && (
+                <div className="p-3.5 rounded-xl bg-amber-50/70 border border-amber-200 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <CreditCard className="w-4 h-4 text-[#C2A476]" />
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-neutral-500 block">
+                        {language === "vi" ? "Dự toán tiền phòng:" : "Estimated Total:"}
+                      </span>
+                      <span className="font-extrabold text-neutral-900 text-sm tracking-tight">
+                        {formatPriceVnd(calculateStayTotal(newBookingData.checkIn, newBookingData.checkOut, newBookingData.villaId))}
+                      </span>
+                      <span className="text-[10px] text-emerald-700 ml-1.5 font-semibold">
+                        (≈ ${formatPriceUsd(calculateStayTotal(newBookingData.checkIn, newBookingData.checkOut, newBookingData.villaId), usdRate)} USD)
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase text-neutral-500 mb-0.5">
+                      {language === "vi" ? "Thu tiền:" : "Payment:"}
+                    </label>
+                    <select
+                      value={newBookingData.paymentStatus || "unpaid"}
+                      onChange={(e) =>
+                        setNewBookingData({
+                          ...newBookingData,
+                          paymentStatus: e.target.value as PaymentStatus,
+                        })
+                      }
+                      className="bg-white border border-neutral-300 rounded-lg px-2.5 py-1 text-xs font-bold text-neutral-900"
+                    >
+                      <option value="unpaid">🔴 {language === "vi" ? "Chưa thu" : "Unpaid"}</option>
+                      <option value="deposit">🟡 {language === "vi" ? "Đã cọc" : "Deposit"}</option>
+                      <option value="paid">🟢 {language === "vi" ? "Đã thu" : "Paid"}</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-3 pt-3 border-t border-neutral-100">
                 <button
                   type="button"
@@ -2928,7 +3491,7 @@ export default function AdminPage() {
                   <Wrench className="w-4.5 h-4.5" />
                 </div>
                 <div>
-                  <h3 className="font-serif font-bold text-base text-neutral-900 leading-tight">
+                  <h3 className="font-extrabold text-base text-neutral-900 leading-tight tracking-tight">
                     {language === "vi" ? "Cài đặt bảo trì Biệt thự" : "Villa Maintenance Settings"}
                   </h3>
                   <span className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider">
@@ -3115,7 +3678,7 @@ export default function AdminPage() {
                     <span className="text-[10px] uppercase font-bold tracking-[0.2em] px-2.5 py-0.5 rounded-full bg-[#FAF8F5] border border-[#EAE5DC] text-[#93784F] inline-block mb-1">
                       {language === "vi" ? "Kiến trúc Đa Thiết Bị" : "Multi-Device Architecture"}
                     </span>
-                    <h3 className="font-serif text-xl sm:text-2xl font-normal text-neutral-900 leading-tight">
+                    <h3 className="text-xl sm:text-2xl font-extrabold text-neutral-900 leading-tight tracking-tight">
                       {language === "vi" ? "Đồng bộ Đa Thiết bị & Cloud Database" : "Multi-Device Cloud Synchronization"}
                     </h3>
                   </div>

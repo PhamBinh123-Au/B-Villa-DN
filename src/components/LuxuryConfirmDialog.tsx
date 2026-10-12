@@ -141,7 +141,7 @@ export function LuxuryConfirmDialog({
                 >
                   {badgeText || variantConfig.badgeDefault}
                 </span>
-                <h3 className="font-serif text-xl sm:text-2xl font-normal text-neutral-900 leading-tight">
+                <h3 className="text-xl sm:text-2xl font-extrabold text-neutral-900 leading-tight tracking-tight">
                   {title}
                 </h3>
               </div>

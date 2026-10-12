@@ -13,7 +13,10 @@
       "specialRequests": "",
       "id": "INQ-1636",
       "status": "pending",
-      "createdAt": "2026-10-11T06:06:34.554Z"
+      "createdAt": "2026-10-11T06:06:34.554Z",
+      "paymentStatus": "paid",
+      "totalPriceVnd": 6000000,
+      "paidAmountVnd": 6000000
     }
   ],
   "deletedIds": [
@@ -28,13 +31,13 @@
     "INQ-5349"
   ],
   "maintenance": {},
-  "version": 44,
-  "lastUpdated": 1791778963570,
+  "version": 54,
+  "lastUpdated": 1791814933525,
   "prices": {
     "b1-villa-4pn": 3000000,
-    "b2-villa-4pn": 19500000,
-    "b3-villa-2pn": 9500000,
-    "b4-villa-4pn": 17000000
+    "b2-villa-4pn": 3000000,
+    "b3-villa-2pn": 3000000,
+    "b4-villa-4pn": 3000000
   },
   "usdRate": 25400
 }

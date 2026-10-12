@@ -22,8 +22,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        serif: ["var(--font-serif)", "Playfair Display", "Georgia", "serif"],
-        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-quicksand)", "Quicksand", "system-ui", "-apple-system", "sans-serif"],
+        serif: ["var(--font-quicksand)", "Quicksand", "sans-serif"],
+        heading: ["var(--font-quicksand)", "Quicksand", "sans-serif"],
       },
       animation: {
         "fade-in": "fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",

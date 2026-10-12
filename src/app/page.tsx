@@ -60,7 +60,7 @@ export default function HomePage() {
       {/* Experience & Architectural Philosophy */}
       <ExperienceSection />
 
-      {/* Signature Amenities */}
+      {/* Signature Amenities (4 Curated Essentials) */}
       <AmenitiesSection />
 
       {/* Footer */}
