@@ -69,6 +69,8 @@ export interface BookingInquiry {
   paymentStatus?: PaymentStatus; // "unpaid" (Chưa thu) | "paid" (Đã thu) | "deposit" (Đã cọc)
   paidAmountVnd?: number; // Amount collected so far
   paymentNotes?: string; // e.g. "Chuyển khoản Vietcombank"
+  isCheckedOut?: boolean; // True when guest has checked out / moved to turnover section
+  checkedOutAt?: string;
 }
 
 export interface VillaPriceConfig {

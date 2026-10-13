@@ -576,6 +576,22 @@ export default function AdminPage() {
     }
   };
 
+  const handleCheckOutGuest = async (id: string, guestName: string) => {
+    try {
+      await bookingStore.checkOutInquiry(id);
+      reloadInquiries();
+      playLuxuryChime();
+      showNotification(
+        language === "vi" ? `Đã hoàn tất trả phòng #${id}` : `Checked out #${id}`,
+        language === "vi"
+          ? `Khách ${guestName} đã trả phòng. Đơn đã được chuyển qua mục "Trả Phòng & Dọn Dẹp".`
+          : `Guest ${guestName} checked out. Moved to Turnover & Housekeeping.`
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handleRequestDelete = (inq: BookingInquiry) => {
     setInquiryToDelete(inq);
   };
@@ -783,7 +799,27 @@ export default function AdminPage() {
 
   // KPIs
   const totalCount = inquiries.length;
-  const pendingCount = inquiries.filter((i) => i.status === "pending").length;
+  // Các đơn đang hoạt động (chưa đến ngày trả phòng và chưa trả phòng, không tính đã huỷ)
+  const activeCount = inquiries.filter((i) => {
+    if (i.status === "cancelled" || i.isCheckedOut) return false;
+    const stay = getStayStatus(i.checkIn, i.checkOut);
+    return stay === "upcoming" || stay === "in_house";
+  }).length;
+
+  // Các đơn đã đến hạn trả phòng hoặc đã hết ngày (tự động chuyển sang mục Trả Phòng & Dọn Dẹp)
+  const checkoutCount = inquiries.filter((i) => {
+    if (i.status === "cancelled") return false;
+    if (i.isCheckedOut) return true;
+    const stay = getStayStatus(i.checkIn, i.checkOut);
+    return stay === "expired" || stay === "checkout_today";
+  }).length;
+
+  const checkoutTodayCount = inquiries.filter((i) => {
+    if (i.status === "cancelled") return false;
+    return isCheckoutToday(i.checkOut) || i.isCheckedOut;
+  }).length;
+
+  const pendingCount = inquiries.filter((i) => i.status === "pending" && getStayStatus(i.checkIn, i.checkOut) !== "expired" && !i.isCheckedOut).length;
   const contactedCount = inquiries.filter((i) => i.status === "contacted").length;
   const confirmedCount = inquiries.filter((i) => i.status === "confirmed").length;
   const maintenanceCount = siteConfig.villas.filter((v) => Boolean(maintenanceMap[v.id]?.isMaintenance)).length;
@@ -799,15 +835,23 @@ export default function AdminPage() {
       inq.phone.toLowerCase().includes(searchQuery.toLowerCase()) ||
       inq.villaName.toLowerCase().includes(searchQuery.toLowerCase());
 
+    const stay = getStayStatus(inq.checkIn, inq.checkOut);
+    const isCheckout = stay === "expired" || stay === "checkout_today" || Boolean(inq.isCheckedOut);
+
     let matchesStatus = true;
-    if (statusFilter === "all") {
+    if (statusFilter === "all" || statusFilter === "active") {
+      // MẶC ĐỊNH: Chỉ hiển thị các đơn đang hoạt động (chưa đến ngày trả phòng và chưa trả phòng)
+      // Khi hết ngày hoặc đến ngày trả phòng, đơn tự động chuyển sang tab "Trả Phòng & Dọn Dẹp"
+      matchesStatus = !isCheckout && inq.status !== "cancelled";
+    } else if (statusFilter === "history_all") {
+      // Xem toàn bộ lịch sử (kể cả đã trả phòng)
       matchesStatus = true;
     } else if (statusFilter === "checkout_today") {
-      matchesStatus = isCheckoutToday(inq.checkOut);
+      matchesStatus = isCheckoutToday(inq.checkOut) || Boolean(inq.isCheckedOut);
     } else if (statusFilter === "expired") {
-      matchesStatus = getStayStatus(inq.checkIn, inq.checkOut) === "expired";
+      matchesStatus = stay === "expired" || Boolean(inq.isCheckedOut);
     } else if (statusFilter === "in_house") {
-      matchesStatus = getStayStatus(inq.checkIn, inq.checkOut) === "in_house";
+      matchesStatus = stay === "in_house" && !inq.isCheckedOut;
     } else {
       matchesStatus = inq.status === statusFilter;
     }
@@ -824,11 +868,11 @@ export default function AdminPage() {
     return matchesSearch && matchesStatus && matchesVilla && matchesPayment;
   });
 
-  // Filtered List for Turnover & Housekeeping Tab (completed stays or checkout today)
+  // Filtered List for Turnover & Housekeeping Tab (completed stays, checkout today, or checked out)
   const turnoverFilteredInquiries = inquiries.filter((inq) => {
     if (inq.status === "cancelled") return false;
     const stay = getStayStatus(inq.checkIn, inq.checkOut);
-    const isTargetStay = stay === "expired" || stay === "checkout_today";
+    const isTargetStay = stay === "expired" || stay === "checkout_today" || Boolean(inq.isCheckedOut);
     if (!isTargetStay) return false;
 
     const matchesSearch =
@@ -847,7 +891,7 @@ export default function AdminPage() {
     if (turnoverFilter === "needs_cleaning") return cStatus === "needs_cleaning";
     if (turnoverFilter === "in_cleaning") return cStatus === "in_cleaning";
     if (turnoverFilter === "cleaned") return cStatus === "cleaned";
-    if (turnoverFilter === "today") return stay === "checkout_today";
+    if (turnoverFilter === "today") return stay === "checkout_today" || Boolean(inq.isCheckedOut);
     return true;
   });
   if (!isAuthenticated) {
@@ -1288,11 +1332,11 @@ export default function AdminPage() {
             )}
             <span className="relative z-10 flex items-center gap-2">
               <Calendar className={`w-4 h-4 ${adminViewTab === "all_bookings" ? "text-[#C2A476]" : "text-neutral-400"}`} />
-              <span>{language === "vi" ? "📋 Quản Lý Đơn Đặt Phòng" : "📋 All Reservations"}</span>
+              <span>{language === "vi" ? "📋 Quản Lý Đơn Đặt Phòng" : "📋 Active Bookings"}</span>
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
                 adminViewTab === "all_bookings" ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-700"
-              }`}>
-                {totalCount}
+              }`} title={language === "vi" ? `${activeCount} đơn đang hoạt động (chưa trả phòng)` : `${activeCount} active stays`}>
+                {activeCount}
               </span>
             </span>
           </button>
@@ -1316,15 +1360,17 @@ export default function AdminPage() {
             <span className="relative z-10 flex items-center gap-2">
               <Sparkles className={`w-4 h-4 ${adminViewTab === "turnover" ? "text-indigo-400" : "text-neutral-400"}`} />
               <span>{language === "vi" ? "🧹 Trả Phòng & Dọn Dẹp" : "🧹 Turnover & Housekeeping"}</span>
-              {hkSummary.needsCleaning > 0 ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] bg-rose-500 text-white font-mono animate-pulse">
-                  {hkSummary.needsCleaning}
+              {checkoutCount > 0 ? (
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
+                  hkSummary.needsCleaning > 0 ? "bg-rose-500 text-white animate-pulse" : "bg-indigo-500 text-white"
+                }`} title={language === "vi" ? `${checkoutCount} đơn đã đến hạn trả phòng hoặc hoàn tất` : `${checkoutCount} checked out stays`}>
+                  {checkoutCount}
                 </span>
               ) : (
                 <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                  adminViewTab === "turnover" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
+                  adminViewTab === "turnover" ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-700"
                 }`}>
-                  {hkSummary.cleaned}
+                  0
                 </span>
               )}
             </span>
@@ -2250,6 +2296,37 @@ export default function AdminPage() {
         {/* PANEL 4: ALL RESERVATIONS (DEFAULT VIEW) */}
         {adminViewTab === "all_bookings" && (
           <div className="space-y-5 animate-fade-in">
+            {/* Automatic Checkout Notification Banner */}
+            {checkoutCount > 0 && statusFilter === "all" && (
+              <div className="bg-[#FAF8F5] border border-[#EAE5DC] rounded-2xl p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-neutral-900">
+                      {language === "vi"
+                        ? `Có ${checkoutCount} đơn đã đến ngày trả phòng hoặc hết hạn lưu trú`
+                        : `${checkoutCount} reservations have reached check-out`}
+                    </p>
+                    <p className="text-[11px] text-neutral-500 font-normal">
+                      {language === "vi"
+                        ? "Các đơn này đã được tự động chuyển sang mục Trả Phòng & Dọn Dẹp để bộ phận buồng phòng kiểm tra và dọn dẹp."
+                        : "These stays are automatically moved to the Turnover tab for housekeeping and inspection."}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminViewTab("turnover")}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#14171A] hover:bg-[#C2A476] text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-2xs hover:shadow-md"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-[#C2A476]" />
+                  <span>{language === "vi" ? "Xem Mục Trả Phòng ➔" : "Go to Turnover ➔"}</span>
+                </button>
+              </div>
+            )}
+
             {/* Unified Command & Filter Toolbar */}
             <div className="bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-[#EAE5DC] shadow-xs flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
               {/* Search input with clear button */}
@@ -2281,14 +2358,15 @@ export default function AdminPage() {
                     onChange={(e) => setStatusFilter(e.target.value)}
                     className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
                   >
-                    <option value="all">📋 {t("admin.all_statuses", "All Statuses")}</option>
+                    <option value="all">📋 {language === "vi" ? "Đơn Đang Hoạt Động (Chưa Trả Phòng)" : "Active Reservations"}</option>
+                    <option value="history_all">📁 {language === "vi" ? "Toàn Bộ Lịch Sử (Kể Cả Đã Trả)" : "All History (Incl. Checked Out)"}</option>
                     <option value="pending">⏳ {t("admin.status_pending", "Pending")}</option>
                     <option value="contacted">📞 {t("admin.status_contacted", "Contacted")}</option>
                     <option value="confirmed">✅ {t("admin.status_confirmed", "Confirmed")}</option>
-                    <option value="cancelled">❌ {t("admin.status_cancelled", "Cancelled")}</option>
+                    <option value="in_house">🏡 {language === "vi" ? "Đang lưu trú" : "Currently In-House"}</option>
                     <option value="checkout_today">⏰ {language === "vi" ? "Trả phòng hôm nay" : "Checkout Today"}</option>
                     <option value="expired">🏁 {language === "vi" ? "Đã trả phòng / Hết hạn" : "Stay Ended"}</option>
-                    <option value="in_house">🏡 {language === "vi" ? "Đang lưu trú" : "Currently In-House"}</option>
+                    <option value="cancelled">❌ {t("admin.status_cancelled", "Cancelled")}</option>
                   </select>
                   <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
                 </div>
@@ -2538,6 +2616,46 @@ export default function AdminPage() {
                               <MessageCircle className="w-3.5 h-3.5" />
                               <span>WhatsApp</span>
                             </motion.a>
+
+                            {/* Quick Turnover Action Button */}
+                            {(() => {
+                              const stay = getStayStatus(inq.checkIn, inq.checkOut);
+                              const isCheckout = stay === "expired" || stay === "checkout_today" || Boolean(inq.isCheckedOut);
+                              if (isCheckout) {
+                                return (
+                                  <motion.button
+                                    whileHover={{ scale: 1.04 }}
+                                    whileTap={{ scale: 0.96 }}
+                                    type="button"
+                                    onClick={() => {
+                                      setAdminViewTab("turnover");
+                                      setTurnoverSearchQuery(inq.id);
+                                    }}
+                                    className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs"
+                                    title={language === "vi" ? "Xem đơn này tại mục Trả Phòng & Dọn Dẹp" : "View in turnover tab"}
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>{language === "vi" ? "Mục Trả Phòng ➔" : "Turnover ➔"}</span>
+                                  </motion.button>
+                                );
+                              }
+                              if (stay === "in_house") {
+                                return (
+                                  <motion.button
+                                    whileHover={{ scale: 1.04 }}
+                                    whileTap={{ scale: 0.96 }}
+                                    type="button"
+                                    onClick={() => handleCheckOutGuest(inq.id, inq.guestName)}
+                                    className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs"
+                                    title={language === "vi" ? "Hoàn tất trả phòng và chuyển đơn qua mục Trả Phòng & Dọn Dẹp" : "Check out guest now"}
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                                    <span>{language === "vi" ? "Trả Phòng" : "Check Out"}</span>
+                                  </motion.button>
+                                );
+                              }
+                              return null;
+                            })()}
 
                             {/* Delete Button */}
                             <motion.button

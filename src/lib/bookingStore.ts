@@ -1124,6 +1124,25 @@ export const bookingStore = {
     });
   },
 
+  async checkOutInquiry(id: string): Promise<void> {
+    const inquiries = this.getInquiries();
+    const target = inquiries.find((i) => i.id === id);
+    if (!target) return;
+
+    const updatedFields: Partial<BookingInquiry> = {
+      isCheckedOut: true,
+      checkedOutAt: new Date().toISOString(),
+      cleaningStatus: target.cleaningStatus || "needs_cleaning",
+    };
+
+    await this.updateInquiryAsync(id, updatedFields);
+    broadcastSync({
+      action: "UPDATE",
+      id,
+      timestamp: Date.now(),
+    });
+  },
+
   async updatePaymentStatus(
     id: string,
     paymentStatus: PaymentStatus,
