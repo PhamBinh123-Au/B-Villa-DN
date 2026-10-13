@@ -241,15 +241,15 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             style={{ backgroundColor: "#ffffff" }}
             className={`absolute left-0 right-0 ${
               isCheckOut ? "sm:left-auto sm:right-0" : "sm:right-auto sm:left-0"
-            } sm:w-80 top-[calc(100%+8px)] bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border-2 border-[#E2D9CC] p-3.5 sm:p-4 z-[70] text-neutral-900`}
+            } sm:w-80 top-[calc(100%+8px)] bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.35)] border-2 border-[#E2D9CC] z-[70] text-neutral-900 flex flex-col max-h-[min(420px,calc(100vh-140px))] overflow-hidden`}
           >
-            {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5] mb-2.5 bg-[#FAF7F2] -m-4 mb-2.5 p-3 rounded-t-2xl">
+            {/* Header (Pinned at Top) */}
+            <div className="flex items-center justify-between p-3 sm:p-3.5 bg-[#FAF7F2] border-b border-[#EAE2D5] rounded-t-2xl shrink-0 z-20 shadow-xs">
               <div>
-                <span className="text-xs uppercase tracking-wider font-bold text-[#8A6B3D] block">
+                <span className="text-[10px] sm:text-xs uppercase tracking-wider font-bold text-[#8A6B3D] block">
                   {label}
                 </span>
-                <h4 className="font-extrabold text-base text-neutral-900 leading-tight tracking-tight">
+                <h4 className="font-extrabold text-sm sm:text-base text-neutral-900 leading-tight tracking-tight">
                   {MONTH_NAMES[calMonth]} {calYear}
                 </h4>
               </div>
@@ -272,6 +272,9 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                 </button>
               </div>
             </div>
+
+            {/* Scrollable Calendar Body */}
+            <div className="p-3 sm:p-3.5 overflow-y-auto flex-1 space-y-2 overscroll-contain [scrollbar-width:thin] [scrollbar-color:#C2A476_transparent]">
 
             {/* Availability Legend */}
             {maintenanceAdminMode ? (
@@ -543,8 +546,10 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
               );
             })()}
 
-            {/* Quick Clear & Today Footer */}
-            <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-[#EAE2D5] text-xs">
+            </div>
+
+            {/* Sticky Footer (Pinned at Bottom) */}
+            <div className="flex items-center justify-between px-3.5 py-2.5 bg-[#FAF7F2] border-t border-[#EAE2D5] rounded-b-2xl text-xs shrink-0 z-20 shadow-xs">
               <button
                 type="button"
                 onClick={() => {
@@ -560,7 +565,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                 onClick={() => {
                   handleDateClick(getTodayStr());
                 }}
-                className="text-[11px] font-bold text-[#8A6B3D] hover:text-[#684e27] cursor-pointer px-2.5 py-1 rounded-md bg-[#FAF6EE] hover:bg-[#F3ECE0] border border-[#EAE2D5] transition-colors shadow-2xs"
+                className="text-[11px] font-bold text-[#8A6B3D] hover:text-[#684e27] cursor-pointer px-2.5 py-1 rounded-md bg-white hover:bg-[#F3ECE0] border border-[#EAE2D5] transition-colors shadow-2xs"
               >
                 Hôm nay
               </button>

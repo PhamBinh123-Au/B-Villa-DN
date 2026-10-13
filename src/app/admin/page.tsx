@@ -3088,10 +3088,10 @@ export default function AdminPage() {
           onClick={(e) => {
             if (e.target === e.currentTarget) setEditingInquiry(null);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
         >
-          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-neutral-200 overflow-hidden my-8">
-            <div className="bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10">
+          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-neutral-200 my-auto sm:my-8 max-h-[92vh] overflow-y-auto flex flex-col">
+            <div className="sticky top-0 z-30 bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10 shrink-0 rounded-t-3xl shadow-sm">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-[#C2A476] font-semibold">
                   {language === "vi" ? "Chỉnh sửa đơn đặt phòng Host" : "Host Reservation Editor"}
@@ -3108,7 +3108,7 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+            <form onSubmit={handleSaveEdit} className="p-6 space-y-4 pb-48">
               {/* Villa Selector */}
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
@@ -3483,10 +3483,10 @@ export default function AdminPage() {
           onClick={(e) => {
             if (e.target === e.currentTarget) setIsAddModalOpen(false);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
         >
-          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-neutral-200 overflow-hidden my-8">
-            <div className="bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10">
+          <div className="relative w-full max-w-xl bg-white rounded-3xl shadow-2xl border border-neutral-200 my-auto sm:my-8 max-h-[92vh] overflow-y-auto flex flex-col">
+            <div className="sticky top-0 z-30 bg-[#14171A] text-white px-6 py-4 flex items-center justify-between border-b border-white/10 shrink-0 rounded-t-3xl shadow-sm">
               <div>
                 <span className="text-[10px] uppercase tracking-wider text-[#C2A476] font-semibold">
                   {language === "vi" ? "Quản lý lịch phòng Host" : "Host Calendar Management"}
@@ -3503,7 +3503,7 @@ export default function AdminPage() {
               </button>
             </div>
 
-            <form onSubmit={handleCreateManualBooking} className="p-6 space-y-4">
+            <form onSubmit={handleCreateManualBooking} className="p-6 space-y-4 pb-48">
               <div>
                 <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
                   {language === "vi" ? "Chọn Biệt thự cần khóa / đặt phòng" : "Select Villa to Block / Reserve"}
@@ -3737,11 +3737,11 @@ export default function AdminPage() {
           onClick={(e) => {
             if (e.target === e.currentTarget) setMaintenanceDialogVilla(null);
           }}
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md overflow-y-auto"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md overflow-y-auto"
         >
-          <div className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-[#EAE5DC] text-neutral-900 my-8">
+          <div className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-[#EAE5DC] text-neutral-900 my-auto sm:my-8 max-h-[92vh] overflow-y-auto flex flex-col pb-44">
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100 mb-4">
+            <div className="sticky top-0 z-30 bg-white -mt-6 -mx-6 sm:-mt-7 sm:-mx-7 p-6 sm:p-7 pb-3.5 border-b border-neutral-100 mb-4 rounded-t-3xl flex items-center justify-between shrink-0 shadow-xs">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 flex-shrink-0 shadow-xs">
                   <Wrench className="w-5 h-5" />
