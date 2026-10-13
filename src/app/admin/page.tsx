@@ -24,6 +24,7 @@ import {
   formatLuxuryDate,
   getTodayStr,
 } from "@/components/LuxuryDatePicker";
+import { LuxuryVillaSelector } from "@/components/LuxuryVillaSelector";
 import {
   LuxuryConfirmDialog,
   DialogVariant,
@@ -3110,24 +3111,14 @@ export default function AdminPage() {
 
             <form onSubmit={handleSaveEdit} className="p-6 space-y-4 pb-48">
               {/* Villa Selector */}
-              <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  {language === "vi" ? "Biệt thự được chỉ định" : "Assigned Villa"}
-                </label>
-                <select
-                  value={editingInquiry.villaId}
-                  onChange={(e) =>
-                    setEditingInquiry({ ...editingInquiry, villaId: e.target.value })
-                  }
-                  className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2.5 text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
-                >
-                  {siteConfig.villas.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.district})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <LuxuryVillaSelector
+                label={language === "vi" ? "Biệt thự được chỉ định" : "Assigned Villa"}
+                selectedVillaId={editingInquiry.villaId}
+                onSelectVilla={(vId) =>
+                  setEditingInquiry((prev) => (prev ? { ...prev, villaId: vId } : null))
+                }
+                language={language}
+              />
 
               {/* Dates */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -3504,24 +3495,14 @@ export default function AdminPage() {
             </div>
 
             <form onSubmit={handleCreateManualBooking} className="p-6 space-y-4 pb-48">
-              <div>
-                <label className="block text-xs font-semibold uppercase text-neutral-700 mb-1.5">
-                  {language === "vi" ? "Chọn Biệt thự cần khóa / đặt phòng" : "Select Villa to Block / Reserve"}
-                </label>
-                <select
-                  value={newBookingData.villaId}
-                  onChange={(e) =>
-                    setNewBookingData({ ...newBookingData, villaId: e.target.value })
-                  }
-                  className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2.5 text-xs text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
-                >
-                  {siteConfig.villas.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.name} ({v.district})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <LuxuryVillaSelector
+                label={language === "vi" ? "Chọn Biệt thự cần khóa / đặt phòng" : "Select Villa to Block / Reserve"}
+                selectedVillaId={newBookingData.villaId}
+                onSelectVilla={(vId) =>
+                  setNewBookingData((prev) => ({ ...prev, villaId: vId }))
+                }
+                language={language}
+              />
 
               {/* Luxury Dates Selection */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
