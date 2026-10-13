@@ -1021,6 +1021,79 @@ export const bookingStore = {
     };
   },
 
+  getGuestBookingDetailForDate(
+    villaId: string,
+    dateStr: string
+  ): {
+    isBooked: boolean;
+    inquiry?: BookingInquiry;
+    isCheckIn?: boolean;
+    isCheckOut?: boolean;
+    isStayNight?: boolean;
+    labelVi?: string;
+    labelEn?: string;
+  } {
+    if (!villaId || !dateStr) return { isBooked: false };
+    const inquiries = this.getInquiries();
+    const match = inquiries.find(
+      (inq) =>
+        inq.status !== "cancelled" &&
+        inq.villaId === villaId &&
+        dateStr >= inq.checkIn &&
+        dateStr <= inq.checkOut
+    );
+
+    if (!match) return { isBooked: false };
+
+    const isCheckIn = dateStr === match.checkIn;
+    const isCheckOut = dateStr === match.checkOut;
+    const isStayNight = dateStr >= match.checkIn && dateStr < match.checkOut;
+
+    let labelVi = `Khách lưu trú (${match.guestName})`;
+    let labelEn = `In-house stay (${match.guestName})`;
+
+    if (isCheckIn && !isCheckOut) {
+      labelVi = `Nhận phòng (${match.guestName})`;
+      labelEn = `Check-in (${match.guestName})`;
+    } else if (isCheckOut && !isCheckIn) {
+      labelVi = `Trả phòng (${match.guestName})`;
+      labelEn = `Check-out (${match.guestName})`;
+    } else if (isCheckIn && isCheckOut) {
+      labelVi = `Lưu trú trong ngày (${match.guestName})`;
+      labelEn = `Day stay (${match.guestName})`;
+    }
+
+    return {
+      isBooked: true,
+      inquiry: match,
+      isCheckIn,
+      isCheckOut,
+      isStayNight,
+      labelVi,
+      labelEn,
+    };
+  },
+
+  getVillaActiveBookings(villaId: string): BookingInquiry[] {
+    if (!villaId) return [];
+    const inquiries = this.getInquiries();
+    return inquiries
+      .filter((inq) => inq.status !== "cancelled" && inq.villaId === villaId)
+      .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
+  },
+
+  getOverlappingBookings(villaId: string, startDate: string, endDate: string): BookingInquiry[] {
+    if (!villaId || !startDate || !endDate) return [];
+    const inquiries = this.getInquiries();
+    return inquiries.filter(
+      (inq) =>
+        inq.status !== "cancelled" &&
+        inq.villaId === villaId &&
+        startDate <= inq.checkOut &&
+        inq.checkIn <= endDate
+    );
+  },
+
   hasDateConflict(
     checkIn: string,
     checkOut: string,

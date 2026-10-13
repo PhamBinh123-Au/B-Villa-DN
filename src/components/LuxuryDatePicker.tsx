@@ -68,6 +68,8 @@ interface LuxuryDatePickerProps {
   error?: string;
   cleanMode?: boolean;
   forMaintenanceSetup?: boolean;
+  maintenanceAdminMode?: boolean;
+  language?: "vi" | "en";
 }
 
 export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
@@ -83,6 +85,8 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
   error,
   cleanMode = false,
   forMaintenanceSetup = false,
+  maintenanceAdminMode = false,
+  language = "vi",
 }) => {
   const isClean = cleanMode || forMaintenanceSetup;
   const [isOpen, setIsOpen] = useState(false);
@@ -269,8 +273,23 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
               </div>
             </div>
 
-            {/* Availability Legend - ONLY shown in public booking mode, NOT in clean mode */}
-            {!isClean && (
+            {/* Availability Legend */}
+            {maintenanceAdminMode ? (
+              <div className="flex items-center justify-between text-[11px] text-neutral-700 py-1.5 px-2 bg-[#FAF8F5] rounded-xl mb-2.5 border border-[#EAE2D5]">
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-2xs" />
+                  <span className="font-semibold">{language === "vi" ? "Ngày trống" : "Available"}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-violet-600 shadow-2xs" />
+                  <span className="font-semibold text-violet-900">{language === "vi" ? "Khách đã đặt" : "Guest Booked"}</span>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-full bg-[#C2A476] shadow-2xs" />
+                  <span className="font-semibold text-[#8A6B3D]">{language === "vi" ? "Đang chọn" : "Selected"}</span>
+                </span>
+              </div>
+            ) : !isClean ? (
               <div className="flex items-center justify-between text-xs text-neutral-700 py-1.5 px-2.5 bg-[#FAF8F5] rounded-lg mb-2 border border-[#EAE2D5]">
                 <span className="flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded-full bg-[#10B981]" />
@@ -289,10 +308,10 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                   <span className="font-medium">Selected</span>
                 </span>
               </div>
-            )}
+            ) : null}
 
-            {/* Maintenance Warning Banner if Villa has Scheduled Maintenance */}
-            {!isClean && villaId && (() => {
+            {/* Maintenance Warning Banner if Villa has Scheduled Maintenance (Only in guest booking mode) */}
+            {!isClean && !maintenanceAdminMode && villaId && (() => {
               const maintInfo = bookingStore.getVillaMaintenanceInfo(villaId);
               if (!maintInfo?.isMaintenance) return null;
               const isIndefinite = !maintInfo.startDate || !maintInfo.endDate;
@@ -337,13 +356,23 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                 const isPast = dateStr < effectiveMin;
                 const isSelected = dateStr === selectedDate;
 
-                // In clean mode: NO booked check, NO conflict check, NO maintenance check, NO red styles!
-                const isDateUnderMaintenance = !isClean && villaId ? bookingStore.isVillaDateUnderMaintenance(villaId, dateStr) : false;
-                const bookedInfo = !isClean && villaId ? bookingStore.isDateBooked(dateStr, villaId) : { isBooked: false, villaNames: [] };
+                // Detailed guest booking check for maintenanceAdminMode
+                const guestBookingDetail = (maintenanceAdminMode && villaId)
+                  ? bookingStore.getGuestBookingDetailForDate(villaId, dateStr)
+                  : { isBooked: false };
+                const hasGuestBooking = guestBookingDetail.isBooked;
+
+                // Standard public booking checks (skipped in cleanMode or maintenanceAdminMode)
+                const isDateUnderMaintenance = (!isClean && !maintenanceAdminMode && villaId)
+                  ? bookingStore.isVillaDateUnderMaintenance(villaId, dateStr)
+                  : false;
+                const bookedInfo = (!isClean && !maintenanceAdminMode && villaId)
+                  ? bookingStore.isDateBooked(dateStr, villaId)
+                  : { isBooked: false, villaNames: [] };
                 const isBooked = bookedInfo.isBooked;
 
                 let hasRangeConflict = false;
-                if (!isClean && isCheckOut && checkInDate && villaId) {
+                if (!isClean && !maintenanceAdminMode && isCheckOut && checkInDate && villaId) {
                   const conflict = bookingStore.hasDateConflict(checkInDate, dateStr, villaId, excludeInquiryId);
                   if (conflict) {
                     hasRangeConflict = true;
@@ -357,8 +386,12 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                   dateStr > checkInDate &&
                   dateStr < selectedDate;
 
-                // When clean: only disabled if in past! NEVER blocked for bookings or maintenance!
-                const isDisabled = isClean ? isPast : (isPast || isDateUnderMaintenance || (isCheckOut ? hasRangeConflict : isBooked));
+                // Disabled logic: In maintenanceAdminMode, Admin is NEVER locked out of choosing future dates!
+                const isDisabled = maintenanceAdminMode
+                  ? isPast
+                  : isClean
+                  ? isPast
+                  : (isPast || isDateUnderMaintenance || (isCheckOut ? hasRangeConflict : isBooked));
 
                 return (
                   <button
@@ -367,7 +400,15 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                     disabled={isDisabled}
                     onClick={() => handleDateClick(dateStr)}
                     title={
-                      isClean
+                      maintenanceAdminMode
+                        ? hasGuestBooking
+                          ? `👤 ${language === "vi" ? "Đã có khách đặt" : "Guest Reservation"}: ${guestBookingDetail.inquiry?.guestName} (${guestBookingDetail.inquiry?.checkIn} → ${guestBookingDetail.inquiry?.checkOut}) [${language === "vi" ? guestBookingDetail.labelVi : guestBookingDetail.labelEn}] • #${guestBookingDetail.inquiry?.id}`
+                          : isPast
+                          ? (language === "vi" ? "Ngày trong quá khứ" : "Past date")
+                          : isSelected
+                          ? (language === "vi" ? "Ngày đang chọn" : "Selected date")
+                          : (language === "vi" ? "🟢 Ngày trống — Nhấn để chọn" : "Available — Click to select")
+                        : isClean
                         ? (isPast ? "Past date" : isSelected ? "Selected" : "Select date")
                         : isDateUnderMaintenance
                         ? "Ngày này thuộc đợt bảo trì định kỳ của Villa"
@@ -381,9 +422,15 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                     }
                     className={`h-8 w-8 mx-auto rounded-xl text-xs font-semibold flex items-center justify-center transition-all relative ${
                       isSelected
-                        ? "bg-[#C2A476] text-white font-bold shadow-md scale-105"
+                        ? "bg-[#C2A476] text-white font-bold shadow-md scale-105 z-10 ring-2 ring-[#C2A476]/40"
                         : isInRange
                         ? "bg-[#FAF6EE] text-[#8A6B3D] font-bold"
+                        : maintenanceAdminMode
+                        ? isPast
+                          ? "text-neutral-300 cursor-not-allowed opacity-40"
+                          : hasGuestBooking
+                          ? "bg-violet-50 text-violet-950 font-bold border border-violet-300 hover:bg-violet-100 hover:border-violet-400 cursor-pointer shadow-2xs"
+                          : "text-neutral-900 hover:bg-[#FAF6EE] hover:text-[#8A6B3D] cursor-pointer"
                         : isClean
                         ? isPast
                           ? "text-neutral-300 cursor-not-allowed opacity-40"
@@ -404,10 +451,18 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                     }`}
                   >
                     {dayNum}
-                    {!isClean && !isCheckOut && isBooked && !isDateUnderMaintenance && (
+                    {/* Guest Booking indicator in maintenanceAdminMode */}
+                    {maintenanceAdminMode && hasGuestBooking && (
+                      <span
+                        className={`absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full ${
+                          isSelected ? "bg-white" : "bg-violet-600"
+                        }`}
+                      />
+                    )}
+                    {!isClean && !maintenanceAdminMode && !isCheckOut && isBooked && !isDateUnderMaintenance && (
                       <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
                     )}
-                    {!isClean && isDateUnderMaintenance && (
+                    {!isClean && !maintenanceAdminMode && isDateUnderMaintenance && (
                       <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
                     )}
                   </button>
@@ -416,7 +471,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             </div>
 
             {/* Quick Stay Duration Presets (Only in booking checkout mode) */}
-            {isCheckOut && checkInDate && !isClean && (
+            {isCheckOut && checkInDate && !isClean && !maintenanceAdminMode && (
               <div className="mt-3 pt-2.5 border-t border-[#EAE2D5]">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] uppercase font-bold text-neutral-500 flex items-center gap-1">
@@ -452,6 +507,41 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Villa Existing Bookings Note in maintenanceAdminMode */}
+            {maintenanceAdminMode && villaId && (() => {
+              const activeBookings = bookingStore.getVillaActiveBookings(villaId);
+              if (activeBookings.length === 0) return null;
+              return (
+                <div className="mt-2.5 pt-2 border-t border-[#EAE2D5]">
+                  <div className="text-[10px] font-bold text-neutral-600 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1 text-violet-800">
+                      <span className="w-1.5 h-1.5 rounded-full bg-violet-600" />
+                      <span>{language === "vi" ? "Khách đã đặt Villa này:" : "Existing bookings:"}</span>
+                    </span>
+                    <span className="text-[9px] font-bold text-violet-700 bg-violet-100/80 px-1.5 py-0.5 rounded-full">
+                      {activeBookings.length} {language === "vi" ? "đơn" : "total"}
+                    </span>
+                  </div>
+                  <div className="space-y-1 max-h-24 overflow-y-auto pr-0.5">
+                    {activeBookings.slice(0, 3).map((b) => (
+                      <div
+                        key={b.id}
+                        className="text-[10px] bg-violet-50 border border-violet-200/90 rounded-lg px-2 py-1 flex items-center justify-between text-violet-950"
+                      >
+                        <div className="min-w-0 pr-1.5">
+                          <span className="font-bold truncate block">{b.guestName}</span>
+                          <span className="text-[9px] text-violet-600 font-mono">#{b.id}</span>
+                        </div>
+                        <span className="font-mono text-[9px] font-bold text-violet-800 bg-white px-1.5 py-0.5 rounded border border-violet-200 shrink-0">
+                          {b.checkIn} → {b.checkOut}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Quick Clear & Today Footer */}
             <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-[#EAE2D5] text-xs">

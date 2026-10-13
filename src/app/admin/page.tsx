@@ -3794,6 +3794,56 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Existing Bookings for this Villa Banner (Live Synced with Store) */}
+            {(() => {
+              const villaBookings = bookingStore.getVillaActiveBookings(maintenanceDialogVilla.id);
+              if (villaBookings.length === 0) {
+                return (
+                  <div className="mb-4 p-2.5 rounded-2xl bg-emerald-50/80 border border-emerald-200 text-xs text-emerald-900 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    <span>
+                      {language === "vi"
+                        ? "Biệt thự này hiện chưa có đơn đặt phòng nào — Toàn bộ lịch trống."
+                        : "This villa currently has no bookings — Entire calendar is open."}
+                    </span>
+                  </div>
+                );
+              }
+              return (
+                <div className="mb-4 p-3 rounded-2xl bg-violet-50/90 border border-violet-200 text-xs text-violet-950">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="font-bold text-violet-900 flex items-center gap-1.5">
+                      <Calendar className="w-3.5 h-3.5 text-violet-600" />
+                      <span>
+                        {language === "vi"
+                          ? `Lịch khách đã đặt của ${maintenanceDialogVilla.nameVi || maintenanceDialogVilla.name} (${villaBookings.length} đơn):`
+                          : `Existing Guest Reservations (${villaBookings.length}):`}
+                      </span>
+                    </span>
+                    <span className="text-[10px] text-violet-700 font-semibold bg-violet-100/80 px-2 py-0.5 rounded-full">
+                      {language === "vi" ? "Đồng bộ trên lịch bên dưới" : "Synced below"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-32 overflow-y-auto pr-0.5">
+                    {villaBookings.map((b) => (
+                      <div
+                        key={b.id}
+                        className="bg-white/95 border border-violet-200 rounded-xl p-2 flex items-center justify-between text-[11px] shadow-2xs"
+                      >
+                        <div className="min-w-0 pr-1.5">
+                          <p className="font-bold text-neutral-900 truncate">👤 {b.guestName}</p>
+                          <p className="text-[10px] text-neutral-500 font-mono">#{b.id} • {b.adults} {language === "vi" ? "khách" : "guests"}</p>
+                        </div>
+                        <span className="font-mono text-[10px] font-bold text-violet-800 bg-violet-50 px-2 py-1 rounded-lg border border-violet-200 shrink-0">
+                          {b.checkIn} → {b.checkOut}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* 1. Date Selection Section */}
             <div className="mb-4">
               <label className="block text-xs font-bold text-neutral-800 mb-2">
@@ -3830,7 +3880,7 @@ export default function AdminPage() {
 
               {!maintenanceIsIndefinite ? (
                 <div className="space-y-3">
-                  {/* Luxury Date Pickers in cleanMode (no red blocks, free selection) */}
+                  {/* Luxury Date Pickers in maintenanceAdminMode (synced with villa bookings, no red strikes) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
                     <LuxuryDatePicker
                       label={language === "vi" ? "Từ ngày (Bắt đầu):" : "Start Date:"}
@@ -3841,19 +3891,23 @@ export default function AdminPage() {
                           setMaintenanceEndDate(addDays(val, 1));
                         }
                       }}
+                      villaId={maintenanceDialogVilla.id}
                       minDate={getTodayStr()}
                       placeholder={language === "vi" ? "Chọn ngày bắt đầu" : "Select start date"}
-                      cleanMode={true}
+                      maintenanceAdminMode={true}
+                      language={language}
                     />
                     <LuxuryDatePicker
                       label={language === "vi" ? "Đến ngày (Kết thúc):" : "End Date:"}
                       selectedDate={maintenanceEndDate}
                       onSelectDate={(val) => setMaintenanceEndDate(val)}
+                      villaId={maintenanceDialogVilla.id}
                       isCheckOut={true}
                       checkInDate={maintenanceStartDate}
                       minDate={maintenanceStartDate || getTodayStr()}
                       placeholder={language === "vi" ? "Chọn ngày kết thúc" : "Select end date"}
-                      cleanMode={true}
+                      maintenanceAdminMode={true}
+                      language={language}
                     />
                   </div>
 
@@ -3885,6 +3939,53 @@ export default function AdminPage() {
                       </button>
                     ))}
                   </div>
+
+                  {/* Overlap Warning with existing guest bookings */}
+                  {(() => {
+                    if (!maintenanceStartDate || !maintenanceEndDate || maintenanceStartDate > maintenanceEndDate) {
+                      return null;
+                    }
+                    const overlaps = bookingStore.getOverlappingBookings(
+                      maintenanceDialogVilla.id,
+                      maintenanceStartDate,
+                      maintenanceEndDate
+                    );
+                    if (overlaps.length === 0) return null;
+
+                    return (
+                      <div className="p-3 rounded-2xl bg-amber-50 border-2 border-amber-300 text-amber-950 text-xs animate-fade-in shadow-2xs">
+                        <div className="flex items-center gap-2 font-bold text-amber-900 mb-1.5">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                          <span>
+                            {language === "vi"
+                              ? `⚠️ Chú ý: Khoảng ngày bảo trì này trùng với ${overlaps.length} đơn đặt phòng của khách!`
+                              : `⚠️ Warning: Maintenance window overlaps with ${overlaps.length} guest reservation(s)!`}
+                          </span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {overlaps.map((b) => (
+                            <div
+                              key={b.id}
+                              className="text-[11px] bg-white rounded-xl p-2 border border-amber-200 text-neutral-800 flex items-center justify-between"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <span className="font-bold text-neutral-900">👤 {b.guestName}</span>
+                                <span className="text-neutral-500 font-mono text-[10px] ml-1.5">(#{b.id})</span>
+                              </div>
+                              <span className="font-mono text-[10px] font-bold text-amber-900 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-200 shrink-0">
+                                {b.checkIn} → {b.checkOut}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        <p className="text-[10px] text-amber-800 mt-2 leading-relaxed">
+                          {language === "vi"
+                            ? "* Quản trị viên vẫn có thể khóa lịch nếu đây là sửa chữa đột xuất, nhưng vui lòng liên hệ khách để dời phòng hoặc hỗ trợ trước."
+                            : "* You may proceed if this is an emergency repair, but please arrange alternative accommodation for the guest first."}
+                        </p>
+                      </div>
+                    );
+                  })()}
 
                   {/* Date preview message */}
                   {maintenanceStartDate && maintenanceEndDate && (
