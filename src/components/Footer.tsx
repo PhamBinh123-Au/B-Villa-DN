@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
 import { Phone, Mail, MapPin, MessageCircle, ArrowUp } from "lucide-react";
@@ -86,12 +87,25 @@ export const Footer: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16 pb-16 border-b border-white/10">
           {/* Brand Info */}
           <div>
-            <span className="text-2xl font-extrabold tracking-widest uppercase text-white block">
-              {siteConfig.name}
-            </span>
-            <span className="text-xs uppercase tracking-[0.2em] text-[#C2A476] mt-1 block">
-              {t("brand.location", "Da Nang • Vietnam")}
-            </span>
+            <div className="flex items-center gap-3 mb-2">
+              <div className="relative w-10 h-10 flex-shrink-0 drop-shadow-[0_2px_8px_rgba(194,164,118,0.3)]">
+                <Image
+                  src="/images/logo.png"
+                  alt="B Villa Da Nang Logo"
+                  fill
+                  className="object-contain"
+                  sizes="40px"
+                />
+              </div>
+              <div>
+                <span className="text-2xl font-extrabold tracking-widest uppercase text-white block leading-tight">
+                  {siteConfig.name}
+                </span>
+                <span className="text-xs uppercase tracking-[0.2em] text-[#C2A476] mt-0.5 block">
+                  {t("brand.location", "Da Nang • Vietnam")}
+                </span>
+              </div>
+            </div>
             <p className="text-xs sm:text-sm text-neutral-400 font-light mt-4 leading-relaxed">
               {siteConfig.description}
             </p>

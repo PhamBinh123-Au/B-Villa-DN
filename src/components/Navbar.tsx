@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
@@ -34,13 +35,25 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
     >
       <div className="max-w-7xl mx-auto px-5 sm:px-8 md:px-12 flex items-center justify-between gap-4">
         {/* Brand Logo */}
-        <Link href="/" className="group flex flex-col flex-shrink-0">
-          <span className="text-lg sm:text-xl md:text-2xl font-extrabold tracking-wider text-white uppercase group-hover:text-[#C2A476] transition-colors">
-            {siteConfig.name}
-          </span>
-          <span className="text-[9px] sm:text-[10px] tracking-[0.25em] text-[#C2A476] uppercase font-semibold">
-            {t("brand.location")}
-          </span>
+        <Link href="/" className="group flex items-center gap-2.5 sm:gap-3 flex-shrink-0">
+          <div className="relative w-9 h-9 sm:w-10 sm:h-10 md:w-11 md:h-11 flex-shrink-0 transition-transform duration-300 group-hover:scale-105 drop-shadow-[0_2px_10px_rgba(194,164,118,0.35)]">
+            <Image
+              src="/images/logo.png"
+              alt="B Villa Da Nang Logo"
+              fill
+              priority
+              className="object-contain"
+              sizes="(max-width: 640px) 36px, (max-width: 768px) 40px, 44px"
+            />
+          </div>
+          <div className="flex flex-col justify-center">
+            <span className="text-base sm:text-lg md:text-xl font-extrabold tracking-wider text-white uppercase group-hover:text-[#C2A476] transition-colors leading-tight">
+              {siteConfig.name}
+            </span>
+            <span className="text-[8px] sm:text-[9px] md:text-[10px] tracking-[0.25em] text-[#C2A476] uppercase font-semibold mt-0.5">
+              {t("brand.location")}
+            </span>
+          </div>
         </Link>
 
         {/* Desktop Navigation */}
