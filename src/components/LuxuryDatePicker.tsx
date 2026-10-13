@@ -66,6 +66,7 @@ interface LuxuryDatePickerProps {
   excludeInquiryId?: string;
   placeholder?: string;
   error?: string;
+  forMaintenanceSetup?: boolean;
 }
 
 export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
@@ -79,6 +80,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
   excludeInquiryId,
   placeholder = "Select Date",
   error,
+  forMaintenanceSetup = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -232,7 +234,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             style={{ backgroundColor: "#ffffff" }}
             className={`absolute left-0 right-0 ${
               isCheckOut ? "sm:left-auto sm:right-0" : "sm:right-auto sm:left-0"
-            } sm:w-80 top-[calc(100%+8px)] bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border-2 border-[#E2D9CC] p-3.5 sm:p-4 z-50 text-neutral-900`}
+            } sm:w-80 top-[calc(100%+8px)] bg-white rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.3)] border-2 border-[#E2D9CC] p-3.5 sm:p-4 z-[70] text-neutral-900`}
           >
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5] mb-2.5 bg-[#FAF7F2] -m-4 mb-2.5 p-3 rounded-t-2xl">
@@ -285,7 +287,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             </div>
 
             {/* Maintenance Warning Banner if Villa has Scheduled Maintenance */}
-            {villaId && (() => {
+            {!forMaintenanceSetup && villaId && (() => {
               const maintInfo = bookingStore.getVillaMaintenanceInfo(villaId);
               if (!maintInfo?.isMaintenance) return null;
               const isIndefinite = !maintInfo.startDate || !maintInfo.endDate;
@@ -351,7 +353,10 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                   dateStr > checkInDate &&
                   dateStr < selectedDate;
 
-                const isDisabled = isPast || isDateUnderMaintenance || (isCheckOut ? hasRangeConflict : isBooked);
+                const isDisabled =
+                  isPast ||
+                  (!forMaintenanceSetup && isDateUnderMaintenance) ||
+                  (isCheckOut && !forMaintenanceSetup ? hasRangeConflict : (!forMaintenanceSetup && isBooked));
 
                 return (
                   <button
@@ -375,6 +380,8 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                         ? "bg-[#C2A476] text-white font-bold shadow-md scale-105"
                         : isInRange
                         ? "bg-[#FAF6EE] text-[#8A6B3D] font-bold"
+                        : forMaintenanceSetup && isDateUnderMaintenance
+                        ? "bg-amber-100/90 text-amber-900 border border-amber-300 font-bold hover:bg-[#C2A476] hover:text-white cursor-pointer"
                         : isDateUnderMaintenance
                         ? "bg-amber-50 text-amber-700 border border-amber-300 line-through cursor-not-allowed opacity-80 font-bold"
                         : isCheckOut
@@ -384,7 +391,9 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                           ? "text-neutral-300 cursor-not-allowed opacity-40"
                           : "text-neutral-900 hover:bg-[#FAF6EE] hover:text-[#8A6B3D] cursor-pointer"
                         : isBooked
-                        ? "bg-rose-50 text-rose-400 border border-rose-200 line-through cursor-not-allowed opacity-75"
+                        ? forMaintenanceSetup
+                          ? "bg-rose-100/80 text-rose-700 border border-rose-300 font-semibold cursor-pointer"
+                          : "bg-rose-50 text-rose-400 border border-rose-200 line-through cursor-not-allowed opacity-75"
                         : isPast
                         ? "text-neutral-300 cursor-not-allowed opacity-40"
                         : "text-neutral-900 hover:bg-[#FAF6EE] hover:text-[#8A6B3D] cursor-pointer"
@@ -403,7 +412,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
             </div>
 
             {/* Quick Stay Duration Presets (Đặt cách ngày / Số đêm) */}
-            {isCheckOut && checkInDate && (
+            {isCheckOut && checkInDate && !forMaintenanceSetup && (
               <div className="mt-3 pt-2.5 border-t border-[#EAE2D5]">
                 <div className="flex items-center justify-between mb-1.5">
                   <span className="text-[10px] uppercase font-bold text-neutral-500 flex items-center gap-1">
@@ -439,6 +448,29 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                 </div>
               </div>
             )}
+
+            {/* Quick Clear & Today Footer */}
+            <div className="flex items-center justify-between pt-2.5 mt-2.5 border-t border-[#EAE2D5] text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectDate("");
+                  setIsOpen(false);
+                }}
+                className="text-[11px] font-semibold text-neutral-500 hover:text-rose-600 cursor-pointer px-2 py-1 rounded-md hover:bg-neutral-100 transition-colors"
+              >
+                Xóa chọn
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleDateClick(getTodayStr());
+                }}
+                className="text-[11px] font-bold text-[#8A6B3D] hover:text-[#684e27] cursor-pointer px-2.5 py-1 rounded-md bg-[#FAF6EE] hover:bg-[#F3ECE0] border border-[#EAE2D5] transition-colors shadow-2xs"
+              >
+                Hôm nay
+              </button>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

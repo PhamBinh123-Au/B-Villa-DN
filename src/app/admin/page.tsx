@@ -22,6 +22,7 @@ import {
   LuxuryDatePicker,
   addDays,
   formatLuxuryDate,
+  getTodayStr,
 } from "@/components/LuxuryDatePicker";
 import {
   LuxuryConfirmDialog,
@@ -3732,8 +3733,13 @@ export default function AdminPage() {
 
       {/* Maintenance Settings / Custom Reason Dialog Modal */}
       {maintenanceDialogVilla && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
-          <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-[#EAE5DC] text-neutral-900 max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setMaintenanceDialogVilla(null);
+          }}
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md overflow-y-auto"
+        >
+          <div className="relative w-full max-w-xl bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-[#EAE5DC] text-neutral-900 my-8">
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100 mb-4">
               <div className="flex items-center gap-2.5">
@@ -3824,35 +3830,33 @@ export default function AdminPage() {
 
               {!maintenanceIsIndefinite ? (
                 <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === "vi" ? "Từ ngày (Bắt đầu):" : "Start Date:"}
-                      </label>
-                      <input
-                        type="date"
-                        value={maintenanceStartDate}
-                        onChange={(e) => {
-                          setMaintenanceStartDate(e.target.value);
-                          if (maintenanceEndDate && e.target.value > maintenanceEndDate) {
-                            setMaintenanceEndDate(addDays(e.target.value, 1));
-                          }
-                        }}
-                        className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-[#C2A476]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
-                        {language === "vi" ? "Đến ngày (Kết thúc):" : "End Date:"}
-                      </label>
-                      <input
-                        type="date"
-                        value={maintenanceEndDate}
-                        min={maintenanceStartDate}
-                        onChange={(e) => setMaintenanceEndDate(e.target.value)}
-                        className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-[#C2A476]"
-                      />
-                    </div>
+                  {/* Luxury Date Pickers replacing native date inputs */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
+                    <LuxuryDatePicker
+                      label={language === "vi" ? "Từ ngày (Bắt đầu):" : "Start Date:"}
+                      selectedDate={maintenanceStartDate}
+                      onSelectDate={(val) => {
+                        setMaintenanceStartDate(val);
+                        if (maintenanceEndDate && val && val > maintenanceEndDate) {
+                          setMaintenanceEndDate(addDays(val, 1));
+                        }
+                      }}
+                      villaId={maintenanceDialogVilla.id}
+                      minDate={getTodayStr()}
+                      placeholder={language === "vi" ? "Chọn ngày bắt đầu" : "Select start date"}
+                      forMaintenanceSetup={true}
+                    />
+                    <LuxuryDatePicker
+                      label={language === "vi" ? "Đến ngày (Kết thúc):" : "End Date:"}
+                      selectedDate={maintenanceEndDate}
+                      onSelectDate={(val) => setMaintenanceEndDate(val)}
+                      villaId={maintenanceDialogVilla.id}
+                      isCheckOut={true}
+                      checkInDate={maintenanceStartDate}
+                      minDate={maintenanceStartDate || getTodayStr()}
+                      placeholder={language === "vi" ? "Chọn ngày kết thúc" : "Select end date"}
+                      forMaintenanceSetup={true}
+                    />
                   </div>
 
                   {/* Quick preset buttons */}
