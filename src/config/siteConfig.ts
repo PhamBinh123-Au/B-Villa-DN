@@ -17,8 +17,8 @@ export const siteConfig: SiteConfig = {
 
   // CONTACT INFORMATION
   contact: {
-    phone: "+84 854252821", // Your Hotline
-    whatsapp: "https://wa.me/84905123456", // WhatsApp Direct Link
+    phone: "+84854252821", // Your Hotline
+    whatsapp: "https://wa.me/84854252821", // WhatsApp Direct Link
     email: "kimthuy.dn22@gmail.com", // Inquiries Email
     address: "60 Thanh Vinh 3, Tho Quang, Son Tra District, Da Nang, Vietnam", // Physical Address
   },

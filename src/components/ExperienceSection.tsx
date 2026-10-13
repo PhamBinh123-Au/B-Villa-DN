@@ -129,8 +129,8 @@ export const ExperienceSection: React.FC = () => {
                 </h3>
                 <p className="text-sm text-neutral-300 mt-1.5 leading-relaxed font-normal">
                   {language === "vi"
-                    ? "Hỗ trợ 24/7 xe đưa đón sân bay, mua sắm chuẩn bị nguyên liệu và tổ chức tiệc BBQ riêng."
-                    : "Direct support for airport chauffeurs, grocery stocking, and private BBQ setups."}
+                    ? "Hỗ trợ trực tiếp dịch vụ quản gia, mua sắm tạp hóa và thiết lập tiệc BBQ riêng tư."
+                    : "Direct support for VIP concierge services, grocery stocking, and private BBQ setups."}
                 </p>
               </div>
 
