@@ -3830,7 +3830,7 @@ export default function AdminPage() {
 
               {!maintenanceIsIndefinite ? (
                 <div className="space-y-3">
-                  {/* Luxury Date Pickers replacing native date inputs */}
+                  {/* Luxury Date Pickers in cleanMode (no red blocks, free selection) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 relative">
                     <LuxuryDatePicker
                       label={language === "vi" ? "Từ ngày (Bắt đầu):" : "Start Date:"}
@@ -3841,21 +3841,19 @@ export default function AdminPage() {
                           setMaintenanceEndDate(addDays(val, 1));
                         }
                       }}
-                      villaId={maintenanceDialogVilla.id}
                       minDate={getTodayStr()}
                       placeholder={language === "vi" ? "Chọn ngày bắt đầu" : "Select start date"}
-                      forMaintenanceSetup={true}
+                      cleanMode={true}
                     />
                     <LuxuryDatePicker
                       label={language === "vi" ? "Đến ngày (Kết thúc):" : "End Date:"}
                       selectedDate={maintenanceEndDate}
                       onSelectDate={(val) => setMaintenanceEndDate(val)}
-                      villaId={maintenanceDialogVilla.id}
                       isCheckOut={true}
                       checkInDate={maintenanceStartDate}
                       minDate={maintenanceStartDate || getTodayStr()}
                       placeholder={language === "vi" ? "Chọn ngày kết thúc" : "Select end date"}
-                      forMaintenanceSetup={true}
+                      cleanMode={true}
                     />
                   </div>
 
