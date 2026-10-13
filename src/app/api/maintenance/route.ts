@@ -24,7 +24,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { villaId, isMaintenance, reason } = body;
+    const { villaId, isMaintenance, reason, startDate, endDate } = body;
 
     if (!villaId) {
       return NextResponse.json({ error: "Missing villaId" }, { status: 400 });
@@ -33,7 +33,9 @@ export async function POST(request: NextRequest) {
     const updatedInfo = await serverStore.setMaintenance(
       villaId,
       Boolean(isMaintenance),
-      reason
+      reason,
+      startDate,
+      endDate
     );
     const updatedMap = await serverStore.getMaintenanceMap();
 

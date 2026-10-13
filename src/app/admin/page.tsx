@@ -147,6 +147,9 @@ export default function AdminPage() {
   const [maintenanceMap, setMaintenanceMap] = useState<Record<string, VillaMaintenanceInfo>>(() => bookingStore.getMaintenanceMap());
   const [maintenanceDialogVilla, setMaintenanceDialogVilla] = useState<Villa | null>(null);
   const [maintenanceNoteInput, setMaintenanceNoteInput] = useState("");
+  const [maintenanceStartDate, setMaintenanceStartDate] = useState("");
+  const [maintenanceEndDate, setMaintenanceEndDate] = useState("");
+  const [maintenanceIsIndefinite, setMaintenanceIsIndefinite] = useState(false);
 
   // Admin Active View Tab
   const [adminViewTab, setAdminViewTab] = useState<"all_bookings" | "turnover" | "pricing" | "maintenance">("all_bookings");
@@ -430,12 +433,38 @@ export default function AdminPage() {
     }
   };
 
+  // Open Maintenance modal with pre-filled or default dates
+  const openMaintenanceModal = (villa: Villa) => {
+    const currentInfo = maintenanceMap[villa.id];
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    setMaintenanceDialogVilla(villa);
+    setMaintenanceNoteInput(
+      currentInfo?.reason || (language === "vi" ? "Bảo trì định kỳ nâng cấp không gian nghỉ dưỡng." : "Scheduled seasonal maintenance & deep renovation.")
+    );
+
+    if (currentInfo?.startDate && currentInfo?.endDate) {
+      setMaintenanceStartDate(currentInfo.startDate);
+      setMaintenanceEndDate(currentInfo.endDate);
+      setMaintenanceIsIndefinite(false);
+    } else if (currentInfo?.isMaintenance && (!currentInfo?.startDate || !currentInfo?.endDate)) {
+      setMaintenanceStartDate(todayStr);
+      setMaintenanceEndDate(addDays(todayStr, 3));
+      setMaintenanceIsIndefinite(true);
+    } else {
+      setMaintenanceStartDate(todayStr);
+      setMaintenanceEndDate(addDays(todayStr, 3));
+      setMaintenanceIsIndefinite(false);
+    }
+  };
+
   // Toggle or update villa maintenance status
   const handleToggleMaintenance = (villaId: string, customReason?: string) => {
     const currentMaint = Boolean(maintenanceMap[villaId]?.isMaintenance);
     const newStatus = !currentMaint;
     const vMatch = siteConfig.villas.find((v) => v.id === villaId);
-    const vName = vMatch ? vMatch.name : villaId;
+    const vName = vMatch ? (language === "vi" ? (vMatch.nameVi || vMatch.name) : vMatch.name) : villaId;
 
     bookingStore.setVillaMaintenance(
       villaId,
@@ -453,6 +482,49 @@ export default function AdminPage() {
       newStatus
         ? (language === "vi" ? "Lịch phòng và tính năng đặt trực tuyến đã được khóa trong thời gian thực." : "Public inquiries and calendar dates are strictly locked in real-time.")
         : (language === "vi" ? "Website công khai hiện đã sẵn sàng nhận đơn đặt phòng mới." : "Public website can now receive new booking inquiries.")
+    );
+  };
+
+  // Save maintenance config with dates
+  const handleSaveMaintenance = (
+    villaId: string,
+    enableMaintenance: boolean,
+    reason?: string,
+    startDate?: string,
+    endDate?: string,
+    isIndefinite?: boolean
+  ) => {
+    const vMatch = siteConfig.villas.find((v) => v.id === villaId);
+    const vName = vMatch ? (language === "vi" ? (vMatch.nameVi || vMatch.name) : vMatch.name) : villaId;
+
+    if (!enableMaintenance) {
+      bookingStore.setVillaMaintenance(villaId, false);
+      setMaintenanceMap(bookingStore.getMaintenanceMap());
+      playLuxuryChime();
+      showNotification(
+        language === "vi" ? `✅ ${vName} Đã mở lại hoạt động` : `✅ ${vName} Restored to Active`,
+        language === "vi" ? "Biệt thự đã mở nhận đặt phòng công khai trên website." : "Public bookings are now open for this villa."
+      );
+      return;
+    }
+
+    const finalStart = isIndefinite ? undefined : (startDate || undefined);
+    const finalEnd = isIndefinite ? undefined : (endDate || undefined);
+    const finalReason = reason?.trim() || (language === "vi" ? "Bảo trì nâng cấp tiện nghi định kỳ." : "Scheduled luxury maintenance & seasonal care.");
+
+    bookingStore.setVillaMaintenance(villaId, true, finalReason, finalStart, finalEnd);
+    setMaintenanceMap(bookingStore.getMaintenanceMap());
+    playLuxuryChime();
+
+    const timeNotice = finalStart && finalEnd
+      ? ` (${formatLuxuryDate(finalStart)} → ${formatLuxuryDate(finalEnd)})`
+      : (language === "vi" ? " (Vô thời hạn)" : " (Indefinite)");
+
+    showNotification(
+      language === "vi" ? `🛠️ Đã kích hoạt bảo trì cho ${vName}` : `🛠️ Maintenance Activated for ${vName}`,
+      language === "vi"
+        ? `Thời gian: ${timeNotice}. Hệ thống đã khóa các ngày tương ứng trên lịch.`
+        : `Window: ${timeNotice}. Public inquiries and dates are locked accordingly.`
     );
   };
 
@@ -822,7 +894,7 @@ export default function AdminPage() {
   const pendingCount = inquiries.filter((i) => i.status === "pending" && getStayStatus(i.checkIn, i.checkOut) !== "expired" && !i.isCheckedOut).length;
   const contactedCount = inquiries.filter((i) => i.status === "contacted").length;
   const confirmedCount = inquiries.filter((i) => i.status === "confirmed").length;
-  const maintenanceCount = siteConfig.villas.filter((v) => Boolean(maintenanceMap[v.id]?.isMaintenance)).length;
+  const maintenanceCount = siteConfig.villas.filter((v) => bookingStore.isVillaUnderMaintenance(v.id)).length;
   const hkSummary = bookingStore.getHousekeepingSummary();
   const paySummary = bookingStore.getPaymentSummary();
 
@@ -2177,15 +2249,38 @@ export default function AdminPage() {
             {/* 4 Villa Cards Grid */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {siteConfig.villas.map((villa) => {
-                const isMaint = Boolean(maintenanceMap[villa.id]?.isMaintenance);
                 const info = maintenanceMap[villa.id];
+                const isConfigured = Boolean(info?.isMaintenance);
+                const now = new Date();
+                const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+                let status: "active" | "ongoing" | "scheduled" | "expired" | "indefinite" = "active";
+                if (isConfigured) {
+                  if (!info.startDate || !info.endDate) {
+                    status = "indefinite";
+                  } else if (todayStr > info.endDate) {
+                    status = "expired";
+                  } else if (todayStr < info.startDate) {
+                    status = "scheduled";
+                  } else {
+                    status = "ongoing";
+                  }
+                }
+
+                const isCurrentlyLocked = status === "ongoing" || status === "indefinite";
 
                 return (
                   <div
                     key={villa.id}
                     className={`rounded-2xl border p-4 transition-all duration-300 flex flex-col justify-between ${
-                      isMaint
-                        ? "border-amber-400 bg-amber-50/40 shadow-md ring-2 ring-amber-400/25"
+                      status === "ongoing"
+                        ? "border-amber-400 bg-amber-50/50 shadow-md ring-2 ring-amber-400/25"
+                        : status === "scheduled"
+                        ? "border-sky-300 bg-sky-50/40 shadow-sm hover:border-sky-400"
+                        : status === "indefinite"
+                        ? "border-rose-300 bg-rose-50/30 shadow-md ring-2 ring-rose-400/20"
+                        : status === "expired"
+                        ? "border-emerald-300 bg-emerald-50/30"
                         : "border-neutral-200 bg-[#FAF8F5]/60 hover:border-[#C2A476] hover:bg-white hover:shadow-md"
                     }`}
                   >
@@ -2214,16 +2309,39 @@ export default function AdminPage() {
                       </div>
 
                       {/* Operational Status Pill */}
-                      <div className="mb-3">
-                        {isMaint ? (
+                      <div className="mb-2.5">
+                        {status === "ongoing" && (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 text-[11px] font-bold">
                             <span className="relative flex h-2 w-2">
                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
                               <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                             </span>
-                            <span>{language === "vi" ? "Đang Bảo Trì (Khoá Lịch)" : "Under Maintenance (Locked)"}</span>
+                            <span>{language === "vi" ? "Đang Bảo Trì Hôm Nay" : "Under Maintenance Today"}</span>
                           </div>
-                        ) : (
+                        )}
+
+                        {status === "scheduled" && (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-100 text-sky-900 border border-sky-300 text-[11px] font-bold">
+                            <Clock className="w-3.5 h-3.5 text-sky-600" />
+                            <span>{language === "vi" ? "Lịch Bảo Trì Sắp Tới" : "Upcoming Maintenance"}</span>
+                          </div>
+                        )}
+
+                        {status === "indefinite" && (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-100 text-rose-900 border border-rose-300 text-[11px] font-bold">
+                            <Wrench className="w-3.5 h-3.5 text-rose-600" />
+                            <span>{language === "vi" ? "Bảo Trì Vô Thời Hạn" : "Locked (Indefinite)"}</span>
+                          </div>
+                        )}
+
+                        {status === "expired" && (
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-semibold">
+                            <Check className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>{language === "vi" ? "Đã Hết Đợt (Tự Động Mở)" : "Maintenance Completed"}</span>
+                          </div>
+                        )}
+
+                        {status === "active" && (
                           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[11px] font-semibold">
                             <span className="w-2 h-2 rounded-full bg-emerald-500" />
                             <span>{language === "vi" ? "Đang Hoạt Động" : "Operational & Active"}</span>
@@ -2231,13 +2349,36 @@ export default function AdminPage() {
                         )}
                       </div>
 
+                      {/* Scheduled Date Window Box */}
+                      {isConfigured && info?.startDate && info?.endDate && (
+                        <div className={`p-2.5 rounded-xl border text-[11px] mb-2.5 ${
+                          status === "ongoing"
+                            ? "bg-amber-100/70 border-amber-300 text-amber-950 font-medium"
+                            : status === "scheduled"
+                            ? "bg-sky-100/70 border-sky-200 text-sky-950 font-medium"
+                            : "bg-neutral-100 border-neutral-200 text-neutral-600"
+                        }`}>
+                          <div className="flex items-center gap-1.5 font-bold mb-0.5">
+                            <Calendar className="w-3.5 h-3.5 opacity-80" />
+                            <span>{formatLuxuryDate(info.startDate)} → {formatLuxuryDate(info.endDate)}</span>
+                          </div>
+                          <p className="text-[10px] opacity-80 font-normal">
+                            {status === "ongoing"
+                              ? (language === "vi" ? "Hệ thống đang khóa lịch đón khách trên web." : "Public dates are locked in this window.")
+                              : status === "scheduled"
+                              ? (language === "vi" ? "Hôm nay vẫn mở đón khách; chỉ khóa các ngày này." : "Active today; only reserved maintenance dates are locked.")
+                              : (language === "vi" ? "Đã qua ngày bảo trì; villa tự động mở lại." : "Window passed; villa automatically reopened.")}
+                          </p>
+                        </div>
+                      )}
+
                       {/* Reason / Note Box */}
-                      {isMaint && (
-                        <div className="bg-white/90 border border-amber-200 rounded-xl p-2.5 mb-3 text-[11px] text-amber-900 shadow-xs">
-                          <span className="text-[10px] uppercase font-bold text-amber-700 block mb-0.5">
+                      {isConfigured && (
+                        <div className="bg-white/90 border border-neutral-200 rounded-xl p-2.5 mb-3 text-[11px] text-neutral-800 shadow-xs">
+                          <span className="text-[10px] uppercase font-bold text-neutral-500 block mb-0.5">
                             {language === "vi" ? "Thông Báo Khách:" : "Public Notice:"}
                           </span>
-                          <p className="line-clamp-2 italic font-light">
+                          <p className="line-clamp-2 italic font-light text-neutral-700">
                             &ldquo;{info?.reason || (language === "vi" ? "Biệt thự đang bảo trì nâng cấp định kỳ." : "Scheduled luxury maintenance & seasonal care.")}&rdquo;
                           </p>
                         </div>
@@ -2245,44 +2386,34 @@ export default function AdminPage() {
                     </div>
 
                     {/* Action Buttons */}
-                    <div className="pt-2 border-t border-neutral-100 flex flex-col gap-2 mt-2">
-                      {isMaint ? (
+                    <div className="pt-2 border-t border-neutral-100 flex flex-col gap-1.5 mt-2">
+                      {isCurrentlyLocked ? (
                         <button
                           type="button"
-                          onClick={() => handleToggleMaintenance(villa.id)}
+                          onClick={() => handleSaveMaintenance(villa.id, false)}
                           className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:shadow-md"
                         >
                           <Check className="w-3.5 h-3.5" />
-                          <span>{language === "vi" ? "Mở Lại Hoạt Động" : "Restore to Active"}</span>
+                          <span>{language === "vi" ? "Mở Lại Hoạt Động Ngay" : "Restore to Active"}</span>
                         </button>
                       ) : (
                         <button
                           type="button"
-                          onClick={() => {
-                            setMaintenanceDialogVilla(villa);
-                            setMaintenanceNoteInput(
-                              info?.reason || (language === "vi" ? "Nâng cấp bảo trì định kỳ. Tạm dừng nhận đặt phòng." : "Scheduled seasonal maintenance & deep renovation. Reopening soon.")
-                            );
-                          }}
+                          onClick={() => openMaintenanceModal(villa)}
                           className="w-full bg-[#14171A] hover:bg-amber-600 text-white py-2 px-3 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-sm cursor-pointer hover:shadow-md"
                         >
                           <Wrench className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{language === "vi" ? "Kích Hoạt Bảo Trì" : "Set Under Maintenance"}</span>
+                          <span>{language === "vi" ? "Chọn Ngày & Khóa Bảo Trì" : "Set Maintenance Dates"}</span>
                         </button>
                       )}
 
-                      {isMaint && (
+                      {isConfigured && (
                         <button
                           type="button"
-                          onClick={() => {
-                            setMaintenanceDialogVilla(villa);
-                            setMaintenanceNoteInput(
-                              info?.reason || (language === "vi" ? "Nâng cấp bảo trì định kỳ. Tạm dừng nhận đặt phòng." : "Scheduled seasonal maintenance & deep renovation. Reopening soon.")
-                            );
-                          }}
-                          className="text-[11px] text-neutral-500 hover:text-neutral-900 underline text-center cursor-pointer py-0.5"
+                          onClick={() => openMaintenanceModal(villa)}
+                          className="text-[11px] text-neutral-600 hover:text-amber-700 font-medium underline text-center cursor-pointer py-0.5 transition-colors"
                         >
-                          {language === "vi" ? "Sửa thông báo bảo trì" : "Edit maintenance notice"}
+                          {language === "vi" ? "Chỉnh sửa ngày & lý do bảo trì" : "Edit dates & notice"}
                         </button>
                       )}
                     </div>
@@ -3601,19 +3732,20 @@ export default function AdminPage() {
 
       {/* Maintenance Settings / Custom Reason Dialog Modal */}
       {maintenanceDialogVilla && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-[#EAE5DC] text-neutral-900">
-            <div className="flex items-center justify-between pb-3 border-b border-neutral-100 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fade-in">
+          <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 shadow-2xl border border-[#EAE5DC] text-neutral-900 max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between pb-3.5 border-b border-neutral-100 mb-4">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-600 flex-shrink-0">
-                  <Wrench className="w-4.5 h-4.5" />
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 flex-shrink-0 shadow-xs">
+                  <Wrench className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-extrabold text-base text-neutral-900 leading-tight tracking-tight">
-                    {language === "vi" ? "Cài đặt bảo trì Biệt thự" : "Villa Maintenance Settings"}
+                  <h3 className="font-extrabold text-base sm:text-lg text-neutral-900 leading-tight tracking-tight">
+                    {language === "vi" ? "Cài Đặt Lịch Bảo Trì Biệt Thự" : "Villa Maintenance Schedule"}
                   </h3>
-                  <span className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider">
-                    {language === "vi" ? "Điều khiển vận hành" : "Operational Control"}
+                  <span className="text-[10px] text-amber-800 font-semibold uppercase tracking-wider">
+                    {language === "vi" ? "Khóa lịch & Kiểm soát vận hành" : "Date Locking & Operational Control"}
                   </span>
                 </div>
               </div>
@@ -3626,12 +3758,10 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Target Villa Card */}
             <div className="mb-4">
-              <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                {language === "vi" ? "Biệt thự áp dụng:" : "Target Sanctuary:"}
-              </label>
               <div className="p-3 rounded-2xl bg-[#FAF8F5] border border-neutral-200 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl overflow-hidden relative border border-neutral-200 flex-shrink-0 shadow-sm">
+                <div className="w-12 h-12 rounded-xl overflow-hidden relative border border-neutral-200 flex-shrink-0 shadow-sm bg-neutral-100">
                   <Image
                     src={maintenanceDialogVilla.image}
                     alt={maintenanceDialogVilla.name}
@@ -3642,25 +3772,186 @@ export default function AdminPage() {
                     {maintenanceDialogVilla.code}
                   </div>
                 </div>
-                <div className="min-w-0">
-                  <h4 className="font-bold text-xs sm:text-sm text-neutral-900 truncate">
-                    {maintenanceDialogVilla.name}
-                  </h4>
-                  <p className="text-[11px] text-neutral-500">
-                    {maintenanceDialogVilla.district} • {maintenanceDialogVilla.bedrooms} {language === "vi" ? "PN En-suite" : "En-suite BR"}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-bold text-xs sm:text-sm text-neutral-900 truncate">
+                      {language === "vi" ? (maintenanceDialogVilla.nameVi || maintenanceDialogVilla.name) : maintenanceDialogVilla.name}
+                    </h4>
+                    <span className="text-[10px] font-bold text-[#8A6B3D] bg-[#FAF6EE] px-2 py-0.5 rounded-md border border-[#EAE2D5] flex-shrink-0">
+                      {maintenanceDialogVilla.bedrooms} {language === "vi" ? "Phòng Ngủ" : "Bedrooms"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-neutral-500 mt-0.5 truncate">
+                    {language === "vi" ? (maintenanceDialogVilla.locationVi || maintenanceDialogVilla.location) : maintenanceDialogVilla.location}
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="mb-5">
-              <label className="block text-xs font-semibold text-neutral-700 mb-1.5">
-                {language === "vi"
-                  ? "Thông báo & Lý do bảo trì (Hiển thị công khai cho khách xem):"
-                  : "Maintenance Notice & Reason (Shown to public guests):"}
+            {/* 1. Date Selection Section */}
+            <div className="mb-4">
+              <label className="block text-xs font-bold text-neutral-800 mb-2">
+                {language === "vi" ? "1. Thời Gian Khóa Bảo Trì:" : "1. Maintenance Lock Window:"}
               </label>
+
+              {/* Toggle Mode: Date Range vs Indefinite */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-neutral-100 rounded-xl mb-3">
+                <button
+                  type="button"
+                  onClick={() => setMaintenanceIsIndefinite(false)}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    !maintenanceIsIndefinite
+                      ? "bg-white text-neutral-900 shadow-xs border border-neutral-200/80"
+                      : "text-neutral-500 hover:text-neutral-900"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5 text-amber-600" />
+                  <span>{language === "vi" ? "Chọn khoảng ngày" : "Specific Date Range"}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMaintenanceIsIndefinite(true)}
+                  className={`py-2 px-3 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                    maintenanceIsIndefinite
+                      ? "bg-white text-rose-700 shadow-xs border border-neutral-200/80"
+                      : "text-neutral-500 hover:text-neutral-900"
+                  }`}
+                >
+                  <Wrench className="w-3.5 h-3.5 text-rose-600" />
+                  <span>{language === "vi" ? "Khóa vô thời hạn" : "Lock Indefinitely"}</span>
+                </button>
+              </div>
+
+              {!maintenanceIsIndefinite ? (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                        {language === "vi" ? "Từ ngày (Bắt đầu):" : "Start Date:"}
+                      </label>
+                      <input
+                        type="date"
+                        value={maintenanceStartDate}
+                        onChange={(e) => {
+                          setMaintenanceStartDate(e.target.value);
+                          if (maintenanceEndDate && e.target.value > maintenanceEndDate) {
+                            setMaintenanceEndDate(addDays(e.target.value, 1));
+                          }
+                        }}
+                        className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-[#C2A476]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-neutral-600 mb-1">
+                        {language === "vi" ? "Đến ngày (Kết thúc):" : "End Date:"}
+                      </label>
+                      <input
+                        type="date"
+                        value={maintenanceEndDate}
+                        min={maintenanceStartDate}
+                        onChange={(e) => setMaintenanceEndDate(e.target.value)}
+                        className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-900 focus:outline-none focus:border-[#C2A476]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Quick preset buttons */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] uppercase font-bold text-neutral-400 mr-1">
+                      {language === "vi" ? "Chọn nhanh:" : "Quick add:"}
+                    </span>
+                    {[
+                      { label: language === "vi" ? "+3 Ngày" : "+3 Days", days: 3 },
+                      { label: language === "vi" ? "+7 Ngày (1 tuần)" : "+7 Days", days: 7 },
+                      { label: language === "vi" ? "+14 Ngày (2 tuần)" : "+14 Days", days: 14 },
+                      { label: language === "vi" ? "+30 Ngày (1 tháng)" : "+30 Days", days: 30 },
+                    ].map((preset) => (
+                      <button
+                        key={preset.days}
+                        type="button"
+                        onClick={() => {
+                          const base = maintenanceStartDate || (() => {
+                            const d = new Date();
+                            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+                          })();
+                          if (!maintenanceStartDate) setMaintenanceStartDate(base);
+                          setMaintenanceEndDate(addDays(base, preset.days));
+                        }}
+                        className="px-2 py-1 bg-neutral-100 hover:bg-amber-100 hover:text-amber-900 border border-neutral-200 rounded-lg text-[10px] font-semibold text-neutral-700 cursor-pointer transition-colors"
+                      >
+                        {preset.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Date preview message */}
+                  {maintenanceStartDate && maintenanceEndDate && (
+                    <div className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 ${
+                      maintenanceStartDate <= maintenanceEndDate
+                        ? "bg-amber-50/80 border-amber-300 text-amber-900"
+                        : "bg-rose-50 border-rose-300 text-rose-800"
+                    }`}>
+                      <Calendar className="w-4 h-4 flex-shrink-0 text-amber-600" />
+                      <div className="text-[11px] leading-snug">
+                        {maintenanceStartDate <= maintenanceEndDate ? (
+                          <span>
+                            {language === "vi"
+                              ? `Sẽ khóa lịch từ ngày ${formatLuxuryDate(maintenanceStartDate)} đến ngày ${formatLuxuryDate(maintenanceEndDate)}. Khách xem trang web sẽ không thể chọn những ngày này.`
+                              : `Dates from ${formatLuxuryDate(maintenanceStartDate)} to ${formatLuxuryDate(maintenanceEndDate)} will be strictly locked on the public calendar.`}
+                          </span>
+                        ) : (
+                          <span className="font-semibold text-rose-700">
+                            {language === "vi" ? "Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu." : "End date must be on or after start date."}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-900 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-[11px] leading-relaxed">
+                    {language === "vi"
+                      ? "Biệt thự này sẽ bị khóa toàn bộ mọi ngày và dừng nhận đặt phòng cho đến khi quản trị viên mở lại thủ công."
+                      : "This villa will be locked continuously for all dates until manually reopened by an admin."}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Public Notice & Reason */}
+            <div className="mb-5">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-bold text-neutral-800">
+                  {language === "vi" ? "2. Lý Do & Thông Báo Công Khai:" : "2. Public Reason & Guest Notice:"}
+                </label>
+                <span className="text-[10px] text-neutral-400">
+                  {language === "vi" ? "Hiển thị cho khách xem" : "Shown to guests"}
+                </span>
+              </div>
+
+              {/* Quick Reason Suggestion Chips */}
+              <div className="flex flex-wrap gap-1 mb-2">
+                {[
+                  language === "vi" ? "Thay nước & khử khuẩn hồ bơi vô cực" : "Infinity pool resurfacing & care",
+                  language === "vi" ? "Bảo trì & sơn sửa nội thất định kỳ" : "Scheduled furniture refurbishment",
+                  language === "vi" ? "Chăm sóc cảnh quan & vườn nhiệt đới" : "Tropical garden & landscape care",
+                  language === "vi" ? "Kiểm tra kỹ thuật & an toàn điện nước" : "Routine technical safety inspection",
+                ].map((tag, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setMaintenanceNoteInput(tag)}
+                    className="px-2 py-0.5 bg-[#FAF8F5] hover:bg-[#C2A476] hover:text-white border border-[#EAE5DC] rounded-md text-[10px] font-medium text-neutral-600 cursor-pointer transition-colors"
+                  >
+                    + {tag}
+                  </button>
+                ))}
+              </div>
+
               <textarea
-                rows={3}
+                rows={2}
                 value={maintenanceNoteInput}
                 onChange={(e) => setMaintenanceNoteInput(e.target.value)}
                 placeholder={
@@ -3670,36 +3961,57 @@ export default function AdminPage() {
                 }
                 className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl p-3 text-xs text-neutral-900 focus:outline-none focus:border-[#C2A476] resize-none"
               />
-              <p className="text-[11px] text-neutral-400 mt-1.5 leading-relaxed">
-                {language === "vi"
-                  ? "Khi kích hoạt, biệt thự này sẽ tạm dừng nhận đặt phòng online. Lịch sẽ bị khóa và lý do này sẽ hiển thị cho khách xem."
-                  : "When activated, this villa cannot be booked online. The calendar dates will be locked and this notice will be displayed to guests."}
-              </p>
             </div>
 
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-neutral-100">
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-neutral-100">
               <button
                 type="button"
                 onClick={() => setMaintenanceDialogVilla(null)}
-                className="px-4 py-2.5 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 cursor-pointer"
+                className="px-3.5 py-2.5 rounded-xl text-xs font-medium text-neutral-600 hover:bg-neutral-100 cursor-pointer"
               >
-                {language === "vi" ? "Hủy bỏ" : "Cancel"}
+                {language === "vi" ? "Đóng" : "Close"}
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  handleToggleMaintenance(maintenanceDialogVilla.id, maintenanceNoteInput);
-                  setMaintenanceDialogVilla(null);
-                }}
-                className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1.5 shadow-md cursor-pointer transition-all"
-              >
-                <Wrench className="w-3.5 h-3.5" />
-                <span>
-                  {Boolean(maintenanceMap[maintenanceDialogVilla.id]?.isMaintenance)
-                    ? (language === "vi" ? "Cập nhật thông báo" : "Update Notice")
-                    : (language === "vi" ? "Kích hoạt bảo trì & Khóa phòng" : "Activate Maintenance & Lock")}
-                </span>
-              </button>
+
+              <div className="flex items-center gap-2">
+                {Boolean(maintenanceMap[maintenanceDialogVilla.id]?.isMaintenance) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleSaveMaintenance(maintenanceDialogVilla.id, false);
+                      setMaintenanceDialogVilla(null);
+                    }}
+                    className="px-3.5 py-2.5 rounded-xl text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 cursor-pointer transition-all flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{language === "vi" ? "Mở Lại Hoạt Động" : "Restore to Active"}</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleSaveMaintenance(
+                      maintenanceDialogVilla.id,
+                      true,
+                      maintenanceNoteInput,
+                      maintenanceStartDate,
+                      maintenanceEndDate,
+                      maintenanceIsIndefinite
+                    );
+                    setMaintenanceDialogVilla(null);
+                  }}
+                  disabled={!maintenanceIsIndefinite && (!maintenanceStartDate || !maintenanceEndDate || maintenanceStartDate > maintenanceEndDate)}
+                  className="px-5 py-2.5 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white flex items-center gap-1.5 shadow-md cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Wrench className="w-3.5 h-3.5" />
+                  <span>
+                    {Boolean(maintenanceMap[maintenanceDialogVilla.id]?.isMaintenance)
+                      ? (language === "vi" ? "Lưu Cập Nhật Lịch Bảo Trì" : "Save Maintenance Schedule")
+                      : (language === "vi" ? "Kích Hoạt & Khóa Lịch" : "Activate & Lock Dates")}
+                  </span>
+                </button>
+              </div>
             </div>
           </div>
         </div>

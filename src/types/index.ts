@@ -83,6 +83,8 @@ export interface VillaMaintenanceInfo {
   villaId: string;
   isMaintenance: boolean;
   reason?: string;
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
   updatedAt?: string;
 }
 

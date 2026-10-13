@@ -194,6 +194,8 @@ export interface RealtimeSyncPayload {
   villaId?: string;
   isMaintenance?: boolean;
   reason?: string;
+  startDate?: string;
+  endDate?: string;
   prices?: Record<string, number>;
   usdRate?: number;
   cleaningStatus?: CleaningStatus;
@@ -490,7 +492,54 @@ export const bookingStore = {
   isVillaUnderMaintenance(villaId: string): boolean {
     if (!villaId) return false;
     const map = this.getMaintenanceMap();
-    return Boolean(map[villaId]?.isMaintenance);
+    const info = map[villaId];
+    if (!info || !info.isMaintenance) return false;
+
+    // Vô thời hạn nếu không thiết lập ngày bắt đầu hoặc ngày kết thúc
+    if (!info.startDate || !info.endDate) return true;
+
+    const now = new Date();
+    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+
+    // Đã qua ngày kết thúc -> tự động hết hạn bảo trì, mở lại hoạt động
+    if (todayStr > info.endDate) return false;
+    // Chưa tới ngày bắt đầu bảo trì -> hôm nay vẫn hoạt động bình thường
+    if (todayStr < info.startDate) return false;
+
+    // Đang trong đợt bảo trì
+    return true;
+  },
+
+  isVillaDateUnderMaintenance(villaId: string, dateStr: string): boolean {
+    if (!villaId || !dateStr) return false;
+    const map = this.getMaintenanceMap();
+    const info = map[villaId];
+    if (!info || !info.isMaintenance) return false;
+
+    // Vô thời hạn -> mọi ngày đều bảo trì
+    if (!info.startDate || !info.endDate) return true;
+
+    // Khoá các ngày nằm trong đợt bảo trì [startDate, endDate]
+    return dateStr >= info.startDate && dateStr <= info.endDate;
+  },
+
+  hasMaintenanceConflict(villaId: string, checkIn: string, checkOut: string): boolean {
+    if (!villaId || !checkIn || !checkOut) return false;
+    const map = this.getMaintenanceMap();
+    const info = map[villaId];
+    if (!info || !info.isMaintenance) return false;
+
+    // Vô thời hạn -> luôn xung đột
+    if (!info.startDate || !info.endDate) return true;
+
+    // Khách ở: [checkIn, checkOut) (trả phòng ngày checkOut)
+    // Bảo trì: [info.startDate, info.endDate] (bao gồm ngày endDate)
+    // Không xung đột nếu khách trả phòng trước ngày bảo trì (checkOut <= info.startDate)
+    // hoặc khách nhận phòng sau ngày bảo trì kết thúc (checkIn > info.endDate)
+    if (checkOut <= info.startDate || checkIn > info.endDate) {
+      return false;
+    }
+    return true;
   },
 
   getVillaMaintenanceInfo(villaId: string): VillaMaintenanceInfo | undefined {
@@ -499,7 +548,13 @@ export const bookingStore = {
     return map[villaId];
   },
 
-  setVillaMaintenance(villaId: string, isMaintenance: boolean, reason?: string): void {
+  setVillaMaintenance(
+    villaId: string,
+    isMaintenance: boolean,
+    reason?: string,
+    startDate?: string,
+    endDate?: string
+  ): void {
     if (typeof window === "undefined") return;
     try {
       const map = this.getMaintenanceMap();
@@ -507,6 +562,8 @@ export const bookingStore = {
         villaId,
         isMaintenance,
         reason: reason || (isMaintenance ? "Scheduled luxury maintenance & seasonal care" : undefined),
+        startDate: isMaintenance ? startDate : undefined,
+        endDate: isMaintenance ? endDate : undefined,
         updatedAt: new Date().toISOString(),
       };
       map[villaId] = info;
@@ -516,6 +573,8 @@ export const bookingStore = {
         villaId,
         isMaintenance,
         reason: info.reason,
+        startDate: info.startDate,
+        endDate: info.endDate,
         timestamp: Date.now(),
       });
 
@@ -523,18 +582,32 @@ export const bookingStore = {
       fetch("/api/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ villaId, isMaintenance, reason: info.reason }),
+        body: JSON.stringify({
+          villaId,
+          isMaintenance,
+          reason: info.reason,
+          startDate: info.startDate,
+          endDate: info.endDate,
+        }),
       }).catch(() => {});
     } catch (err) {
       console.error("Failed to update villa maintenance in storage", err);
     }
   },
 
-  async setVillaMaintenanceAsync(villaId: string, isMaintenance: boolean, reason?: string): Promise<VillaMaintenanceInfo> {
+  async setVillaMaintenanceAsync(
+    villaId: string,
+    isMaintenance: boolean,
+    reason?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<VillaMaintenanceInfo> {
     const info: VillaMaintenanceInfo = {
       villaId,
       isMaintenance,
       reason: reason || (isMaintenance ? "Scheduled luxury maintenance & seasonal care" : undefined),
+      startDate: isMaintenance ? startDate : undefined,
+      endDate: isMaintenance ? endDate : undefined,
       updatedAt: new Date().toISOString(),
     };
 
@@ -542,7 +615,13 @@ export const bookingStore = {
       const res = await fetch("/api/maintenance", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ villaId, isMaintenance, reason: info.reason }),
+        body: JSON.stringify({
+          villaId,
+          isMaintenance,
+          reason: info.reason,
+          startDate: info.startDate,
+          endDate: info.endDate,
+        }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -554,7 +633,7 @@ export const bookingStore = {
       console.warn("Server maintenance call failed, applying locally", err);
     }
 
-    this.setVillaMaintenance(villaId, isMaintenance, reason);
+    this.setVillaMaintenance(villaId, isMaintenance, reason, startDate, endDate);
     return info;
   },
 
@@ -587,10 +666,20 @@ export const bookingStore = {
     const status = inquiryData.status || "pending";
 
     // Strictly check if villa is currently under maintenance
-    if (inquiryData.villaId && this.isVillaUnderMaintenance(inquiryData.villaId)) {
-      throw new Error(
-        `Reservation Prohibited: Villa is currently under scheduled maintenance. Reservations are temporarily closed for this property.`
-      );
+    if (inquiryData.villaId) {
+      if (inquiryData.checkIn && inquiryData.checkOut) {
+        if (this.hasMaintenanceConflict(inquiryData.villaId, inquiryData.checkIn, inquiryData.checkOut)) {
+          const info = this.getVillaMaintenanceInfo(inquiryData.villaId);
+          const rangeInfo = info?.startDate && info?.endDate ? ` (từ ${info.startDate} đến ${info.endDate})` : "";
+          throw new Error(
+            `Reservation Prohibited: Villa đang trong lịch bảo trì định kỳ${rangeInfo}. Vui lòng chọn khoảng ngày khác.`
+          );
+        }
+      } else if (this.isVillaUnderMaintenance(inquiryData.villaId)) {
+        throw new Error(
+          `Reservation Prohibited: Villa is currently under scheduled maintenance. Reservations are temporarily closed for this property.`
+        );
+      }
     }
 
     // Strictly validate against overlapping reservations for the same villa
@@ -673,10 +762,20 @@ export const bookingStore = {
     const status = inquiryData.status || "pending";
 
     // Strictly check if villa is currently under maintenance
-    if (inquiryData.villaId && this.isVillaUnderMaintenance(inquiryData.villaId)) {
-      throw new Error(
-        `Reservation Prohibited: Villa is currently under scheduled maintenance. Reservations are temporarily closed for this property.`
-      );
+    if (inquiryData.villaId) {
+      if (inquiryData.checkIn && inquiryData.checkOut) {
+        if (this.hasMaintenanceConflict(inquiryData.villaId, inquiryData.checkIn, inquiryData.checkOut)) {
+          const info = this.getVillaMaintenanceInfo(inquiryData.villaId);
+          const rangeInfo = info?.startDate && info?.endDate ? ` (từ ${info.startDate} đến ${info.endDate})` : "";
+          throw new Error(
+            `Reservation Prohibited: Villa đang trong lịch bảo trì định kỳ${rangeInfo}. Vui lòng chọn khoảng ngày khác.`
+          );
+        }
+      } else if (this.isVillaUnderMaintenance(inquiryData.villaId)) {
+        throw new Error(
+          `Reservation Prohibited: Villa is currently under scheduled maintenance. Reservations are temporarily closed for this property.`
+        );
+      }
     }
 
     // Strictly validate against overlapping reservations for the same villa
@@ -891,7 +990,7 @@ export const bookingStore = {
     );
 
     if (villaId) {
-      if (this.isVillaUnderMaintenance(villaId)) {
+      if (this.isVillaDateUnderMaintenance(villaId, dateStr)) {
         return { isBooked: true, villaNames: ["Under Maintenance"], status: "confirmed" };
       }
       const match = activeInquiries.find((inq) => inq.villaId === villaId);
@@ -904,7 +1003,7 @@ export const bookingStore = {
     const bookedVillaIds = new Set(activeInquiries.map((i) => i.villaId));
     const maintenanceMap = this.getMaintenanceMap();
     Object.keys(maintenanceMap).forEach((id) => {
-      if (maintenanceMap[id]?.isMaintenance) {
+      if (this.isVillaDateUnderMaintenance(id, dateStr)) {
         bookedVillaIds.add(id);
       }
     });
@@ -928,8 +1027,11 @@ export const bookingStore = {
     villaId: string,
     excludeInqId?: string
   ): BookingInquiry | undefined {
-    if (villaId && this.isVillaUnderMaintenance(villaId)) {
+    if (villaId && this.hasMaintenanceConflict(villaId, checkIn, checkOut)) {
       const info = this.getVillaMaintenanceInfo(villaId);
+      const rangeText = info?.startDate && info?.endDate
+        ? ` (${info.startDate} → ${info.endDate})`
+        : "";
       return {
         id: "MAINTENANCE",
         villaId,
@@ -937,13 +1039,13 @@ export const bookingStore = {
         guestName: "Property Under Maintenance",
         email: "",
         phone: "",
-        checkIn: checkIn || "2020-01-01",
-        checkOut: checkOut || "2099-12-31",
+        checkIn: info?.startDate || checkIn || "2020-01-01",
+        checkOut: info?.endDate || checkOut || "2099-12-31",
         adults: 0,
         children: 0,
         status: "confirmed",
         createdAt: info?.updatedAt || new Date().toISOString(),
-        specialRequests: info?.reason || "Scheduled luxury maintenance & seasonal care. Inquiries temporarily paused.",
+        specialRequests: `${info?.reason || "Scheduled luxury maintenance & seasonal care."}${rangeText}. Inquiries temporarily paused.`,
       };
     }
 

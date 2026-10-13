@@ -421,6 +421,11 @@ export const VillaCard: React.FC<VillaCardProps> = ({
                   <p className="font-bold text-amber-950 uppercase tracking-wide text-[11px]">
                     {language === "vi" ? "Chế Độ Bảo Trì Định Kỳ" : "Scheduled Maintenance Mode"}
                   </p>
+                  {maintenanceInfo?.startDate && maintenanceInfo?.endDate && (
+                    <p className="text-[11px] font-bold text-amber-900 mt-0.5 flex items-center gap-1">
+                      <span>📅 {maintenanceInfo.startDate} → {maintenanceInfo.endDate}</span>
+                    </p>
+                  )}
                   <p className="text-[11px] text-amber-800 font-light mt-0.5 leading-relaxed">
                     {maintenanceInfo?.reason || (language === "vi" ? "Biệt thự đang trong giai đoạn nâng cấp định kỳ. Tạm dừng nhận đặt phòng." : "This villa is undergoing scheduled luxury maintenance & renovation. Reservations are temporarily closed.")}
                   </p>

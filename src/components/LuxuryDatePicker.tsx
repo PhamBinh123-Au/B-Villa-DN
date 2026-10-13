@@ -275,18 +275,37 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                 <span className="font-medium">Booked</span>
               </span>
               <span className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                <span className="font-medium">Bảo trì</span>
+              </span>
+              <span className="flex items-center gap-1.5">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#C2A476]" />
                 <span className="font-medium">Selected</span>
               </span>
             </div>
 
-            {/* Maintenance Warning Banner if Villa is Under Maintenance */}
-            {villaId && bookingStore.isVillaUnderMaintenance(villaId) && (
-              <div className="mb-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-1.5 animate-fade-in">
-                <Wrench className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                <span className="font-semibold">Under Maintenance — Dates Unavailable</span>
-              </div>
-            )}
+            {/* Maintenance Warning Banner if Villa has Scheduled Maintenance */}
+            {villaId && (() => {
+              const maintInfo = bookingStore.getVillaMaintenanceInfo(villaId);
+              if (!maintInfo?.isMaintenance) return null;
+              const isIndefinite = !maintInfo.startDate || !maintInfo.endDate;
+
+              return (
+                <div className="mb-2 p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-center gap-1.5 animate-fade-in">
+                  <Wrench className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                  <div className="min-w-0">
+                    <span className="font-bold">
+                      {isIndefinite
+                        ? "Bảo trì định kỳ — Tạm khóa nhận lịch"
+                        : `Lịch bảo trì: ${maintInfo.startDate} → ${maintInfo.endDate}`}
+                    </span>
+                    {maintInfo.reason && (
+                      <p className="text-[10px] text-amber-800 truncate opacity-90">{maintInfo.reason}</p>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Weekdays */}
             <div className="grid grid-cols-7 gap-1 text-center mb-1">
@@ -310,7 +329,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                 const dateStr = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
                 const isPast = dateStr < effectiveMin;
                 const isSelected = dateStr === selectedDate;
-                const isUnderMaintenance = villaId ? bookingStore.isVillaUnderMaintenance(villaId) : false;
+                const isDateUnderMaintenance = villaId ? bookingStore.isVillaDateUnderMaintenance(villaId, dateStr) : false;
 
                 // Booked check for villa
                 const bookedInfo = villaId ? bookingStore.isDateBooked(dateStr, villaId) : { isBooked: false, villaNames: [] };
@@ -332,7 +351,7 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                   dateStr > checkInDate &&
                   dateStr < selectedDate;
 
-                const isDisabled = isPast || isUnderMaintenance || (isCheckOut ? hasRangeConflict : isBooked);
+                const isDisabled = isPast || isDateUnderMaintenance || (isCheckOut ? hasRangeConflict : isBooked);
 
                 return (
                   <button
@@ -341,8 +360,8 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                     disabled={isDisabled}
                     onClick={() => handleDateClick(dateStr)}
                     title={
-                      isUnderMaintenance
-                        ? "Villa is currently undergoing scheduled maintenance"
+                      isDateUnderMaintenance
+                        ? "Ngày này thuộc đợt bảo trì định kỳ của Villa"
                         : isBooked
                         ? `Reserved: ${bookedInfo.villaNames.join(", ") || "Booked"}`
                         : hasRangeConflict
@@ -356,8 +375,8 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                         ? "bg-[#C2A476] text-white font-bold shadow-md scale-105"
                         : isInRange
                         ? "bg-[#FAF6EE] text-[#8A6B3D] font-bold"
-                        : isUnderMaintenance
-                        ? "bg-amber-50 text-amber-500 border border-amber-200 line-through cursor-not-allowed opacity-60"
+                        : isDateUnderMaintenance
+                        ? "bg-amber-50 text-amber-700 border border-amber-300 line-through cursor-not-allowed opacity-80 font-bold"
                         : isCheckOut
                         ? hasRangeConflict
                           ? "bg-rose-50 text-rose-400 border border-rose-200 line-through cursor-not-allowed opacity-75"
@@ -372,8 +391,11 @@ export const LuxuryDatePicker: React.FC<LuxuryDatePickerProps> = ({
                     }`}
                   >
                     {dayNum}
-                    {!isCheckOut && isBooked && !isUnderMaintenance && (
+                    {!isCheckOut && isBooked && !isDateUnderMaintenance && (
                       <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-rose-500" />
+                    )}
+                    {isDateUnderMaintenance && (
+                      <span className="absolute bottom-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
                     )}
                   </button>
                 );

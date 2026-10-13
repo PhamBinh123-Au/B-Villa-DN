@@ -521,11 +521,19 @@ export const serverStore = {
     await this.setData(() => initial);
   },
 
-  async setMaintenance(villaId: string, isMaintenance: boolean, reason?: string): Promise<VillaMaintenanceInfo> {
+  async setMaintenance(
+    villaId: string,
+    isMaintenance: boolean,
+    reason?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<VillaMaintenanceInfo> {
     const info: VillaMaintenanceInfo = {
       villaId,
       isMaintenance,
       reason: reason || (isMaintenance ? "Scheduled luxury maintenance & seasonal care" : undefined),
+      startDate: isMaintenance ? startDate : undefined,
+      endDate: isMaintenance ? endDate : undefined,
       updatedAt: new Date().toISOString(),
     };
 
