@@ -68,127 +68,229 @@ export function isCheckoutToday(checkOut: string): boolean {
 
 const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
   {
-    id: "INQ-9478",
+    id: "INQ-3001",
+    villaId: "b3-villa-2pn",
+    villaName: "B3 Villa • 2 Bedrooms",
+    guestName: "Trần Thị Hương",
+    email: "huong.tran@gmail.com",
+    phone: "0923456789",
+    checkIn: "2026-10-22",
+    checkOut: "2026-10-25",
+    adults: 2,
+    children: 1,
+    specialRequests: "Khách cần xe đưa đón sân bay Đà Nẵng lúc 14:00 và set up bàn nướng BBQ.",
+    status: "pending",
+    totalPriceVnd: 9000000,
+    paymentStatus: "unpaid",
+    paidAmountVnd: 0,
+    createdAt: "2026-10-14T08:30:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
+  },
+  {
+    id: "INQ-3002",
     villaId: "b4-villa-4pn",
     villaName: "B4 Villa • 4 Bedrooms",
-    guestName: "Lord Arthur Pendelton",
-    email: "arthur.pendelton@oxford.uk",
-    phone: "+44 7700 900555",
-    checkIn: "2026-10-06",
-    checkOut: "2026-10-11",
-    adults: 4,
-    children: 1,
-    specialRequests: "Family vacation. Checked out yesterday.",
-    status: "confirmed",
-    cleaningStatus: "needs_cleaning",
-    cleaningNotes: "Cần thay toàn bộ drap giường 4PN, lau ban công & lọc hồ bơi.",
-    totalPriceVnd: 85000000,
-    paymentStatus: "paid",
-    paidAmountVnd: 85000000,
-    paymentNotes: "Đã thu đủ 85.000.000 ₫ qua chuyển khoản quốc tế.",
-    createdAt: "2026-10-05T09:00:00.000Z",
-  },
-  {
-    id: "INQ-9479",
-    villaId: "b2-villa-4pn",
-    villaName: "B2 Villa • 4 Bedrooms",
-    guestName: "Madam Sophie Dupont",
-    email: "sophie.dupont@paris.fr",
-    phone: "+33 6 12 34 56 78",
-    checkIn: "2026-10-07",
-    checkOut: "2026-10-12",
-    adults: 2,
-    children: 0,
-    specialRequests: "Checkout at 12:00 PM today. Cleaning crew scheduled.",
-    status: "confirmed",
-    cleaningStatus: "in_cleaning",
-    cleaningNotes: "Khách trả phòng 11:30. Đội dọn dẹp đang vệ sinh tầng 1 & hồ bơi atrium.",
-    totalPriceVnd: 97500000,
-    paymentStatus: "paid",
-    paidAmountVnd: 97500000,
-    paymentNotes: "Đã thanh toán đủ qua thẻ tín dụng Visa.",
-    createdAt: "2026-10-06T11:00:00.000Z",
-  },
-  {
-    id: "INQ-9480",
-    villaId: "b1-villa-4pn",
-    villaName: "B1 Villa • 4 Bedrooms",
-    guestName: "David Sterling",
-    email: "david.sterling@sanctuary.co",
-    phone: "+84 905 111 222",
-    checkIn: "2026-10-18",
-    checkOut: "2026-10-23",
+    guestName: "Nguyễn Văn Minh",
+    email: "minh.nguyen@gmail.com",
+    phone: "0987654321",
+    checkIn: "2026-10-26",
+    checkOut: "2026-10-29",
     adults: 6,
     children: 2,
-    specialRequests: "VIP arrival. Early check-in requested.",
-    status: "confirmed",
-    totalPriceVnd: 90000000,
-    paymentStatus: "deposit",
-    paidAmountVnd: 45000000,
-    paymentNotes: "Đã cọc 50% (45.000.000 ₫). Còn lại thu khi nhận phòng.",
-    createdAt: "2026-10-09T10:00:00.000Z",
+    specialRequests: "Đoàn gia đình có người cao tuổi, xin phòng tầng trệt và cũi em bé.",
+    status: "pending",
+    totalPriceVnd: 9000000,
+    paymentStatus: "unpaid",
+    paidAmountVnd: 0,
+    createdAt: "2026-10-14T09:15:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
   },
   {
-    id: "INQ-9481",
+    id: "INQ-4915",
+    villaId: "b2-villa-4pn",
+    villaName: "B2 Villa • 4 Bedrooms",
+    guestName: "Nguyễn Hoàng Nam",
+    email: "nam.nguyen@hoangnam.vn",
+    phone: "0912345678",
+    checkIn: "2026-10-13",
+    checkOut: "2026-10-15",
+    adults: 4,
+    children: 1,
+    specialRequests: "Khách VIP, chuẩn bị trái cây tươi chào mừng khi check-in.",
+    status: "confirmed",
+    totalPriceVnd: 6000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 6000000,
+    createdAt: "2026-10-12T10:00:00.000Z",
+    isCheckedIn: true,
+    isCheckedOut: false,
+  },
+  {
+    id: "INQ-8573",
+    villaId: "b1-villa-4pn",
+    villaName: "B1 Villa • 4 Bedrooms",
+    guestName: "Bình Phạm",
+    email: "phambinh2092008@gmail.com",
+    phone: "0905111222",
+    checkIn: "2026-10-13",
+    checkOut: "2026-10-16",
+    adults: 4,
+    children: 0,
+    specialRequests: "Cần dọn phòng hàng ngày lúc 10:00 sáng.",
+    status: "confirmed",
+    totalPriceVnd: 9000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 9000000,
+    createdAt: "2026-10-12T14:20:00.000Z",
+    isCheckedIn: true,
+    isCheckedOut: false,
+  },
+  {
+    id: "INQ-6312",
+    villaId: "b1-villa-4pn",
+    villaName: "B1 Villa • 4 Bedrooms",
+    guestName: "Hoàng Đức Trí",
+    email: "tri.hoang@investcorp.vn",
+    phone: "0934567890",
+    checkIn: "2026-10-16",
+    checkOut: "2026-10-19",
+    adults: 4,
+    children: 2,
+    specialRequests: "Nhận phòng lúc 14:00, yêu cầu chuẩn bị thêm 2 phao bơi cho trẻ em.",
+    status: "confirmed",
+    totalPriceVnd: 9000000,
+    paymentStatus: "deposit",
+    paidAmountVnd: 4500000,
+    createdAt: "2026-10-13T11:00:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
+  },
+  {
+    id: "INQ-2001",
+    villaId: "b3-villa-2pn",
+    villaName: "B3 Villa • 2 Bedrooms",
+    guestName: "Vũ Thị Lan",
+    email: "lan.vu@techasia.io",
+    phone: "0945678901",
+    checkIn: "2026-10-15",
+    checkOut: "2026-10-18",
+    adults: 2,
+    children: 0,
+    specialRequests: "Kỷ niệm ngày cưới, setup hoa tươi và nến thơm.",
+    status: "confirmed",
+    totalPriceVnd: 9000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 9000000,
+    createdAt: "2026-10-13T15:00:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
+  },
+  {
+    id: "INQ-2002",
+    villaId: "b4-villa-4pn",
+    villaName: "B4 Villa • 4 Bedrooms",
+    guestName: "Đặng Quốc Bảo",
+    email: "bao.dang@vietnamtravel.com",
+    phone: "0967890123",
+    checkIn: "2026-10-18",
+    checkOut: "2026-10-21",
+    adults: 5,
+    children: 1,
+    specialRequests: "Cần hỗ trợ hướng dẫn viên tiếng Anh tham quan Sơn Trà.",
+    status: "confirmed",
+    totalPriceVnd: 9000000,
+    paymentStatus: "deposit",
+    paidAmountVnd: 4500000,
+    createdAt: "2026-10-13T16:30:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
+  },
+  {
+    id: "INQ-2003",
+    villaId: "b2-villa-4pn",
+    villaName: "B2 Villa • 4 Bedrooms",
+    guestName: "Lê Thị Bích Ngọc",
+    email: "ngoc.le@luxuryescape.vn",
+    phone: "0978901234",
+    checkIn: "2026-10-20",
+    checkOut: "2026-10-24",
+    adults: 6,
+    children: 2,
+    specialRequests: "Ăn sáng tại phòng, thực đơn chay cho 2 người lớn.",
+    status: "confirmed",
+    totalPriceVnd: 12000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 12000000,
+    createdAt: "2026-10-14T07:00:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
+  },
+  {
+    id: "INQ-2004",
     villaId: "b1-villa-4pn",
     villaName: "B1 Villa • 4 Bedrooms",
     guestName: "Alexander Wright",
-    email: "alexander.wright@luxurytravel.co",
+    email: "alex.wright@ukglobal.co.uk",
     phone: "+44 7700 900123",
-    checkIn: "2026-11-15",
-    checkOut: "2026-11-20",
-    adults: 6,
-    children: 2,
-    specialRequests: "Requesting early check-in at 12:00 PM and airport chauffeur pickup.",
+    checkIn: "2026-10-25",
+    checkOut: "2026-10-28",
+    adults: 4,
+    children: 0,
+    specialRequests: "Late check-in at 20:00 PM due to international flight.",
     status: "confirmed",
-    totalPriceVnd: 90000000,
-    paymentStatus: "unpaid",
-    paidAmountVnd: 0,
-    paymentNotes: "Chưa thu tiền - chờ khách chốt vé máy bay.",
-    createdAt: "2026-10-08T14:20:00.000Z",
+    totalPriceVnd: 9000000,
+    paymentStatus: "deposit",
+    paidAmountVnd: 4500000,
+    createdAt: "2026-10-14T08:00:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
   },
   {
-    id: "INQ-9482",
+    id: "INQ-1001",
+    villaId: "b1-villa-4pn",
+    villaName: "B1 Villa • 4 Bedrooms",
+    guestName: "Phạm Thị Mai",
+    email: "mai.pham@danangresort.vn",
+    phone: "0981234567",
+    checkIn: "2026-10-06",
+    checkOut: "2026-10-10",
+    adults: 4,
+    children: 1,
+    specialRequests: "Khách đã trả phòng hài lòng, đánh giá 5 sao.",
+    status: "confirmed",
+    totalPriceVnd: 12000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 12000000,
+    createdAt: "2026-10-05T09:00:00.000Z",
+    isCheckedIn: true,
+    isCheckedOut: true,
+  },
+  {
+    id: "INQ-1002",
     villaId: "b2-villa-4pn",
     villaName: "B2 Villa • 4 Bedrooms",
-    guestName: "Elena Rostova",
-    email: "elena.rostova@designstudio.ch",
-    phone: "+41 79 123 4567",
-    checkIn: "2026-10-25",
-    checkOut: "2026-10-30",
-    adults: 8,
+    guestName: "Đỗ Minh Tuấn",
+    email: "tuan.do@saigonbiz.vn",
+    phone: "0918765432",
+    checkIn: "2026-10-08",
+    checkOut: "2026-10-12",
+    adults: 4,
     children: 0,
-    specialRequests: "Celebrating birthday. Need private chef dining setup for one evening.",
+    specialRequests: "Đoàn công tác, xuất hóa đơn VAT công ty.",
     status: "confirmed",
-    totalPriceVnd: 97500000,
-    paymentStatus: "deposit",
-    paidAmountVnd: 50000000,
-    paymentNotes: "Đã nhận cọc 50.000.000 ₫.",
-    createdAt: "2026-10-09T08:15:00.000Z",
-  },
-  {
-    id: "INQ-9483",
-    villaId: "b3-villa-2pn",
-    villaName: "B3 Villa • 2 Bedrooms",
-    guestName: "Marcus & Chloe Vance",
-    email: "chloe.vance@honeymoon.org",
-    phone: "+61 400 123 987",
-    checkIn: "2026-11-25",
-    checkOut: "2026-11-30",
-    adults: 2,
-    children: 0,
-    specialRequests: "Honeymoon stay. Would love flower arrangements by the plunge pool.",
-    status: "contacted",
-    totalPriceVnd: 47500000,
-    paymentStatus: "unpaid",
-    paidAmountVnd: 0,
-    paymentNotes: "Chưa thu tiền.",
-    createdAt: "2026-10-09T18:45:00.000Z",
+    totalPriceVnd: 12000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 12000000,
+    createdAt: "2026-10-07T11:00:00.000Z",
+    isCheckedIn: true,
+    isCheckedOut: true,
   },
 ];
 
 export interface RealtimeSyncPayload {
-  action: "ADD" | "UPDATE" | "DELETE" | "RESET" | "MAINTENANCE_UPDATE" | "PRICE_UPDATE" | "CLEANING_UPDATE" | "PAYMENT_UPDATE";
+  action: "ADD" | "UPDATE" | "DELETE" | "RESET" | "MAINTENANCE_UPDATE" | "PRICE_UPDATE" | "CLEANING_UPDATE" | "PAYMENT_UPDATE" | "APP_DATA_UPDATE" | "SETTINGS_UPDATE";
   inquiry?: BookingInquiry;
   id?: string;
   villaId?: string;
@@ -200,6 +302,8 @@ export interface RealtimeSyncPayload {
   usdRate?: number;
   cleaningStatus?: CleaningStatus;
   paymentStatus?: PaymentStatus;
+  key?: string;
+  data?: any;
   timestamp: number;
 }
 
@@ -308,9 +412,11 @@ async function syncWithServer(): Promise<void> {
 
     // 1. Ingest tombstoned deleted IDs from server
     if (Array.isArray(data.deletedIds)) {
-      data.deletedIds.forEach((dId: string) => bookingStore.addDeletedId(dId));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(DELETED_STORAGE_KEY, JSON.stringify(data.deletedIds));
+      }
     }
-    const currentDeletedSet = bookingStore.getDeletedIds();
+    const currentDeletedSet = new Set<string>(Array.isArray(data.deletedIds) ? data.deletedIds : []);
 
     const rawServerInquiries: BookingInquiry[] = Array.isArray(data.inquiries) ? data.inquiries : [];
     const serverInquiries = deduplicateInquiries(rawServerInquiries).filter(
@@ -337,7 +443,7 @@ async function syncWithServer(): Promise<void> {
         mergedMap.set(localItem.id, localItem);
       } else {
         const serverItem = mergedMap.get(localItem.id)!;
-        mergedMap.set(localItem.id, { ...serverItem, ...localItem });
+        mergedMap.set(localItem.id, { ...localItem, ...serverItem });
       }
     });
 
@@ -385,21 +491,39 @@ async function syncWithServer(): Promise<void> {
       localStorage.setItem(MAINTENANCE_STORAGE_KEY, JSON.stringify(mergedMaintenance));
     }
 
+    let pricesChanged = false;
     if (data.prices && typeof data.prices === "object") {
       const curPrices = bookingStore.getAllVillaPrices();
-      const mergedPrices = { ...curPrices, ...data.prices };
-      localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify(mergedPrices));
+      const hasDiff = Object.entries(data.prices).some(([k, v]) => curPrices[k] !== v);
+      if (hasDiff) {
+        pricesChanged = true;
+        const mergedPrices = { ...curPrices, ...data.prices };
+        localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify(mergedPrices));
+      }
     }
     if (typeof data.usdRate === "number" && data.usdRate > 0) {
-      localStorage.setItem(USD_RATE_STORAGE_KEY, String(data.usdRate));
+      const storedRate = localStorage.getItem(USD_RATE_STORAGE_KEY);
+      if (storedRate !== String(data.usdRate)) {
+        pricesChanged = true;
+        localStorage.setItem(USD_RATE_STORAGE_KEY, String(data.usdRate));
+      }
     }
 
     if (!initialSyncDone) {
       initialSyncDone = true;
-      if (inquiriesChanged || maintenanceChanged) {
+      if (inquiriesChanged || maintenanceChanged || pricesChanged) {
         broadcastSync({ action: "UPDATE", timestamp: Date.now() });
       }
       return;
+    }
+
+    if (pricesChanged) {
+      broadcastSync({
+        action: "PRICE_UPDATE",
+        prices: data.prices,
+        usdRate: data.usdRate,
+        timestamp: Date.now(),
+      });
     }
 
     // Broadcast only on real changes
@@ -422,6 +546,46 @@ async function syncWithServer(): Promise<void> {
         timestamp: Date.now(),
       });
     }
+
+    // App data (settings, rules, amenities, gallery, reviews, accounts, CRM, villas) sync
+    try {
+      const appDataRes = await fetch("/api/app-data", { cache: "no-store" });
+      if (appDataRes.ok) {
+        const appData = await appDataRes.json();
+        let appDataChanged = false;
+
+        const syncField = (key: string, storageKey: string) => {
+          if (appData[key] !== undefined && appData[key] !== null) {
+            const currentStr = localStorage.getItem(storageKey);
+            const remoteStr = JSON.stringify(appData[key]);
+            if (currentStr !== remoteStr) {
+              try {
+                if (currentStr && JSON.stringify(JSON.parse(currentStr)) === JSON.stringify(JSON.parse(remoteStr))) {
+                  return;
+                }
+              } catch {}
+              localStorage.setItem(storageKey, remoteStr);
+              appDataChanged = true;
+            }
+          }
+        };
+
+        syncField("settings", "bvilla_settings_v1");
+        syncField("pricingRules", "bvilla_pricing_rules_v1");
+        syncField("amenities", "bvilla_amenities_v1");
+        syncField("gallery", "bvilla_gallery_v1");
+        syncField("reviews", "bvilla_reviews_v1");
+        syncField("adminUsers", "bvilla_admin_users_v1");
+        syncField("customers", "bvilla_customers_v1");
+        syncField("villas", "bvilla_villa_overrides_v1");
+
+        if (appDataChanged) {
+          broadcastSync({ action: "APP_DATA_UPDATE", timestamp: Date.now() });
+        }
+      }
+    } catch {
+      // ignore
+    }
   } catch (err) {
     console.debug("Server sync skipped:", err);
   } finally {
@@ -429,16 +593,16 @@ async function syncWithServer(): Promise<void> {
   }
 }
 
-// Background polling loop
+// Background polling loop (efficient 10s cadence)
 if (typeof window !== "undefined") {
   setTimeout(() => {
     syncWithServer();
   }, 100);
 
-  // Poll smoothly every 3.5s
+  // Poll smoothly every 10s to keep CPU and UI interaction thread completely free
   setInterval(() => {
     syncWithServer();
-  }, 3500);
+  }, 10000);
 
   window.addEventListener("focus", () => syncWithServer());
   document.addEventListener("visibilitychange", () => {
@@ -448,6 +612,7 @@ if (typeof window !== "undefined") {
 
 export const bookingStore = {
   syncWithServer,
+  broadcast: broadcastSync,
 
   getDeletedIds(): Set<string> {
     if (typeof window === "undefined") return new Set();
@@ -825,20 +990,30 @@ export const bookingStore = {
   async updateInquiryAsync(id: string, updatedFields: Partial<BookingInquiry>): Promise<void> {
     const inquiries = this.getInquiries();
     const target = inquiries.find((item) => item.id === id);
-    if (!target) return;
 
-    const merged = { ...target, ...updatedFields };
+    if (target) {
+      const merged = { ...target, ...updatedFields };
 
-    if (merged.status !== "cancelled") {
-      const conflict = this.hasDateConflict(merged.checkIn, merged.checkOut, merged.villaId, id);
-      if (conflict) {
-        throw new Error(
-          `Overlapping Booking Prohibited: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}).`
-        );
+      if (merged.status !== "cancelled") {
+        const conflict = this.hasDateConflict(merged.checkIn, merged.checkOut, merged.villaId, id);
+        if (conflict) {
+          throw new Error(
+            `Overlapping Booking Prohibited: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}).`
+          );
+        }
+      }
+
+      const updated = inquiries.map((item) => (item.id === id ? merged : item));
+      if (typeof window !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(deduplicateInquiries(updated)));
+        broadcastSync({
+          action: "UPDATE",
+          id,
+          inquiry: merged,
+          timestamp: Date.now(),
+        });
       }
     }
-
-    this.updateInquiry(id, updatedFields);
 
     try {
       const res = await fetch("/api/bookings", {
@@ -849,14 +1024,24 @@ export const bookingStore = {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        if (errJson.error && errJson.error.includes("Overlapping")) {
-          throw new Error(errJson.error);
-        }
+        throw new Error(errJson.error || `Server update failed (${res.status})`);
+      }
+
+      const resData = await res.json();
+      if (resData.inquiry && typeof window !== "undefined") {
+        const currentInqs = this.getInquiries();
+        const updated = currentInqs.map((item) => (item.id === id ? resData.inquiry : item));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(deduplicateInquiries(updated)));
+        broadcastSync({
+          action: "UPDATE",
+          id,
+          inquiry: resData.inquiry,
+          timestamp: Date.now(),
+        });
       }
     } catch (err: any) {
-      if (err.message && err.message.includes("Overlapping")) {
-        throw err;
-      }
+      console.warn("Server update inquiry error:", err);
+      throw err;
     }
   },
 
@@ -903,13 +1088,14 @@ export const bookingStore = {
   },
 
   findConflictsForInquiry(inquiry: BookingInquiry): BookingInquiry[] {
-    if (inquiry.status === "cancelled") return [];
+    if (inquiry.status === "cancelled" || inquiry.isCheckedOut) return [];
     const inquiries = this.getInquiries();
     return inquiries.filter(
       (other) =>
         other.id !== inquiry.id &&
         other.villaId === inquiry.villaId &&
         other.status !== "cancelled" &&
+        !other.isCheckedOut &&
         inquiry.checkIn < other.checkOut &&
         other.checkIn < inquiry.checkOut
     );
@@ -985,8 +1171,9 @@ export const bookingStore = {
 
   isDateBooked(dateStr: string, villaId?: string): { isBooked: boolean; villaNames: string[]; status?: InquiryStatus } {
     const inquiries = this.getInquiries();
+    // CHỈ KHÓA NGÀY TRÊN LỊCH KHI ĐƠN ĐÃ ĐƯỢC ADMIN XÁC NHẬN (status === "confirmed" và chưa trả phòng)
     const activeInquiries = inquiries.filter(
-      (inq) => inq.status !== "cancelled" && dateStr >= inq.checkIn && dateStr < inq.checkOut
+      (inq) => inq.status === "confirmed" && !inq.isCheckedOut && dateStr >= inq.checkIn && dateStr < inq.checkOut
     );
 
     if (villaId) {
@@ -1078,7 +1265,7 @@ export const bookingStore = {
     if (!villaId) return [];
     const inquiries = this.getInquiries();
     return inquiries
-      .filter((inq) => inq.status !== "cancelled" && inq.villaId === villaId)
+      .filter((inq) => inq.status === "confirmed" && inq.villaId === villaId)
       .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
   },
 
@@ -1124,7 +1311,8 @@ export const bookingStore = {
 
     const inquiries = this.getInquiries();
     return inquiries.find((inq) => {
-      if (inq.status === "cancelled" || inq.villaId !== villaId) return false;
+      // Chỉ xung đột khi đơn đó ĐÃ ĐƯỢC XÁC NHẬN KHÓA PHÒNG (status === "confirmed") và chưa trả phòng
+      if (inq.status !== "confirmed" || inq.isCheckedOut || inq.villaId !== villaId) return false;
       if (excludeInqId && inq.id === excludeInqId) return false;
 
       return checkIn < inq.checkOut && inq.checkIn < checkOut;
@@ -1176,21 +1364,57 @@ export const bookingStore = {
   },
 
   getAllVillaPrices(): Record<string, number> {
-    if (typeof window === "undefined") return { ...DEFAULT_VILLA_PRICES };
-    try {
-      const stored = localStorage.getItem(PRICES_STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed && typeof parsed === "object") {
-          return { ...DEFAULT_VILLA_PRICES, ...parsed };
+    let prices: Record<string, number> = { ...DEFAULT_VILLA_PRICES };
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem(PRICES_STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed && typeof parsed === "object") {
+            prices = { ...DEFAULT_VILLA_PRICES, ...parsed };
+          }
         }
-      }
-    } catch {}
-    return { ...DEFAULT_VILLA_PRICES };
+      } catch {}
+    }
+
+    // Mirror short codes and full slugs so lookup by either "B1" or "b1-villa-4pn" always succeeds
+    const b1Price = prices["b1-villa-4pn"] || prices["B1"] || prices["b1"] || DEFAULT_VILLA_PRICES["b1-villa-4pn"] || 18000000;
+    const b2Price = prices["b2-villa-4pn"] || prices["B2"] || prices["b2"] || DEFAULT_VILLA_PRICES["b2-villa-4pn"] || 19500000;
+    const b3Price = prices["b3-villa-2pn"] || prices["B3"] || prices["b3"] || DEFAULT_VILLA_PRICES["b3-villa-2pn"] || 9500000;
+    const b4Price = prices["b4-villa-4pn"] || prices["B4"] || prices["b4"] || DEFAULT_VILLA_PRICES["b4-villa-4pn"] || 17000000;
+
+    prices["b1-villa-4pn"] = b1Price;
+    prices["B1"] = b1Price;
+    prices["b1"] = b1Price;
+
+    prices["b2-villa-4pn"] = b2Price;
+    prices["B2"] = b2Price;
+    prices["b2"] = b2Price;
+
+    prices["b3-villa-2pn"] = b3Price;
+    prices["B3"] = b3Price;
+    prices["b3"] = b3Price;
+
+    prices["b4-villa-4pn"] = b4Price;
+    prices["B4"] = b4Price;
+    prices["b4"] = b4Price;
+
+    return prices;
   },
 
   getVillaPrice(villaId: string): number {
     const prices = this.getAllVillaPrices();
+    if (!villaId) return 18000000;
+
+    // Direct match
+    if (typeof prices[villaId] === "number") return prices[villaId];
+
+    const lower = villaId.toLowerCase().trim();
+    if (lower.includes("b1")) return prices["B1"] || 18000000;
+    if (lower.includes("b2")) return prices["B2"] || 19500000;
+    if (lower.includes("b3")) return prices["B3"] || 9500000;
+    if (lower.includes("b4")) return prices["B4"] || 17000000;
+
     return prices[villaId] || DEFAULT_VILLA_PRICES[villaId] || 15000000;
   },
 

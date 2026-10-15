@@ -37,7 +37,7 @@ interface HeroProps {
   }) => void;
 }
 
-const HERO_SLIDES = [
+const HERO_SLIDES = siteConfig.heroSlides || [
   {
     image: "/images/B1/B1.15.jpg",
     title: "B1 Villa • Hồ Bơi Sân Vườn Biển Sơn Trà",
@@ -139,6 +139,13 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
 
   useEffect(() => {
     setMounted(true);
+    // Preload all hero slides in the background so transitions are 100% instant and flicker-free
+    HERO_SLIDES.forEach((slide) => {
+      if (typeof window !== "undefined") {
+        const img = new window.Image();
+        img.src = slide.image;
+      }
+    });
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
     }, 6000);
@@ -297,78 +304,104 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
   const firstDayOfWeek = new Date(calYear, calMonth, 1).getDay();
 
   return (
-    <section className="relative min-h-[100dvh] flex items-center justify-center bg-[#0d0f12] text-white z-30 overflow-x-hidden">
+    <section className="relative min-h-[100svh] sm:min-h-[100dvh] flex flex-col justify-center items-center bg-[#0d0f12] text-white z-30 overflow-x-hidden pt-20 sm:pt-24 md:pt-28 pb-10 sm:pb-14 md:pb-16">
       {/* Background Hero Image Slides with Smooth Cross-fade (Overflow clipped strictly here) */}
       <div className="absolute inset-0 z-0 overflow-hidden">
         {HERO_SLIDES.map((slide, index) => (
           <div
             key={index}
             className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
-              index === currentSlide ? "opacity-100 z-10" : "opacity-0 z-0"
+              index === currentSlide ? "opacity-100 z-10" : "opacity-0 z-0 pointer-events-none"
             }`}
           >
             <Image
               src={slide.image}
               alt={slide.title}
               fill
-              priority={index === 0}
-              quality={90}
+              unoptimized
+              priority={index <= 2}
               sizes="100vw"
-              className="object-cover object-center scale-105 transition-transform duration-[8000ms] ease-out"
+              className={`object-cover object-center transition-transform duration-[6000ms] ease-out ${
+                index === currentSlide ? "scale-100 animate-ken-burns" : "scale-105"
+              }`}
+              style={{ imageRendering: "-webkit-optimize-contrast" }}
             />
           </div>
         ))}
 
-        {/* Cinematic Vignette Overlay */}
-        <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#0e1114] via-black/45 to-black/75 backdrop-brightness-95" />
+        {/* Cinematic Vignette Overlay - crystal clear view of villa architecture with readable text */}
+        <div className="absolute inset-0 z-20 bg-gradient-to-t from-[#0d0f12] via-black/30 to-black/55 pointer-events-none" />
       </div>
 
-      {/* Hero Content */}
-      <div className="relative z-30 max-w-5xl mx-auto px-4 sm:px-6 md:px-12 pt-32 sm:pt-36 md:pt-40 pb-20 sm:pb-28 md:pb-36 text-center flex flex-col items-center">
+      {/* Hero Content - Perfectly Proportioned to Always Fit Viewports */}
+      <div className="relative z-30 max-w-5xl mx-auto px-4 sm:px-6 md:px-12 text-center flex flex-col items-center w-full my-auto">
         {/* Subtle Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#EAE4D7] text-xs uppercase tracking-[0.2em] mb-4 sm:mb-6 shadow-sm">
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+          className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-[#EAE4D7] text-xs uppercase tracking-[0.2em] mb-3 sm:mb-4 shadow-sm animate-pulse-glow"
+        >
           <Sparkles className="w-3.5 h-3.5 text-[#C2A476]" />
           <span>{t("hero.subtitle", "Exclusive Private Sanctuaries")}</span>
-        </div>
+        </motion.div>
 
         {/* Headline */}
-        <h1 className="text-3xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold tracking-tight leading-[1.15] sm:leading-[1.1] text-white max-w-4xl drop-shadow-md">
+        <motion.h1
+          initial={{ opacity: 0, y: 14 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
+          className="text-2xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold tracking-tight leading-[1.18] sm:leading-[1.12] text-white max-w-4xl drop-shadow-md"
+        >
           {language === "vi" ? (
             <>Nghỉ Dưỡng Đẳng Cấp <span className="font-extrabold text-[#C2A476]">Bên Bờ Biển</span> Đà Nẵng</>
           ) : (
             <>A Symphony of <span className="font-extrabold text-[#C2A476]">Light, Water</span> & Architectural Serenity</>
           )}
-        </h1>
+        </motion.h1>
 
         {/* Subtitle */}
-        <p className="mt-4 sm:mt-6 text-sm sm:text-base md:text-lg lg:text-xl text-neutral-300 font-light max-w-2xl leading-relaxed">
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-3 sm:mt-4 text-xs sm:text-sm md:text-base lg:text-lg text-neutral-300 font-light max-w-2xl leading-relaxed"
+        >
           {language === "vi"
             ? "Khám phá 4 biệt thự hồ bơi riêng tư tuyệt mỹ tại Sơn Trà & Ngũ Hành Sơn với kiến trúc tối giản hiện đại và dịch vụ đặc quyền."
-            : "Four private, architecturally designed pool villas across Da Nang's coveted Son Tra and Ngu Hanh Son coastlines. Dedicated to absolute tranquility."}
-        </p>
+            : "Four private, architecturally designed pool villas across Da Nang's coveted Son Tra and Ngu Hanh Sơn coastlines. Dedicated to absolute tranquility."}
+        </motion.p>
 
         {/* Quick CTA Buttons */}
-        <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto">
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.16, ease: [0.16, 1, 0.3, 1] }}
+          className="mt-4 sm:mt-6 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4 w-full sm:w-auto"
+        >
           <a
             href="#villas"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs md:text-sm uppercase tracking-widest font-semibold px-8 py-3.5 sm:py-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs md:text-sm uppercase tracking-widest font-semibold px-7 py-3 sm:py-3.5 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
           >
             <span>{language === "vi" ? "Khám Phá 4 Biệt Thự" : "Explore The 4 Villas"}</span>
             <ArrowRight className="w-4 h-4" />
           </a>
           <a
             href="#experience"
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs md:text-sm uppercase tracking-widest font-medium px-8 py-3.5 sm:py-4 rounded-full transition-all duration-300 cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 text-white text-xs md:text-sm uppercase tracking-widest font-medium px-7 py-3 sm:py-3.5 rounded-full transition-all duration-300 cursor-pointer"
           >
             <span>{language === "vi" ? "Trải Nghiệm Nghỉ Dưỡng" : "The Villa Lifestyle"}</span>
           </a>
-        </div>
+        </motion.div>
 
         {/* Floating Luxury Availability Bar (100% Solid White Surface) */}
-        <div
+        <motion.div
           ref={barRef}
+          initial={{ opacity: 0, y: 15 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.22, ease: [0.16, 1, 0.3, 1] }}
           style={{ backgroundColor: "#ffffff" }}
-          className="mt-8 sm:mt-12 md:mt-14 w-full max-w-4xl bg-white text-neutral-900 rounded-3xl md:rounded-full p-3 sm:p-4 md:p-3 shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] relative z-40"
+          className="mt-5 sm:mt-7 md:mt-9 w-full max-w-4xl bg-white text-neutral-900 rounded-3xl md:rounded-full p-2.5 sm:p-3 md:p-3 shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] relative z-40"
         >
           <form
             onSubmit={handleSubmit}
@@ -385,7 +418,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                 aria-haspopup="listbox"
                 aria-expanded={activeDropdown === "villa"}
               >
-                <div className="w-9 h-9 rounded-xl bg-[#FAF6EE] border border-[#E8E0D2] flex items-center justify-center text-[#C2A476] flex-shrink-0 group-hover:scale-105 transition-all">
+                <div className="w-9 h-9 rounded-xl bg-[#FAF6EE] group-hover:bg-[#C2A476] border border-[#E8E0D2] group-hover:border-[#C2A476] flex items-center justify-center text-[#C2A476] group-hover:text-white flex-shrink-0 group-hover:scale-115 group-hover:-translate-y-0.5 group-hover:shadow-sm transition-all duration-300">
                   <Home className="w-4 h-4" />
                 </div>
 
@@ -419,15 +452,16 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
               <AnimatePresence>
                 {activeDropdown === "villa" && (
                   <motion.div
+                    data-lenis-prevent
                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                     style={{ backgroundColor: "#ffffff" }}
-                    className="absolute left-0 right-0 sm:right-auto sm:left-0 sm:w-84 md:w-96 top-[calc(100%+10px)] bg-white rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] p-3 z-50 text-neutral-900 overflow-hidden"
+                    className="absolute left-0 right-0 sm:right-auto sm:left-0 sm:w-84 md:w-96 top-[calc(100%+10px)] bg-white rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] p-3 z-50 text-neutral-900 overflow-hidden flex flex-col max-h-[min(420px,calc(100vh-140px))]"
                   >
                     {/* Header */}
-                    <div className="px-3 py-2 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl mb-2 flex items-center justify-between">
+                    <div className="px-3 py-2 bg-[#FAF7F2] border border-[#EAE2D5] rounded-xl mb-2 flex items-center justify-between shrink-0">
                       <span className="text-[11px] uppercase tracking-wider font-bold text-neutral-700">
                         Choose Your Sanctuary
                       </span>
@@ -436,7 +470,10 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                       </span>
                     </div>
 
-                    <div className="py-1 max-h-[360px] overflow-y-auto space-y-1.5">
+                    <div
+                      data-lenis-prevent
+                      className="py-1 max-h-[360px] overflow-y-auto space-y-1.5 overscroll-contain [scrollbar-width:thin] [scrollbar-color:#C2A476_transparent]"
+                    >
                       {/* Option: All 4 Villas */}
                       <button
                         type="button"
@@ -494,7 +531,9 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                                   src={v.image}
                                   alt={v.name}
                                   fill
-                                  className="object-cover group-hover:scale-110 transition-transform duration-300"
+                                  quality={90}
+                                  sizes="96px"
+                                  className="object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
                                 <div className="absolute top-0.5 left-0.5 bg-black/85 backdrop-blur-sm text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                                   {v.code}
@@ -542,7 +581,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                 aria-haspopup="dialog"
                 aria-expanded={activeDropdown === "checkIn"}
               >
-                <div className="w-9 h-9 rounded-xl bg-[#FAF6EE] border border-[#E8E0D2] flex items-center justify-center text-[#C2A476] flex-shrink-0 group-hover:scale-105 transition-all">
+                <div className="w-9 h-9 rounded-xl bg-[#FAF6EE] group-hover:bg-[#C2A476] border border-[#E8E0D2] group-hover:border-[#C2A476] flex items-center justify-center text-[#C2A476] group-hover:text-white flex-shrink-0 group-hover:scale-115 group-hover:-translate-y-0.5 group-hover:shadow-sm transition-all duration-300">
                   <CalendarIcon className="w-4 h-4" />
                 </div>
 
@@ -572,15 +611,16 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
               <AnimatePresence>
                 {activeDropdown === "checkIn" && (
                   <motion.div
+                    data-lenis-prevent
                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                     style={{ backgroundColor: "#ffffff" }}
-                    className="absolute left-0 right-0 sm:right-auto sm:left-0 sm:w-84 md:w-88 top-[calc(100%+10px)] bg-white rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] p-3 sm:p-4 z-50 text-neutral-900 overflow-hidden"
+                    className="absolute left-0 right-0 sm:right-auto sm:left-0 sm:w-84 md:w-88 top-[calc(100%+10px)] bg-white rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] z-50 text-neutral-900 flex flex-col max-h-[min(500px,calc(100vh-140px))] overflow-hidden"
                   >
                     {/* Calendar Month Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5] mb-2.5 bg-[#FAF7F2] -m-4 mb-2.5 p-3.5 rounded-t-2xl">
+                    <div className="flex items-center justify-between p-3.5 bg-[#FAF7F2] border-b border-[#EAE2D5] rounded-t-2xl shrink-0 z-20 shadow-xs">
                       <div>
                         <span className="text-[10px] uppercase tracking-wider font-bold text-[#8A6B3D] block">
                           Check-in Date
@@ -609,7 +649,12 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                       </div>
                     </div>
 
-                    {/* Availability Legend */}
+                    {/* Scrollable Calendar Body */}
+                    <div
+                      data-lenis-prevent
+                      className="p-3 sm:p-4 overflow-y-auto flex-1 overscroll-contain [scrollbar-width:thin] [scrollbar-color:#C2A476_transparent]"
+                    >
+                      {/* Availability Legend */}
                     <div className="flex items-center justify-between text-[10px] text-neutral-600 py-1.5 px-2 bg-[#FAF8F5] rounded-lg mb-2 border border-[#EAE2D5]">
                       <span className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-[#10B981]" />
@@ -744,7 +789,8 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                         </button>
                       )}
                     </div>
-                  </motion.div>
+                  </div>
+                </motion.div>
                 )}
               </AnimatePresence>
             </div>
@@ -760,7 +806,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                 aria-haspopup="dialog"
                 aria-expanded={activeDropdown === "checkOut"}
               >
-                <div className="w-9 h-9 rounded-xl bg-[#FAF6EE] border border-[#E8E0D2] flex items-center justify-center text-[#C2A476] flex-shrink-0 group-hover:scale-105 transition-all">
+                <div className="w-9 h-9 rounded-xl bg-[#FAF6EE] group-hover:bg-[#C2A476] border border-[#E8E0D2] group-hover:border-[#C2A476] flex items-center justify-center text-[#C2A476] group-hover:text-white flex-shrink-0 group-hover:scale-115 group-hover:-translate-y-0.5 group-hover:shadow-sm transition-all duration-300">
                   <CalendarIcon className="w-4 h-4" />
                 </div>
 
@@ -790,15 +836,16 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
               <AnimatePresence>
                 {activeDropdown === "checkOut" && (
                   <motion.div
+                    data-lenis-prevent
                     initial={{ opacity: 0, y: 12, scale: 0.96 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 8, scale: 0.96 }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                     style={{ backgroundColor: "#ffffff" }}
-                    className="absolute left-0 right-0 sm:left-auto sm:right-0 md:right-0 md:left-auto sm:w-84 md:w-88 top-[calc(100%+10px)] bg-white rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] p-3 sm:p-4 z-50 text-neutral-900 overflow-hidden"
+                    className="absolute left-0 right-0 sm:left-auto sm:right-0 md:right-0 md:left-auto sm:w-84 md:w-88 top-[calc(100%+10px)] bg-white rounded-2xl shadow-[0_25px_70px_rgba(0,0,0,0.38)] border-2 border-[#E2D9CC] z-50 text-neutral-900 flex flex-col max-h-[min(500px,calc(100vh-140px))] overflow-hidden"
                   >
                     {/* Calendar Month Header */}
-                    <div className="flex items-center justify-between pb-3 border-b border-[#EAE2D5] mb-2.5 bg-[#FAF7F2] -m-4 mb-2.5 p-3.5 rounded-t-2xl">
+                    <div className="flex items-center justify-between p-3.5 bg-[#FAF7F2] border-b border-[#EAE2D5] rounded-t-2xl shrink-0 z-20 shadow-xs">
                       <div>
                         <span className="text-[10px] uppercase tracking-wider font-bold text-[#8A6B3D] block">
                           Check-out Date
@@ -827,7 +874,12 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                       </div>
                     </div>
 
-                    {/* Availability Legend */}
+                    {/* Scrollable Calendar Body */}
+                    <div
+                      data-lenis-prevent
+                      className="p-3 sm:p-4 overflow-y-auto flex-1 overscroll-contain [scrollbar-width:thin] [scrollbar-color:#C2A476_transparent]"
+                    >
+                      {/* Availability Legend */}
                     <div className="flex items-center justify-between text-[10px] text-neutral-600 py-1.5 px-2 bg-[#FAF8F5] rounded-lg mb-2 border border-[#EAE2D5]">
                       <span className="flex items-center gap-1">
                         <span className="w-2 h-2 rounded-full bg-[#10B981]" />
@@ -974,7 +1026,8 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
                         </button>
                       )}
                     </div>
-                  </motion.div>
+                  </div>
+                </motion.div>
                 )}
               </AnimatePresence>
             </div>
@@ -1023,7 +1076,7 @@ export const Hero: React.FC<HeroProps> = ({ onCheckAvailability }) => {
               </button>
             </div>
           )}
-        </div>
+        </motion.div>
       </div>
 
       {/* Bottom Corner Slide Controls (Positioned on the left so it never collides with Floating WhatsApp) */}

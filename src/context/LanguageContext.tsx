@@ -445,6 +445,68 @@ export const dictionary: Translations = {
     vi: "Quản Gia Trực Tiếp 24/7",
     en: "24/7 Dedicated Concierge",
   },
+
+  // Contact Modal
+  "contact_modal.badge": {
+    vi: "B-VILLA ĐÀ NẴNG",
+    en: "B-VILLA DA NANG",
+  },
+  "contact_modal.title": {
+    vi: "Thông tin liên hệ",
+    en: "Contact Information",
+  },
+  "contact_modal.desc": {
+    vi: "Chọn kênh phù hợp để được tư vấn nhanh về villa, khách sạn - resort và booking.",
+    en: "Choose your preferred channel for prompt consultation and villa booking.",
+  },
+  "contact_modal.hours": {
+    vi: "Giờ làm việc: 07:00 – 23:00 • Giờ Việt Nam (UTC+7)",
+    en: "Working Hours: 07:00 – 23:00 • Vietnam Time (UTC+7)",
+  },
+  "contact_modal.hotline_desc": {
+    vi: "Gọi điện thoại trực tiếp quản lý villa 24/7",
+    en: "Direct 24/7 call to villa manager",
+  },
+  "contact_modal.zalo_desc": {
+    vi: "Tư vấn nhanh qua Zalo, nhận hình ảnh & báo giá",
+    en: "Fast chat on Zalo, get photos & quotes",
+  },
+  "contact_modal.whatsapp_desc": {
+    vi: "Kênh hỗ trợ cho khách quốc tế",
+    en: "International guest support & WhatsApp chat",
+  },
+  "contact_modal.fb_fanpage_title": {
+    vi: "Facebook Fanpage",
+    en: "Facebook Fanpage",
+  },
+  "contact_modal.fb_fanpage_desc": {
+    vi: "Cập nhật hình ảnh, video & ưu đãi mới nhất",
+    en: "Follow photos, videos & latest special deals",
+  },
+  "contact_modal.fb_personal_title": {
+    vi: "Facebook cá nhân",
+    en: "Personal Facebook",
+  },
+  "contact_modal.fb_personal_desc": {
+    vi: "Kết nối trực tiếp với chủ / quản lý villa",
+    en: "Connect directly with the villa host / owner",
+  },
+  "contact_modal.instagram_title": {
+    vi: "Instagram",
+    en: "Instagram",
+  },
+  "contact_modal.instagram_desc": {
+    vi: "Bộ sưu tập không gian kiến trúc & khoảnh khắc chill",
+    en: "Visual gallery & architectural stories",
+  },
+  "contact_modal.tiktok_title": {
+    vi: "TikTok",
+    en: "TikTok",
+  },
+  "contact_modal.tiktok_desc": {
+    vi: "Video thực tế từng căn villa & kinh nghiệm du lịch",
+    en: "Real villa tours & travel experiences",
+  },
 };
 
 interface LanguageContextType {

@@ -31,10 +31,41 @@ export const siteConfig: SiteConfig = {
   // SOCIAL MEDIA CHANNELS
   social: {
     zalo: "https://zalo.me/0854252821", // Zalo Official / Hotline Direct Link
-    facebook: "https://www.facebook.com/Flamingovilladanang",
+    facebook: "https://www.facebook.com/Flamingovilladanang", // Facebook Fanpage
+    facebookPersonal: "https://www.facebook.com/kim.thuy.810980", // Facebook cá nhân (Chủ/Quản lý Villa)
     tiktok: "https://www.tiktok.com/@bvilladanang43_",
     instagram: "https://instagram.com",
   },
+
+  // HERO BACKGROUND SLIDES (Danh sách ảnh nền trình chiếu tự động ở đầu trang chủ)
+  // Bạn có thể thêm, bớt hoặc thay đổi đường dẫn ảnh tại đây (ảnh lưu trong thư mục public/images/...)
+  heroSlides: [
+    {
+      image: "/images/B1/B1.15.jpg", // Ảnh nền 1: Mặt tiền & hồ bơi B1
+      title: "B1 Villa • Hồ Bơi Sân Vườn Biển Sơn Trà",
+      subtitle: "Thành Vinh 3, Sơn Trà • Vài Bước Chân Ra Biển",
+    },
+    {
+      image: "/images/B2/B2.5.jpg", // Ảnh nền 2: Giếng trời & hồ bơi B2
+      title: "B2 Villa • Giếng Trời & Thác Nước Tự Nhiên",
+      subtitle: "Nước Mặn 3, Ngũ Hành Sơn • Biệt Thự Ven Sông Yên Bình",
+    },
+    {
+      image: "/images/B4/B4.7.jpg", // Ảnh nền 3: Hồ bơi biệt lập B4
+      title: "B4 Villa • Hồ Bơi Biệt Lập & Thác Nước Đôi",
+      subtitle: "Thành Vinh 2, Sơn Trà • Không Gian Nghỉ Dưỡng Riêng Tư",
+    },
+    {
+      image: "/images/B2/B2.1.jpg", // Ảnh nền 4: Phòng khách sang trọng B2
+      title: "B2 Villa • Phòng Khách Mở & Nội Thất Sang Trọng",
+      subtitle: "Ven Sông Ngũ Hành Sơn • Đầy Đủ Tiện Nghi Cao Cấp",
+    },
+    {
+      image: "/images/B4/B4.16.jpg", // Ảnh nền 5: Mặt tiền đá trắng B4
+      title: "B4 Villa • Mặt Tiền Đá Trắng & Hoa Giấy Rực Rỡ",
+      subtitle: "Sơn Trà, Đà Nẵng • Kiến Trúc Nghỉ Dưỡng Tuyệt Mỹ",
+    },
+  ],
 
   // THE 4 CURATED VILLAS (Matching your real properties & exact image folders)
   villas: [

@@ -1,10 +1,13 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
 import { Phone, Mail, MapPin, MessageCircle, ArrowUp } from "lucide-react";
+import { getLiveSettings } from "@/lib/adminDataService";
+import { businessSettings as defaultBusinessSettings } from "@/lib/mock-data";
+import { bookingStore } from "@/lib/bookingStore";
 
 // Official Realistic Social Platform SVG Logos
 const ZaloLogo: React.FC<{ className?: string }> = ({ className = "w-5 h-5" }) => (
@@ -77,6 +80,18 @@ const TikTokLogo: React.FC<{ className?: string }> = ({ className = "w-5 h-5" })
 
 export const Footer: React.FC = () => {
   const { t, language } = useLanguage();
+  const [liveSettings, setLiveSettings] = useState<typeof defaultBusinessSettings>(defaultBusinessSettings);
+
+  useEffect(() => {
+    setLiveSettings(getLiveSettings());
+    const unsub = bookingStore.subscribe((payload) => {
+      if (payload.action === 'SETTINGS_UPDATE' || payload.action === 'APP_DATA_UPDATE') {
+        setLiveSettings(getLiveSettings());
+      }
+    });
+    return () => unsub();
+  }, []);
+
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -93,6 +108,7 @@ export const Footer: React.FC = () => {
                   src="/images/logo.png"
                   alt="B Villa Da Nang Logo"
                   fill
+                  quality={95}
                   className="object-contain"
                   sizes="40px"
                 />
@@ -180,25 +196,25 @@ export const Footer: React.FC = () => {
             <ul className="space-y-4 text-xs sm:text-sm text-neutral-400 font-light">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-[#C2A476] flex-shrink-0 mt-0.5" />
-                <span>{siteConfig.contact.address}</span>
+                <span>{liveSettings.address || siteConfig.contact.address}</span>
               </li>
               <li className="flex items-center gap-3">
                 <Phone className="w-4 h-4 text-[#C2A476] flex-shrink-0" />
                 <a
-                  href={`tel:${siteConfig.contact.phone.replace(/\s+/g, "")}`}
+                  href={`tel:${(liveSettings.phone || siteConfig.contact.phone).replace(/\s+/g, "")}`}
                   className="hover:text-white transition-colors"
                 >
                   <span className="font-bold text-[#C2A476] mr-1.5">Hotline:</span>
-                  <span>{siteConfig.contact.phone}</span>
+                  <span>{liveSettings.phone || siteConfig.contact.phone}</span>
                 </a>
               </li>
               <li className="flex items-center gap-3">
                 <Mail className="w-4 h-4 text-[#C2A476] flex-shrink-0" />
                 <a
-                  href={`mailto:${siteConfig.contact.email}`}
+                  href={`mailto:${liveSettings.email || siteConfig.contact.email}`}
                   className="hover:text-white transition-colors"
                 >
-                  {siteConfig.contact.email}
+                  {liveSettings.email || siteConfig.contact.email}
                 </a>
               </li>
               <li className="flex items-center gap-3">

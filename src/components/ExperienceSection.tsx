@@ -170,15 +170,15 @@ export const ExperienceSection: React.FC = () => {
                     alt={language === "vi" ? photo.titleVi : photo.titleEn}
                     fill
                     priority={idx === 0}
-                    quality={90}
-                    sizes="(max-width: 1024px) 100vw, 640px"
-                    className="object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-700 ease-out"
+                    quality={95}
+                    sizes="(max-width: 1024px) 100vw, 720px"
+                    className="object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-1000 ease-out will-change-transform"
                   />
                 </div>
               ))}
 
-              {/* Gradient Vignette for Text Contrast */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/25 to-black/30 z-20 pointer-events-none" />
+              {/* Bottom Scrim for Text Contrast - leaves top 65% of photo crystal clear & vibrant */}
+              <div className="absolute inset-x-0 bottom-0 h-3/5 bg-gradient-to-t from-black/95 via-black/50 to-transparent z-20 pointer-events-none" />
 
               {/* Top Badge: General Collection Tag */}
               <div className="absolute top-6 left-6 z-30">

@@ -1,13 +1,31 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { siteConfig } from "@/config/siteConfig";
+import { getLiveSettings } from "@/lib/adminDataService";
+import { businessSettings as defaultBusinessSettings } from "@/lib/mock-data";
+import { bookingStore } from "@/lib/bookingStore";
 import { MessageCircle } from "lucide-react";
 
 export const FloatingWhatsApp: React.FC = () => {
+  const [settings, setSettings] = useState<typeof defaultBusinessSettings>(defaultBusinessSettings);
+
+  useEffect(() => {
+    setSettings(getLiveSettings());
+    const unsub = bookingStore.subscribe((payload) => {
+      if (payload.action === "SETTINGS_UPDATE" || payload.action === "APP_DATA_UPDATE") {
+        setSettings(getLiveSettings());
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  const phoneRaw = (settings.phone || siteConfig.contact.phone).replace(/[^0-9]/g, "");
+  const whatsappUrl = siteConfig.contact.whatsapp || `https://wa.me/${phoneRaw}`;
+
   return (
     <a
-      href={siteConfig.contact.whatsapp}
+      href={whatsappUrl}
       target="_blank"
       rel="noreferrer"
       className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5 bg-[#25D366] hover:bg-[#20ba5a] text-white px-4 py-3 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 group border border-white/20"

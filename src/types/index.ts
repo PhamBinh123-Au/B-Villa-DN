@@ -14,6 +14,7 @@ export interface Villa {
   bedrooms: number;
   bathrooms: number;
   maxGuests: number;
+  area?: number;
   poolType: string;
   poolTypeVi?: string;
   image: string;
@@ -69,6 +70,9 @@ export interface BookingInquiry {
   paymentStatus?: PaymentStatus; // "unpaid" (Chưa thu) | "paid" (Đã thu) | "deposit" (Đã cọc)
   paidAmountVnd?: number; // Amount collected so far
   paymentNotes?: string; // e.g. "Chuyển khoản Vietcombank"
+  source?: string; // "direct" | "ota_booking" | "ota_agoda" | "ota_airbnb" | "phone"
+  isCheckedIn?: boolean; // True when guest has checked in
+  checkedInAt?: string;
   isCheckedOut?: boolean; // True when guest has checked out / moved to turnover section
   checkedOutAt?: string;
 }
@@ -94,6 +98,12 @@ export interface AmenityItem {
   description: string;
 }
 
+export interface HeroSlide {
+  image: string;
+  title: string;
+  subtitle: string;
+}
+
 export interface SiteConfig {
   name: string;
   tagline: string;
@@ -111,8 +121,10 @@ export interface SiteConfig {
     zalo?: string;
     instagram?: string;
     facebook: string;
+    facebookPersonal?: string;
     tiktok: string;
   };
+  heroSlides?: HeroSlide[];
   villas: Villa[];
   amenities: AmenityItem[];
   galleryItems: GalleryItem[];

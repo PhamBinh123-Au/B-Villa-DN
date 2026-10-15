@@ -90,6 +90,8 @@ export const LuxuryVillaSelector: React.FC<LuxuryVillaSelectorProps> = ({
               src={currentVilla.image}
               alt={currentVilla.name}
               fill
+              quality={90}
+              sizes="96px"
               className="object-cover group-hover:scale-105 transition-transform duration-300"
             />
             <div className="absolute top-0.5 left-0.5 bg-black/80 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.2 rounded shadow-2xs">
@@ -152,6 +154,7 @@ export const LuxuryVillaSelector: React.FC<LuxuryVillaSelectorProps> = ({
       <AnimatePresence>
         {isOpen && (
           <motion.div
+            data-lenis-prevent
             initial={{ opacity: 0, y: 8, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 6, scale: 0.98 }}
@@ -195,6 +198,8 @@ export const LuxuryVillaSelector: React.FC<LuxuryVillaSelectorProps> = ({
                         src={v.image}
                         alt={v.name}
                         fill
+                        quality={90}
+                        sizes="96px"
                         className="object-cover group-hover:scale-105 transition-transform duration-300"
                       />
                       <div className="absolute top-0.5 left-0.5 bg-black/85 backdrop-blur-xs text-white text-[9px] font-black px-1.5 py-0.2 rounded">

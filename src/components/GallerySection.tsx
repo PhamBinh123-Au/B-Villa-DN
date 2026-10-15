@@ -106,10 +106,13 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
               src={item.src}
               alt={item.title}
               fill
-              sizes="(max-width: 768px) 100vw, 25vw"
-              className="object-cover object-center group-hover:scale-110 transition-transform duration-700 ease-out"
+              unoptimized
+              sizes="100vw"
+              className="object-cover object-center group-hover:scale-[1.04] transition-transform duration-700 ease-out will-change-transform"
+              style={{ imageRendering: "-webkit-optimize-contrast" }}
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent opacity-80 group-hover:opacity-90 transition-opacity" />
+            {/* Elegant bottom scrim - keeps upper half of photo crystal clear & vibrant */}
+            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
 
             {/* Top Pill */}
             <div className="absolute top-4 left-4 z-10">
@@ -177,7 +180,10 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
                 alt={filteredItems[lightboxIndex].title}
                 fill
                 priority
+                unoptimized
+                sizes="100vw"
                 className="object-contain object-center"
+                style={{ imageRendering: "-webkit-optimize-contrast" }}
               />
             </div>
 

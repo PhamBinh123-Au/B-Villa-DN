@@ -40,16 +40,9 @@ export default function RootLayout({
     <html
       lang="vi"
       suppressHydrationWarning
-      className={`scroll-smooth ${quicksand.variable}`}
+      className={quicksand.variable}
     >
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap"
-          rel="stylesheet"
-        />
-      </head>
+      <head />
       <body
         suppressHydrationWarning
         className={`${quicksand.className} antialiased min-h-screen flex flex-col bg-[#FAF8F5] text-[#14171A]`}

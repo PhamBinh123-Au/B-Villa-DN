@@ -8,9 +8,9 @@ import { ExperienceSection } from "@/components/ExperienceSection";
 import { AmenitiesSection } from "@/components/AmenitiesSection";
 import { Footer } from "@/components/Footer";
 import { BookingModal } from "@/components/BookingModal";
-import { FloatingWhatsApp } from "@/components/FloatingWhatsApp";
 import { Villa } from "@/types";
 import { siteConfig } from "@/config/siteConfig";
+import { LenisProvider } from "@/components/common/LenisProvider";
 
 export default function HomePage() {
   const [isBookingOpen, setIsBookingOpen] = useState(false);
@@ -47,35 +47,34 @@ export default function HomePage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#FAF8F5] text-[#14171A] selection:bg-[#C2A476] selection:text-white">
-      {/* Navigation */}
-      <Navbar onOpenBooking={() => handleOpenBooking(null)} />
+    <LenisProvider>
+      <main className="min-h-screen bg-[#FAF8F5] text-[#14171A] selection:bg-[#C2A476] selection:text-white relative">
+        {/* Navigation */}
+        <Navbar onOpenBooking={() => handleOpenBooking(null)} />
 
-      {/* Hero Section with Quick Availability */}
-      <Hero onCheckAvailability={handleHeroAvailability} />
+        {/* Hero Section with Quick Availability */}
+        <Hero onCheckAvailability={handleHeroAvailability} />
 
-      {/* Villas Showcase Section (4 properties) */}
-      <VillasSection onInquire={handleOpenBooking} />
+        {/* Villas Showcase Section (4 properties) */}
+        <VillasSection onInquire={handleOpenBooking} />
 
-      {/* Experience & Architectural Philosophy */}
-      <ExperienceSection />
+        {/* Experience & Architectural Philosophy */}
+        <ExperienceSection />
 
-      {/* Signature Amenities (4 Curated Essentials) */}
-      <AmenitiesSection />
+        {/* Signature Amenities (4 Curated Essentials) */}
+        <AmenitiesSection />
 
-      {/* Footer */}
-      <Footer />
+        {/* Footer */}
+        <Footer />
 
-      {/* Reservation Inquiry Modal */}
-      <BookingModal
-        isOpen={isBookingOpen}
-        onClose={() => setIsBookingOpen(false)}
-        preSelectedVilla={selectedVilla}
-        initialDates={initialDates}
-      />
-
-      {/* Direct Floating WhatsApp Contact */}
-      <FloatingWhatsApp />
-    </main>
+        {/* Reservation Inquiry Modal */}
+        <BookingModal
+          isOpen={isBookingOpen}
+          onClose={() => setIsBookingOpen(false)}
+          preSelectedVilla={selectedVilla}
+          initialDates={initialDates}
+        />
+      </main>
+    </LenisProvider>
   );
 }

@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverStore } from "@/lib/serverStore";
+import { verifyAdminSession } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
   try {
+    if (!verifyAdminSession(request)) {
+      return NextResponse.json(
+        { error: "Unauthorized: Quyền xuất dữ liệu đồng bộ chỉ dành cho Quản Trị Viên." },
+        { status: 401 }
+      );
+    }
+
     const data = await serverStore.getData();
     const isCloud = serverStore.isCloudStorage();
 
@@ -36,7 +44,7 @@ export async function GET(request: NextRequest) {
   } catch (err: any) {
     console.error("GET /api/bookings/sync error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to export bookings" },
+      { error: "Lỗi hệ thống khi xuất dữ liệu đồng bộ." },
       { status: 500 }
     );
   }
@@ -44,6 +52,13 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!verifyAdminSession(request)) {
+      return NextResponse.json(
+        { error: "Unauthorized: Quyền nhập dữ liệu đồng bộ chỉ dành cho Quản Trị Viên." },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     let importData: any = null;
 
@@ -53,7 +68,7 @@ export async function POST(request: NextRequest) {
         importData = JSON.parse(decoded);
       } catch {
         return NextResponse.json(
-          { error: "Invalid sync token format. Please ensure you copied the complete token." },
+          { error: "Mã token đồng bộ không đúng định dạng." },
           { status: 400 }
         );
       }
@@ -61,7 +76,7 @@ export async function POST(request: NextRequest) {
       importData = body;
     } else {
       return NextResponse.json(
-        { error: "Missing syncToken or inquiries data" },
+        { error: "Thiếu dữ liệu đồng bộ hoặc syncToken." },
         { status: 400 }
       );
     }
@@ -89,7 +104,7 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     console.error("POST /api/bookings/sync error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to import bookings" },
+      { error: "Lỗi hệ thống khi nhập dữ liệu đồng bộ." },
       { status: 500 }
     );
   }

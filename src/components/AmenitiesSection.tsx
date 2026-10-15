@@ -1,13 +1,25 @@
 "use client";
 
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useLanguage } from "@/context/LanguageContext";
+import { getLiveAmenities, DEFAULT_AMENITIES } from "@/lib/adminDataService";
+import { bookingStore } from "@/lib/bookingStore";
 import {
   Waves,
   Wifi,
   Sparkles,
   UtensilsCrossed,
+  Utensils,
+  Flame,
+  Car,
+  Eye,
+  Coffee,
+  Trees,
+  Wind,
+  Building,
+  Shirt,
+  ShieldCheck,
 } from "lucide-react";
 
 interface AmenityItem {
@@ -18,7 +30,7 @@ interface AmenityItem {
   descEn: string;
 }
 
-const AMENITIES_LIST: AmenityItem[] = [
+const FALLBACK_AMENITIES: AmenityItem[] = [
   {
     icon: "Waves",
     titleVi: "Hồ Bơi Riêng Biệt Lập",
@@ -54,10 +66,53 @@ const iconMap: Record<string, React.ReactNode> = {
   Wifi: <Wifi className="w-6 h-6 text-[#C2A476]" />,
   Sparkles: <Sparkles className="w-6 h-6 text-[#C2A476]" />,
   UtensilsCrossed: <UtensilsCrossed className="w-6 h-6 text-[#C2A476]" />,
+  Utensils: <Utensils className="w-6 h-6 text-[#C2A476]" />,
+  Flame: <Flame className="w-6 h-6 text-[#C2A476]" />,
+  Car: <Car className="w-6 h-6 text-[#C2A476]" />,
+  Eye: <Eye className="w-6 h-6 text-[#C2A476]" />,
+  Coffee: <Coffee className="w-6 h-6 text-[#C2A476]" />,
+  Trees: <Trees className="w-6 h-6 text-[#C2A476]" />,
+  Wind: <Wind className="w-6 h-6 text-[#C2A476]" />,
+  Building: <Building className="w-6 h-6 text-[#C2A476]" />,
+  Shirt: <Shirt className="w-6 h-6 text-[#C2A476]" />,
+  ShieldCheck: <ShieldCheck className="w-6 h-6 text-[#C2A476]" />,
 };
+
+const INITIAL_AMENITIES: AmenityItem[] = DEFAULT_AMENITIES.map((item) => ({
+  icon: item.iconName || "Sparkles",
+  titleVi: item.name,
+  titleEn: item.name,
+  descVi: item.description,
+  descEn: item.description,
+}));
 
 export const AmenitiesSection: React.FC = () => {
   const { language } = useLanguage();
+  const [amenities, setAmenities] = useState<AmenityItem[]>(INITIAL_AMENITIES);
+
+  useEffect(() => {
+    const syncAmenities = () => {
+      const live = getLiveAmenities();
+      if (live && live.length > 0) {
+        setAmenities(
+          live.map((item) => ({
+            icon: item.iconName || "Sparkles",
+            titleVi: item.name,
+            titleEn: item.name,
+            descVi: item.description,
+            descEn: item.description,
+          }))
+        );
+      }
+    };
+    syncAmenities();
+    const unsub = bookingStore.subscribe((payload) => {
+      if (payload.action === "APP_DATA_UPDATE" || payload.action === "UPDATE") {
+        syncAmenities();
+      }
+    });
+    return () => unsub();
+  }, []);
 
   return (
     <section id="amenities" className="py-24 px-6 md:px-12 max-w-7xl mx-auto scroll-mt-20">
@@ -83,19 +138,21 @@ export const AmenitiesSection: React.FC = () => {
       </motion.div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {AMENITIES_LIST.map((item, index) => (
+        {amenities.map((item, index) => (
           <motion.div
             key={index}
             initial={{ opacity: 0, y: 25 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-40px" }}
             transition={{ duration: 0.6, delay: index * 0.1, ease: [0.16, 1, 0.3, 1] }}
-            whileHover={{ y: -4, transition: { duration: 0.25 } }}
-            className="p-7 rounded-3xl bg-white border border-[#EAE5DC] hover:border-[#C2A476]/60 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col justify-between"
+            whileHover={{ y: -8, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } }}
+            className="p-7 rounded-3xl bg-white border border-[#EAE5DC] hover:border-[#C2A476] shadow-sm hover:shadow-[0_20px_40px_rgba(194,164,118,0.22)] transition-all duration-300 group flex flex-col justify-between cursor-pointer"
           >
             <div>
-              <div className="w-13 h-13 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center justify-center mb-5 group-hover:scale-110 group-hover:bg-[#14171A] group-hover:border-[#14171A] transition-all duration-300">
-                {iconMap[item.icon] || <Sparkles className="w-6 h-6 text-[#C2A476]" />}
+              <div className="w-14 h-14 rounded-2xl bg-[#FAF6EE] border border-[#EAE5DC] flex items-center justify-center mb-5 group-hover:scale-115 group-hover:-rotate-6 group-hover:bg-gradient-to-br group-hover:from-[#C2A476] group-hover:to-[#8A6B3D] group-hover:border-transparent group-hover:shadow-lg transition-all duration-300">
+                <span className="text-[#C2A476] group-hover:text-white transition-colors duration-300 [&>svg]:text-inherit">
+                  {iconMap[item.icon] || <Sparkles className="w-6 h-6 text-inherit" />}
+                </span>
               </div>
               <h3 className="text-base sm:text-lg font-bold text-neutral-900 mb-2 leading-snug">
                 {language === "vi" ? item.titleVi : item.titleEn}

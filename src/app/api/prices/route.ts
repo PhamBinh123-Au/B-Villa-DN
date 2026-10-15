@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverStore } from "@/lib/serverStore";
+import { verifyAdminSession } from "@/lib/serverAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET() {
   } catch (err: any) {
     console.error("GET /api/prices error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to fetch prices" },
+      { error: "Không thể lấy thông tin giá phòng." },
       { status: 500 }
     );
   }
@@ -23,6 +24,12 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    if (!verifyAdminSession(request)) {
+      return NextResponse.json(
+        { error: "Unauthorized: Quyền cập nhật giá phòng chỉ dành cho Quản Trị Viên." },
+        { status: 401 }
+      );
+    }
     const body = await request.json();
     const { prices, villaId, priceVnd, usdRate } = body;
 
@@ -44,7 +51,7 @@ export async function POST(request: NextRequest) {
   } catch (err: any) {
     console.error("POST /api/prices error:", err);
     return NextResponse.json(
-      { error: err.message || "Failed to update prices" },
+      { error: "Lỗi hệ thống khi cập nhật giá phòng." },
       { status: 500 }
     );
   }

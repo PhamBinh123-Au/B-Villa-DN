@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { siteConfig } from "@/config/siteConfig";
@@ -128,8 +129,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     };
   }, [isOpen, onClose]);
 
+  const [mounted, setMounted] = useState(false);
   const [priceVersion, setPriceVersion] = useState(0);
   useEffect(() => {
+    setMounted(true);
     const unsubscribe = bookingStore.subscribe((payload) => {
       if (payload.action === "PRICE_UPDATE" || payload.action === "UPDATE") {
         setPriceVersion((v) => v + 1);
@@ -138,7 +141,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     return unsubscribe;
   }, []);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   const currentVilla = siteConfig.villas.find((v) => v.id === villaId) || siteConfig.villas[0];
   const currentPrice = currentVilla ? bookingStore.getVillaPrice(currentVilla.id) : 0;
@@ -242,16 +245,20 @@ export const BookingModal: React.FC<BookingModalProps> = ({
     onClose();
   };
 
-  return (
+  return createPortal(
     <div
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
         }
       }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/80 backdrop-blur-md animate-fade-in"
+      className="fixed inset-0 z-[99990] flex items-center justify-center p-3 sm:p-6 overflow-y-auto bg-black/85 backdrop-blur-md animate-fade-in"
+      data-lenis-prevent
     >
-      <div className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-[#EAE5DC] my-auto sm:my-8 max-h-[92vh] overflow-y-auto flex flex-col">
+      <div
+        data-lenis-prevent
+        className="relative w-full max-w-2xl bg-white rounded-3xl shadow-2xl border border-[#EAE5DC] my-auto sm:my-8 max-h-[92vh] overflow-y-auto flex flex-col [scrollbar-width:thin] [scrollbar-color:#C2A476_transparent]"
+      >
         {/* Sticky Header Bar */}
         <div className="sticky top-0 z-30 bg-[#14171A] text-white px-5 sm:px-6 py-4 flex items-center justify-between border-b border-white/10 rounded-t-3xl shadow-sm shrink-0">
           <div>
@@ -313,19 +320,38 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 max-w-md mx-auto mb-6 text-center">
+                <p className="text-xs text-amber-900 font-semibold leading-relaxed">
+                  {language === "vi" ? (
+                    <>⚠️ Đội ngũ B-Villa sẽ <strong>gọi điện hoặc nhắn Zalo</strong> tới số <span className="font-mono font-bold text-amber-950">{phone || "của quý khách"}</span> trong 10-15 phút để kiểm tra lịch trống và xác nhận giữ căn.</>
+                  ) : (
+                    <>⚠️ Our concierge team will <strong>call or message via WhatsApp/Zalo</strong> within 10-15 minutes to verify calendar availability and confirm your stay.</>
+                  )}
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2.5 justify-center">
                 <a
-                  href={`${siteConfig.contact.whatsapp}?text=Hello!%20I%20just%20submitted%20inquiry%20${submittedInquiryId}%20for%20${encodeURIComponent(currentVilla.name)}.`}
+                  href={siteConfig.social.zalo}
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1fb355] text-white py-3.5 px-6 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                  className="inline-flex items-center justify-center gap-2 bg-[#0068FF] hover:bg-[#0055d4] text-white py-3 px-5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
                 >
                   <MessageCircle className="w-4 h-4" />
-                  <span>{language === "vi" ? "Nhắn WhatsApp / Zalo Ngay" : "Chat on WhatsApp Now"}</span>
+                  <span>{language === "vi" ? "💬 Chat Zalo Xác Nhận Ngay" : "💬 Chat on Zalo Now"}</span>
                 </a>
+
+                <a
+                  href={`tel:${siteConfig.contact.phone}`}
+                  className="inline-flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white py-3 px-5 rounded-xl text-xs font-bold uppercase tracking-wider transition-all shadow-md cursor-pointer"
+                >
+                  <Phone className="w-4 h-4" />
+                  <span>{language === "vi" ? "📞 Gọi Hotline 24/7" : "📞 Call Concierge"}</span>
+                </a>
+
                 <button
                   onClick={handleReset}
-                  className="inline-flex items-center justify-center bg-[#14171A] hover:bg-neutral-800 text-white py-3.5 px-6 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
+                  className="inline-flex items-center justify-center bg-[#14171A] hover:bg-neutral-800 text-white py-3 px-5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all cursor-pointer"
                 >
                   {t("modal.close", "Done")}
                 </button>
@@ -352,7 +378,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                         src={currentVilla.image}
                         alt={currentVilla.name}
                         fill
+                        unoptimized
+                        sizes="88px"
                         className="object-cover"
+                        style={{ imageRendering: "-webkit-optimize-contrast" }}
                       />
                       <div className="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-sm text-white text-[9px] font-bold px-1 rounded">
                         {currentVilla.code}
@@ -383,7 +412,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.98 }}
                       transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                      className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-[#EAE5DC] p-2 z-50 text-neutral-900 max-h-[290px] overflow-y-auto space-y-1"
+                      data-lenis-prevent
+                      className="absolute left-0 right-0 top-full mt-2 bg-white rounded-2xl shadow-2xl border border-[#EAE5DC] p-2 z-50 text-neutral-900 max-h-[290px] overflow-y-auto space-y-1 overscroll-contain [scrollbar-width:thin] [scrollbar-color:#C2A476_transparent]"
                     >
                       {siteConfig.villas.map((v) => {
                         const isSelected = v.id === currentVilla.id;
@@ -408,7 +438,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                                   src={v.image}
                                   alt={v.name}
                                   fill
+                                  unoptimized
+                                  sizes="80px"
                                   className="object-cover group-hover:scale-105 transition-transform duration-300"
+                                  style={{ imageRendering: "-webkit-optimize-contrast" }}
                                 />
                                 <div className="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-sm text-white text-[9px] font-bold px-1 rounded">
                                   {v.code}
@@ -711,10 +744,10 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   </button>
                 </div>
 
-                <p className="text-[11px] text-center text-neutral-400 mt-2.5">
+                <p className="text-[11px] text-center text-neutral-500 mt-2.5 leading-relaxed">
                   {language === "vi"
-                    ? "Không mất phí giữ chỗ ngay lúc này. Đội ngũ quản gia sẽ liên hệ xác nhận trong vòng 1 giờ."
-                    : "No payment required now. Our team will verify availability and confirm within 1 hour."}
+                    ? "✨ Quý khách chưa cần thanh toán ngay. Để đảm bảo không bị trùng lịch, B-Villa sẽ kiểm tra và gọi điện / nhắn Zalo xác nhận trong 10-15 phút!"
+                    : "✨ No advance payment required now. Our team will verify calendar availability and contact via phone/Zalo within 10-15 minutes!"}
                 </p>
               </div>
             </form>
@@ -738,6 +771,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
           onCancel={() => setModalAlert(null)}
         />
       )}
-    </div>
+    </div>,
+    document.body
   );
 };

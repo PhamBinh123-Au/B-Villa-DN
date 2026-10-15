@@ -153,8 +153,9 @@ export default function AdminPage() {
   const [maintenanceEndDate, setMaintenanceEndDate] = useState("");
   const [maintenanceIsIndefinite, setMaintenanceIsIndefinite] = useState(false);
 
-  // Admin Active View Tab
+  // Admin Active View Tab & Advanced Settings Toggle
   const [adminViewTab, setAdminViewTab] = useState<"all_bookings" | "turnover" | "pricing" | "maintenance">("all_bookings");
+  const [showAdvancedSettings, setShowAdvancedSettings] = useState(false);
 
   // Turnover & Housekeeping States
   const [turnoverFilter, setTurnoverFilter] = useState<"all" | "needs_cleaning" | "in_cleaning" | "cleaned" | "today">("all");
@@ -634,6 +635,36 @@ export default function AdminPage() {
     }
   };
 
+  const getZaloLink = (rawPhone: string): string => {
+    let cleaned = rawPhone.replace(/[^0-9]/g, "");
+    if (cleaned.startsWith("84")) {
+      cleaned = "0" + cleaned.slice(2);
+    }
+    return `https://zalo.me/${cleaned}`;
+  };
+
+  const handleConfirmBookingWithCheck = (inq: BookingInquiry) => {
+    const conflicts = bookingStore.findConflictsForInquiry(inq);
+    const confirmedConflicts = conflicts.filter((c) => c.status === "confirmed");
+    if (confirmedConflicts.length > 0) {
+      const firstConf = confirmedConflicts[0];
+      showAdminNotice(
+        language === "vi" ? "Cảnh Báo: Trùng Lịch Với Đơn Đã Chốt!" : "Schedule Conflict Detected!",
+        language === "vi"
+          ? `Biệt thự ${inq.villaName} đã có đơn #${firstConf.id} (${firstConf.guestName}: ${firstConf.checkIn} → ${firstConf.checkOut}) đã xác nhận giữ phòng. Không thể xác nhận đơn này để tránh trùng phòng! Vui lòng gọi điện/nhắn Zalo cho khách để tư vấn đổi ngày hoặc đổi sang căn villa khác.`
+          : `Villa ${inq.villaName} already has confirmed booking #${firstConf.id} for these dates. Overlapping bookings cannot be confirmed. Please contact the guest to reschedule.`,
+        "danger",
+        language === "vi" ? "Trùng Lịch" : "Conflict",
+        [
+          { label: language === "vi" ? "Đơn đã chốt" : "Confirmed Booking", value: `#${firstConf.id} - ${firstConf.guestName}` },
+          { label: language === "vi" ? "Ngày trùng" : "Dates", value: `${firstConf.checkIn} → ${firstConf.checkOut}` },
+        ]
+      );
+      return;
+    }
+    handleQuickStatusChange(inq.id, "confirmed");
+  };
+
   const handleQuickStatusChange = (id: string, newStatus: InquiryStatus) => {
     bookingStore.updateStatus(id, newStatus);
     reloadInquiries();
@@ -871,7 +902,7 @@ export default function AdminPage() {
     );
   }
 
-  // KPIs
+  // KPIs: Sale & Booking Pipeline Focused
   const totalCount = inquiries.length;
   // Các đơn đang hoạt động (chưa đến ngày trả phòng và chưa trả phòng, không tính đã huỷ)
   const activeCount = inquiries.filter((i) => {
@@ -880,7 +911,7 @@ export default function AdminPage() {
     return stay === "upcoming" || stay === "in_house";
   }).length;
 
-  // Các đơn đã đến hạn trả phòng hoặc đã hết ngày (tự động chuyển sang mục Trả Phòng & Dọn Dẹp)
+  // Các đơn đã đến hạn trả phòng hoặc đã qua ngày trả (tự động chuyển sang mục Đã Trả Phòng)
   const checkoutCount = inquiries.filter((i) => {
     if (i.status === "cancelled") return false;
     if (i.isCheckedOut) return true;
@@ -896,11 +927,19 @@ export default function AdminPage() {
   const pendingCount = inquiries.filter((i) => i.status === "pending" && getStayStatus(i.checkIn, i.checkOut) !== "expired" && !i.isCheckedOut).length;
   const contactedCount = inquiries.filter((i) => i.status === "contacted").length;
   const confirmedCount = inquiries.filter((i) => i.status === "confirmed").length;
+  const cancelledCount = inquiries.filter((i) => i.status === "cancelled").length;
+
+  // Đơn bị trùng lịch cần sale kiểm tra (Chỉ tính các đơn chưa xác nhận mà bị trùng ngày với đơn khác)
+  const conflictCount = inquiries.filter((i) => {
+    if (i.status === "cancelled" || i.status === "confirmed" || i.isCheckedOut) return false;
+    return bookingStore.findConflictsForInquiry(i).length > 0;
+  }).length;
+
   const maintenanceCount = siteConfig.villas.filter((v) => bookingStore.isVillaUnderMaintenance(v.id)).length;
   const hkSummary = bookingStore.getHousekeepingSummary();
   const paySummary = bookingStore.getPaymentSummary();
 
-  // Filtered List for All Bookings Tab
+  // Filtered List for All Bookings Tab (Streamlined for Sale & Room Booking Management)
   const filteredInquiries = inquiries.filter((inq) => {
     const matchesSearch =
       inq.guestName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -914,18 +953,28 @@ export default function AdminPage() {
 
     let matchesStatus = true;
     if (statusFilter === "all" || statusFilter === "active") {
-      // MẶC ĐỊNH: Chỉ hiển thị các đơn đang hoạt động (chưa đến ngày trả phòng và chưa trả phòng)
-      // Khi hết ngày hoặc đến ngày trả phòng, đơn tự động chuyển sang tab "Trả Phòng & Dọn Dẹp"
+      // MẶC ĐỊNH: Chỉ hiển thị các đơn đang hoạt động (chưa đến ngày trả phòng và chưa trả phòng, chưa hủy)
       matchesStatus = !isCheckout && inq.status !== "cancelled";
-    } else if (statusFilter === "history_all") {
-      // Xem toàn bộ lịch sử (kể cả đã trả phòng)
-      matchesStatus = true;
-    } else if (statusFilter === "checkout_today") {
-      matchesStatus = isCheckoutToday(inq.checkOut) || Boolean(inq.isCheckedOut);
-    } else if (statusFilter === "expired") {
-      matchesStatus = stay === "expired" || Boolean(inq.isCheckedOut);
+    } else if (statusFilter === "pending") {
+      matchesStatus = inq.status === "pending" && !isCheckout;
+    } else if (statusFilter === "contacted") {
+      matchesStatus = inq.status === "contacted" && !isCheckout;
+    } else if (statusFilter === "confirmed") {
+      matchesStatus = inq.status === "confirmed" && !isCheckout;
+    } else if (statusFilter === "checkout" || statusFilter === "expired" || statusFilter === "checkout_today") {
+      matchesStatus = isCheckout && inq.status !== "cancelled";
+    } else if (statusFilter === "conflict") {
+      matchesStatus =
+        inq.status !== "cancelled" &&
+        inq.status !== "confirmed" &&
+        !isCheckout &&
+        bookingStore.findConflictsForInquiry(inq).length > 0;
+    } else if (statusFilter === "cancelled") {
+      matchesStatus = inq.status === "cancelled";
     } else if (statusFilter === "in_house") {
-      matchesStatus = stay === "in_house" && !inq.isCheckedOut;
+      matchesStatus = stay === "in_house" && !inq.isCheckedOut && inq.status !== "cancelled";
+    } else if (statusFilter === "history_all") {
+      matchesStatus = true;
     } else {
       matchesStatus = inq.status === statusFilter;
     }
@@ -933,13 +982,7 @@ export default function AdminPage() {
     const matchesVilla =
       villaFilter === "all" ? true : inq.villaId === villaFilter;
 
-    let matchesPayment = true;
-    if (paymentFilter !== "all") {
-      const pStatus = inq.paymentStatus || "unpaid";
-      matchesPayment = pStatus === paymentFilter;
-    }
-
-    return matchesSearch && matchesStatus && matchesVilla && matchesPayment;
+    return matchesSearch && matchesStatus && matchesVilla;
   });
 
   // Filtered List for Turnover & Housekeeping Tab (completed stays, checkout today, or checked out)
@@ -1128,6 +1171,27 @@ export default function AdminPage() {
               <span>{t("admin.block_dates_btn", "Block Dates / New Booking")}</span>
             </motion.button>
 
+            {/* Secondary Tools Toggle (Pricing, Maintenance) */}
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => {
+                setShowAdvancedSettings((prev) => !prev);
+                if (showAdvancedSettings) {
+                  setAdminViewTab("all_bookings");
+                }
+              }}
+              className={`text-xs px-3 py-1.5 rounded-xl border transition-all flex items-center gap-1.5 cursor-pointer font-medium ${
+                showAdvancedSettings
+                  ? "bg-[#C2A476] text-white border-[#C2A476] shadow-sm"
+                  : "bg-white/10 text-neutral-300 border-white/10 hover:bg-white/15 hover:text-white"
+              }`}
+              title="Ẩn / Hiện các công cụ phụ: Bảng giá và Lịch bảo trì"
+            >
+              <Wrench className="w-3.5 h-3.5" />
+              <span>{showAdvancedSettings ? (language === "vi" ? "Ẩn Công Cụ Phụ" : "Hide Extra Tools") : (language === "vi" ? "⚙️ Công Cụ Phụ" : "⚙️ Extra Tools")}</span>
+            </motion.button>
+
             {/* Sample Demo Data Reset */}
             <motion.button
               whileHover={{ scale: 1.05 }}
@@ -1290,223 +1354,168 @@ export default function AdminPage() {
             </p>
           </motion.div>
 
-          {/* 5. Housekeeping & Turnover */}
+          {/* 5. Checked Out (Tự động chuyển vào đây khi hết ngày hoặc trả phòng) */}
           <motion.div
             whileHover={{ y: -3, scale: 1.015 }}
             whileTap={{ scale: 0.98 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
             onClick={() => {
-              setAdminViewTab("turnover");
-              setTurnoverFilter("needs_cleaning");
+              setAdminViewTab("all_bookings");
+              setStatusFilter("checkout");
             }}
             className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
-              adminViewTab === "turnover"
-                ? "bg-indigo-50/40 border-indigo-400 ring-2 ring-indigo-400/30 shadow-md"
-                : hkSummary.needsCleaning > 0
-                ? "bg-[#FFF9F9] border-rose-300 hover:border-rose-400 hover:shadow-sm"
-                : "bg-white/90 border-[#EAE5DC] hover:border-indigo-300 hover:shadow-sm"
+              adminViewTab === "all_bookings" && statusFilter === "checkout"
+                ? "bg-purple-50/60 border-purple-400 ring-2 ring-purple-400/30 shadow-md"
+                : "bg-white/90 border-[#EAE5DC] hover:border-purple-300 hover:shadow-sm"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
-              <span className={`text-xs font-bold uppercase tracking-wider ${
-                hkSummary.needsCleaning > 0 ? "text-rose-700" : "text-neutral-600"
-              }`}>
-                {language === "vi" ? "Cần Dọn Dẹp" : "Housekeeping"}
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-800">
+                {language === "vi" ? "Đã Trả Phòng" : "Checked Out"}
               </span>
-              <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${
-                hkSummary.needsCleaning > 0
-                  ? "bg-rose-100 border-rose-300 text-rose-700"
-                  : "bg-indigo-50 border-indigo-200 text-indigo-600"
-              }`}>
+              <div className="w-8 h-8 rounded-xl bg-purple-50 border border-purple-200 text-purple-600 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform">
                 <Sparkles className="w-4 h-4" />
               </div>
             </div>
             <div className="my-1 flex items-baseline gap-1.5">
-              <p className={`text-2xl sm:text-3xl font-black tracking-tight ${
-                hkSummary.needsCleaning > 0 ? "text-rose-600" : "text-indigo-600"
-              }`}>
-                {hkSummary.needsCleaning}
+              <p className="text-2xl sm:text-3xl font-black tracking-tight text-purple-600">
+                {checkoutCount}
               </p>
               <span className="text-xs text-neutral-500 font-medium">
-                / {hkSummary.total} {language === "vi" ? "phòng" : "stays"}
+                {language === "vi" ? "đơn" : "stays"}
               </span>
             </div>
-            <p className={`text-xs font-medium truncate ${
-              hkSummary.needsCleaning > 0 ? "text-rose-600 font-semibold" : "text-neutral-500"
-            }`}>
-              {hkSummary.needsCleaning > 0
-                ? language === "vi" ? "Cần điều phối buồng phòng" : "Needs cleaning action"
-                : language === "vi" ? "Đã dọn sạch tất cả" : "All rooms cleaned"}
+            <p className="text-xs text-purple-700 font-medium truncate">
+              {checkoutCount > 0
+                ? language === "vi" ? "Đã hết ngày lưu trú" : "Stays ended"
+                : language === "vi" ? "Chưa có lượt trả" : "No checkouts"}
             </p>
           </motion.div>
 
-          {/* 6. Under Maintenance */}
+          {/* 6. Overlap Conflicts (Cảnh Báo Trùng Lịch) */}
           <motion.div
             whileHover={{ y: -3, scale: 1.015 }}
             whileTap={{ scale: 0.98 }}
             transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            onClick={() => setAdminViewTab("maintenance")}
+            onClick={() => {
+              setAdminViewTab("all_bookings");
+              setStatusFilter("conflict");
+            }}
             className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between min-h-[130px] group cursor-pointer ${
-              adminViewTab === "maintenance"
-                ? "bg-amber-50/50 border-amber-400 ring-2 ring-amber-400/30 shadow-md"
-                : maintenanceCount > 0
-                ? "bg-[#FFFBF5] border-amber-300 hover:border-amber-400 hover:shadow-sm"
-                : "bg-white/90 border-[#EAE5DC] hover:border-[#C2A476] hover:shadow-sm"
+              adminViewTab === "all_bookings" && statusFilter === "conflict"
+                ? "bg-rose-50/60 border-rose-400 ring-2 ring-rose-400/30 shadow-md"
+                : conflictCount > 0
+                ? "bg-[#FFF9F9] border-rose-300 hover:border-rose-400 hover:shadow-sm"
+                : "bg-white/90 border-[#EAE5DC] hover:border-rose-300 hover:shadow-sm"
             }`}
           >
             <div className="flex items-center justify-between gap-2">
               <span className={`text-xs font-bold uppercase tracking-wider ${
-                maintenanceCount > 0 ? "text-amber-800" : "text-neutral-600"
+                conflictCount > 0 ? "text-rose-800 font-black animate-pulse" : "text-neutral-600"
               }`}>
-                {t("admin.kpi_maintenance", "Maintenance")}
+                {language === "vi" ? "Trùng Lịch" : "Conflicts"}
               </span>
               <div className={`w-8 h-8 rounded-xl border flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform ${
-                maintenanceCount > 0
-                  ? "bg-amber-100 border-amber-300 text-amber-700"
+                conflictCount > 0
+                  ? "bg-rose-100 border-rose-300 text-rose-700"
                   : "bg-neutral-50 border-neutral-200 text-neutral-400"
               }`}>
-                <Wrench className={`w-4 h-4 ${maintenanceCount > 0 ? "animate-pulse" : ""}`} />
+                <AlertTriangle className={`w-4 h-4 ${conflictCount > 0 ? "animate-bounce" : ""}`} />
               </div>
             </div>
             <div className="my-1 flex items-baseline gap-1.5">
               <p className={`text-2xl sm:text-3xl font-black tracking-tight ${
-                maintenanceCount > 0 ? "text-amber-700" : "text-neutral-900"
+                conflictCount > 0 ? "text-rose-600" : "text-neutral-900"
               }`}>
-                {maintenanceCount}
+                {conflictCount}
               </p>
-              <span className="text-xs text-neutral-500 font-medium">/ 4 Villas</span>
+              <span className="text-xs text-neutral-500 font-medium">
+                {language === "vi" ? "cần check" : "to review"}
+              </span>
             </div>
             <p className={`text-xs font-medium truncate ${
-              maintenanceCount > 0 ? "text-amber-700" : "text-neutral-500"
+              conflictCount > 0 ? "text-rose-700 font-bold" : "text-neutral-500"
             }`}>
-              {maintenanceCount > 0
-                ? language === "vi" ? `${maintenanceCount} villa tạm khoá lịch` : `${maintenanceCount} villa locked`
-                : language === "vi" ? "Cả 4 villa sẵn sàng nhận khách" : "All 4 villas operational"}
+              {conflictCount > 0
+                ? language === "vi" ? "Trùng ngày cần gọi khách" : "Requires call"
+                : language === "vi" ? "Không có đơn trùng" : "No conflicts"}
             </p>
           </motion.div>
         </div>
 
-        {/* Navigation Tab Switcher (Modern Fluid Segmented Bar with Sliding Highlight) */}
-        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-6 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-[#EAE5DC] shadow-xs">
-          <button
-            type="button"
-            onClick={() => setAdminViewTab("all_bookings")}
-            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
-              adminViewTab === "all_bookings"
-                ? "text-white"
-                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
-            }`}
-          >
-            {adminViewTab === "all_bookings" && (
-              <motion.div
-                layoutId="activeAdminTabIndicator"
-                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
-                transition={{ type: "spring", stiffness: 450, damping: 35 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-2">
-              <Calendar className={`w-4 h-4 ${adminViewTab === "all_bookings" ? "text-[#C2A476]" : "text-neutral-400"}`} />
-              <span>{language === "vi" ? "📋 Quản Lý Đơn Đặt Phòng" : "📋 Active Bookings"}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                adminViewTab === "all_bookings" ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-700"
-              }`} title={language === "vi" ? `${activeCount} đơn đang hoạt động (chưa trả phòng)` : `${activeCount} active stays`}>
-                {activeCount}
-              </span>
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAdminViewTab("turnover")}
-            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
-              adminViewTab === "turnover"
-                ? "text-white"
-                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
-            }`}
-          >
-            {adminViewTab === "turnover" && (
-              <motion.div
-                layoutId="activeAdminTabIndicator"
-                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
-                transition={{ type: "spring", stiffness: 450, damping: 35 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-2">
-              <Sparkles className={`w-4 h-4 ${adminViewTab === "turnover" ? "text-indigo-400" : "text-neutral-400"}`} />
-              <span>{language === "vi" ? "🧹 Trả Phòng & Dọn Dẹp" : "🧹 Turnover & Housekeeping"}</span>
-              {checkoutCount > 0 ? (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                  hkSummary.needsCleaning > 0 ? "bg-rose-500 text-white animate-pulse" : "bg-indigo-500 text-white"
-                }`} title={language === "vi" ? `${checkoutCount} đơn đã đến hạn trả phòng hoặc hoàn tất` : `${checkoutCount} checked out stays`}>
-                  {checkoutCount}
-                </span>
-              ) : (
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                  adminViewTab === "turnover" ? "bg-white/20 text-white" : "bg-neutral-100 text-neutral-700"
-                }`}>
-                  0
-                </span>
+        {/* Secondary Tool Tabs - Only visible when showAdvancedSettings is toggled */}
+        {showAdvancedSettings && (
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-6 p-1.5 rounded-2xl bg-white/95 backdrop-blur-md border border-[#C2A476]/40 shadow-xs animate-fade-in">
+            <button
+              type="button"
+              onClick={() => setAdminViewTab("all_bookings")}
+              className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
+                adminViewTab === "all_bookings"
+                  ? "text-white"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
+              }`}
+            >
+              {adminViewTab === "all_bookings" && (
+                <motion.div
+                  layoutId="activeAdminTabIndicator"
+                  className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
               )}
-            </span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setAdminViewTab("pricing")}
-            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
-              adminViewTab === "pricing"
-                ? "text-white"
-                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
-            }`}
-          >
-            {adminViewTab === "pricing" && (
-              <motion.div
-                layoutId="activeAdminTabIndicator"
-                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
-                transition={{ type: "spring", stiffness: 450, damping: 35 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-2">
-              <Tag className={`w-4 h-4 ${adminViewTab === "pricing" ? "text-emerald-400" : "text-neutral-400"}`} />
-              <span>{language === "vi" ? "💵 Đơn Giá Villa & Tỷ Giá USD" : "💵 Villa Pricing & USD Rates"}</span>
-              <span className={`px-2 py-0.5 rounded-full text-[10px] font-mono ${
-                adminViewTab === "pricing" ? "bg-white/20 text-white" : "bg-emerald-50 text-emerald-800 border border-emerald-200"
-              }`}>
-                4 Villas
+              <span className="relative z-10 flex items-center gap-2">
+                <Calendar className={`w-4 h-4 ${adminViewTab === "all_bookings" ? "text-[#C2A476]" : "text-neutral-400"}`} />
+                <span>{language === "vi" ? "📋 Bảng Sale Phòng (Chính)" : "📋 Bookings (Main)"}</span>
               </span>
-            </span>
-          </button>
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setAdminViewTab("maintenance")}
-            className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
-              adminViewTab === "maintenance"
-                ? "text-white"
-                : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
-            }`}
-          >
-            {adminViewTab === "maintenance" && (
-              <motion.div
-                layoutId="activeAdminTabIndicator"
-                className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
-                transition={{ type: "spring", stiffness: 450, damping: 35 }}
-              />
-            )}
-            <span className="relative z-10 flex items-center gap-2">
-              <Wrench className={`w-4 h-4 ${adminViewTab === "maintenance" ? "text-amber-400" : "text-neutral-400"}`} />
-              <span>{language === "vi" ? "🛠️ Quản Lý Bảo Trì Villa" : "🛠️ Villa Maintenance"}</span>
-              {maintenanceCount > 0 && (
-                <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-500 text-white font-mono">
-                  {maintenanceCount}
-                </span>
+            <button
+              type="button"
+              onClick={() => setAdminViewTab("pricing")}
+              className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
+                adminViewTab === "pricing"
+                  ? "text-white"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
+              }`}
+            >
+              {adminViewTab === "pricing" && (
+                <motion.div
+                  layoutId="activeAdminTabIndicator"
+                  className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
               )}
-            </span>
-          </button>
-        </div>
+              <span className="relative z-10 flex items-center gap-2">
+                <Tag className={`w-4 h-4 ${adminViewTab === "pricing" ? "text-emerald-400" : "text-neutral-400"}`} />
+                <span>{language === "vi" ? "💵 Đơn Giá Villa & Tỷ Giá USD" : "💵 Villa Pricing"}</span>
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAdminViewTab("maintenance")}
+              className={`relative px-4 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors flex items-center gap-2 cursor-pointer ${
+                adminViewTab === "maintenance"
+                  ? "text-white"
+                  : "text-neutral-600 hover:text-neutral-900 hover:bg-[#FAF8F5]"
+              }`}
+            >
+              {adminViewTab === "maintenance" && (
+                <motion.div
+                  layoutId="activeAdminTabIndicator"
+                  className="absolute inset-0 bg-[#14171A] rounded-xl shadow-md"
+                  transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-2">
+                <Wrench className={`w-4 h-4 ${adminViewTab === "maintenance" ? "text-amber-400" : "text-neutral-400"}`} />
+                <span>{language === "vi" ? "🛠️ Khóa Lịch Bảo Trì" : "🛠️ Maintenance"}</span>
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* PANEL: DEDICATED TURNOVER & HOUSEKEEPING MANAGEMENT */}
-        {adminViewTab === "turnover" && (
+        {showAdvancedSettings && adminViewTab === "turnover" && (
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1960,7 +1969,7 @@ export default function AdminPage() {
         )}
 
         {/* PANEL 2: VILLA PRICING & DIRECT USD CONVERSION MANAGEMENT */}
-        {adminViewTab === "pricing" && (
+        {showAdvancedSettings && adminViewTab === "pricing" && (
           <div className="space-y-6 mb-8 animate-fade-in">
             <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-sm">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-6">
@@ -2078,6 +2087,8 @@ export default function AdminPage() {
                               src={villa.image}
                               alt={villa.name}
                               fill
+                              quality={90}
+                              sizes="112px"
                               className="object-cover"
                             />
                             <div className="absolute top-1 left-1 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
@@ -2213,7 +2224,7 @@ export default function AdminPage() {
         )}
 
         {/* PANEL 3: DEDICATED VILLA MAINTENANCE PANEL */}
-        {adminViewTab === "maintenance" && (
+        {showAdvancedSettings && adminViewTab === "maintenance" && (
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-sm mb-8 animate-fade-in">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-neutral-100 gap-3 mb-5">
               <div className="flex items-center gap-3">
@@ -2294,6 +2305,8 @@ export default function AdminPage() {
                             src={villa.image}
                             alt={villa.name}
                             fill
+                            quality={90}
+                            sizes="96px"
                             className="object-cover"
                           />
                           <div className="absolute top-0.5 left-0.5 bg-black/80 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
@@ -2426,8 +2439,8 @@ export default function AdminPage() {
           </div>
         )}
 
-        {/* PANEL 4: ALL RESERVATIONS (DEFAULT VIEW) */}
-        {adminViewTab === "all_bookings" && (
+        {/* PANEL 4: ALL RESERVATIONS (DEFAULT STREAMLINED SALE VIEW) */}
+        {(!showAdvancedSettings || adminViewTab === "all_bookings") && (
           <div className="space-y-5 animate-fade-in">
             {/* Automatic Checkout Notification Banner */}
             {checkoutCount > 0 && statusFilter === "all" && (
@@ -2444,127 +2457,232 @@ export default function AdminPage() {
                     </p>
                     <p className="text-[11px] text-neutral-500 font-normal">
                       {language === "vi"
-                        ? "Các đơn này đã được tự động chuyển sang mục Trả Phòng & Dọn Dẹp để bộ phận buồng phòng kiểm tra và dọn dẹp."
-                        : "These stays are automatically moved to the Turnover tab for housekeeping and inspection."}
+                        ? "Hệ thống đã tự động chuyển các đơn này sang mục 'Đã Trả Phòng' để danh sách đơn hoạt động luôn gọn gàng và không bị rối."
+                        : "These stays are automatically moved to the Checked Out section to keep your active pipeline clean."}
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setAdminViewTab("turnover")}
+                  onClick={() => setStatusFilter("checkout")}
                   className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#14171A] hover:bg-[#C2A476] text-white text-xs font-bold transition-all shrink-0 cursor-pointer shadow-2xs hover:shadow-md"
                 >
                   <Sparkles className="w-3.5 h-3.5 text-[#C2A476]" />
-                  <span>{language === "vi" ? "Xem Mục Trả Phòng ➔" : "Go to Turnover ➔"}</span>
+                  <span>{language === "vi" ? "Xem Mục Đã Trả Phòng ➔" : "View Checked Out ➔"}</span>
                 </button>
               </div>
             )}
 
-            {/* Unified Command & Filter Toolbar */}
-            <div className="bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-[#EAE5DC] shadow-xs flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
-              {/* Search input with clear button */}
-              <div className="relative flex-1 max-w-full lg:max-w-md">
-                <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
-                <input
-                  type="text"
-                  placeholder={t("admin.search_placeholder", "Search guest, ID, villa, phone...")}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-[#FAF8F5] border border-neutral-200 hover:border-neutral-300 focus:border-[#C2A476] rounded-xl pl-10 pr-9 py-2 text-xs transition-colors focus:outline-none"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery("")}
-                    className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-700 p-0.5 rounded-md cursor-pointer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-
-              {/* Filter pills & Reset button */}
-              <div className="flex flex-wrap items-center gap-2">
-                {/* Status Filter */}
-                <div className="relative">
-                  <select
-                    value={statusFilter}
-                    onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
-                  >
-                    <option value="all">📋 {language === "vi" ? "Đơn Đang Hoạt Động (Chưa Trả Phòng)" : "Active Reservations"}</option>
-                    <option value="history_all">📁 {language === "vi" ? "Toàn Bộ Lịch Sử (Kể Cả Đã Trả)" : "All History (Incl. Checked Out)"}</option>
-                    <option value="pending">⏳ {t("admin.status_pending", "Pending")}</option>
-                    <option value="contacted">📞 {t("admin.status_contacted", "Contacted")}</option>
-                    <option value="confirmed">✅ {t("admin.status_confirmed", "Confirmed")}</option>
-                    <option value="in_house">🏡 {language === "vi" ? "Đang lưu trú" : "Currently In-House"}</option>
-                    <option value="checkout_today">⏰ {language === "vi" ? "Trả phòng hôm nay" : "Checkout Today"}</option>
-                    <option value="expired">🏁 {language === "vi" ? "Đã trả phòng / Hết hạn" : "Stay Ended"}</option>
-                    <option value="cancelled">❌ {t("admin.status_cancelled", "Cancelled")}</option>
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
+            {/* Streamlined Sale & Booking Pipeline Filter Bar */}
+            <div className="bg-white/95 backdrop-blur-md p-3.5 sm:p-4 rounded-2xl border border-[#EAE5DC] shadow-xs flex flex-col gap-3">
+              <div className="flex flex-col lg:flex-row gap-3 items-stretch lg:items-center justify-between">
+                {/* Search input with clear button */}
+                <div className="relative flex-1 max-w-full lg:max-w-md">
+                  <Search className="w-4 h-4 text-neutral-400 absolute left-3.5 top-3" />
+                  <input
+                    type="text"
+                    placeholder={language === "vi" ? "Tìm theo tên khách, SĐT, mã đơn, villa..." : "Search guest name, phone, ID, villa..."}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-[#FAF8F5] border border-neutral-200 hover:border-neutral-300 focus:border-[#C2A476] rounded-xl pl-10 pr-9 py-2 text-xs transition-colors focus:outline-none"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2.5 top-2.5 text-neutral-400 hover:text-neutral-700 p-0.5 rounded-md cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
-                {/* Villa Filter */}
-                <div className="relative">
-                  <select
-                    value={villaFilter}
-                    onChange={(e) => setVillaFilter(e.target.value)}
-                    className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
-                  >
-                    <option value="all">🏛️ {t("admin.all_villas_option", "All 4 Villas")}</option>
-                    {siteConfig.villas.map((v) => (
-                      <option key={v.id} value={v.id}>
-                        {v.code} ({v.district})
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
-                </div>
-
-                {/* Payment Filter */}
-                <div className="relative">
-                  <select
-                    value={paymentFilter}
-                    onChange={(e) => setPaymentFilter(e.target.value)}
-                    className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
-                  >
-                    <option value="all">💳 {language === "vi" ? "Tất Cả Khoản Thu" : "All Payments"}</option>
-                    <option value="unpaid">🔴 {language === "vi" ? "Chưa thu" : "Unpaid"} ({paySummary.unpaidCount})</option>
-                    <option value="deposit">🟡 {language === "vi" ? "Đã đặt cọc" : "Deposit"} ({paySummary.depositCount})</option>
-                    <option value="paid">🟢 {language === "vi" ? "Đã thu đủ" : "Paid"} ({paySummary.paidCount})</option>
-                  </select>
-                  <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
-                </div>
-
-                {/* Reset Filters button if active */}
-                {(statusFilter !== "all" || villaFilter !== "all" || paymentFilter !== "all" || searchQuery) && (
-                  <button
-                    onClick={() => {
-                      setStatusFilter("all");
-                      setVillaFilter("all");
-                      setPaymentFilter("all");
-                      setSearchQuery("");
-                    }}
-                    className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
-                    title="Xoá tất cả bộ lọc"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    <span>{language === "vi" ? "Xoá lọc" : "Reset"}</span>
-                  </button>
-                )}
-              </div>
-
-              {/* Revenue quick stat pill */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] text-xs self-start lg:self-auto shrink-0">
-                <span className="text-xs font-bold text-neutral-600 uppercase tracking-wide">{language === "vi" ? "Doanh thu:" : "Rev:"}</span>
-                <span className="font-extrabold text-neutral-900 font-mono">{formatPriceVnd(paySummary.totalRevenueVnd)}</span>
-                <span className="text-xs text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md font-bold font-mono border border-emerald-200">
-                  ✓ {formatPriceVnd(paySummary.paidRevenueVnd)}
-                </span>
-                {paySummary.unpaidRevenueVnd > 0 && (
-                  <span className="text-xs text-rose-800 bg-rose-50 px-2 py-0.5 rounded-md font-bold font-mono border border-rose-200">
-                    ! {formatPriceVnd(paySummary.unpaidRevenueVnd)}
+                {/* Villa Filter Dropdown */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider hidden sm:inline">
+                    {language === "vi" ? "Căn Villa:" : "Villa:"}
                   </span>
+                  <div className="relative">
+                    <select
+                      value={villaFilter}
+                      onChange={(e) => setVillaFilter(e.target.value)}
+                      className="appearance-none bg-[#FAF8F5] hover:bg-neutral-100 border border-neutral-200 rounded-xl pl-3 pr-8 py-2 text-xs font-semibold text-neutral-800 focus:outline-none focus:border-[#C2A476] cursor-pointer transition-colors"
+                    >
+                      <option value="all">🏛️ {t("admin.all_villas_option", "All 4 Villas")}</option>
+                      {siteConfig.villas.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.code} ({v.district})
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-neutral-400 absolute right-2.5 top-3 pointer-events-none" />
+                  </div>
+
+                  {/* Reset Filters button if active */}
+                  {(statusFilter !== "all" || villaFilter !== "all" || searchQuery) && (
+                    <button
+                      onClick={() => {
+                        setStatusFilter("all");
+                        setVillaFilter("all");
+                        setSearchQuery("");
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors flex items-center gap-1 cursor-pointer"
+                      title="Xoá tất cả bộ lọc"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>{language === "vi" ? "Xoá lọc" : "Reset"}</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Quick Sale Stage Filter Pills */}
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-[#F0ECE1]">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mr-1 hidden sm:inline">
+                  {language === "vi" ? "Tiến Trình Sale:" : "Sale Stages:"}
+                </span>
+
+                {/* 1. Pending Action (Đơn mới - ưu tiên số 1) */}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("pending")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    statusFilter === "pending"
+                      ? "bg-amber-500 text-white shadow-sm ring-2 ring-amber-400/40"
+                      : "bg-[#FAF8F5] text-amber-800 border border-amber-200/80 hover:bg-amber-50"
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>{language === "vi" ? "⚡ Chờ Xử Lý" : "⚡ Pending"}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                    statusFilter === "pending" ? "bg-white text-amber-700" : "bg-amber-100 text-amber-900"
+                  } ${pendingCount > 0 ? "animate-pulse" : ""}`}>
+                    {pendingCount}
+                  </span>
+                </button>
+
+                {/* 2. In Consultation / Contacted */}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("contacted")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    statusFilter === "contacted"
+                      ? "bg-blue-600 text-white shadow-sm ring-2 ring-blue-400/40"
+                      : "bg-[#FAF8F5] text-blue-800 border border-blue-200/80 hover:bg-blue-50"
+                  }`}
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  <span>{language === "vi" ? "📞 Đang Tư Vấn" : "📞 In Progress"}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                    statusFilter === "contacted" ? "bg-white text-blue-700" : "bg-blue-100 text-blue-900"
+                  }`}>
+                    {contactedCount}
+                  </span>
+                </button>
+
+                {/* 3. Confirmed & Secured */}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("confirmed")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    statusFilter === "confirmed"
+                      ? "bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/40"
+                      : "bg-[#FAF8F5] text-emerald-800 border border-emerald-200/80 hover:bg-emerald-50"
+                  }`}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{language === "vi" ? "✅ Đã Chốt Phòng" : "✅ Confirmed"}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                    statusFilter === "confirmed" ? "bg-white text-emerald-700" : "bg-emerald-100 text-emerald-900"
+                  }`}>
+                    {confirmedCount}
+                  </span>
+                </button>
+
+                {/* 4. Checked out (Tự động chuyển vào đây) */}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("checkout")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    statusFilter === "checkout"
+                      ? "bg-purple-600 text-white shadow-sm ring-2 ring-purple-400/40"
+                      : "bg-[#FAF8F5] text-purple-800 border border-purple-200/80 hover:bg-purple-50"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>{language === "vi" ? "🚪 Đã Trả Phòng" : "🚪 Checked Out"}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                    statusFilter === "checkout" ? "bg-white text-purple-700" : "bg-purple-100 text-purple-900"
+                  }`}>
+                    {checkoutCount}
+                  </span>
+                </button>
+
+                {/* 5. Schedule Conflict Alert */}
+                {conflictCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("conflict")}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                      statusFilter === "conflict"
+                        ? "bg-rose-600 text-white shadow-sm ring-2 ring-rose-400/40"
+                        : "bg-rose-50 text-rose-800 border border-rose-300 hover:bg-rose-100"
+                    }`}
+                  >
+                    <AlertTriangle className="w-3.5 h-3.5 animate-bounce" />
+                    <span>{language === "vi" ? "⚠️ Trùng Lịch Cần Check" : "⚠️ Conflicts"}</span>
+                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                      statusFilter === "conflict" ? "bg-white text-rose-700" : "bg-rose-200 text-rose-900"
+                    }`}>
+                      {conflictCount}
+                    </span>
+                  </button>
+                )}
+
+                {/* 6. Active Bookings */}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    statusFilter === "all"
+                      ? "bg-[#14171A] text-white shadow-sm"
+                      : "bg-[#FAF8F5] text-neutral-700 border border-neutral-200 hover:bg-neutral-100"
+                  }`}
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>{language === "vi" ? "📋 Tất Cả Đơn Hoạt Động" : "📋 Active"}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono font-black ${
+                    statusFilter === "all" ? "bg-white text-neutral-900" : "bg-neutral-200 text-neutral-800"
+                  }`}>
+                    {activeCount}
+                  </span>
+                </button>
+
+                {/* 7. History All */}
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter("history_all")}
+                  className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                    statusFilter === "history_all"
+                      ? "bg-neutral-800 text-white font-bold"
+                      : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
+                  }`}
+                >
+                  <span>{language === "vi" ? "📁 Lịch Sử" : "📁 History"}</span>
+                </button>
+
+                {/* 8. Cancelled */}
+                {cancelledCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setStatusFilter("cancelled")}
+                    className={`px-2.5 py-1.5 rounded-xl text-xs font-medium transition-all cursor-pointer ${
+                      statusFilter === "cancelled"
+                        ? "bg-neutral-700 text-white font-bold"
+                        : "text-neutral-500 hover:text-rose-700 hover:bg-rose-50"
+                    }`}
+                  >
+                    <span>{language === "vi" ? `❌ Đã Hủy (${cancelledCount})` : `❌ Cancelled (${cancelledCount})`}</span>
+                  </button>
                 )}
               </div>
             </div>
@@ -2594,11 +2712,23 @@ export default function AdminPage() {
                   {filteredInquiries.map((inq) => {
                     const isNewlyArrived = inq.id === newlyArrivedId;
                     const whatsappLink = `https://wa.me/${inq.phone.replace(/[^0-9]/g, "")}?text=Hello%20${encodeURIComponent(inq.guestName)},%20thank%20you%20for%20inquiring%20about%20${encodeURIComponent(inq.villaName)}%20(Ref:%20${inq.id}).`;
+                    const zaloLink = getZaloLink(inq.phone);
                     const stayNights = calculateStayNights(inq.checkIn, inq.checkOut);
                     const nightlyPrice = bookingStore.getVillaPrice(inq.villaId);
                     const totalPrice = inq.totalPriceVnd ?? (stayNights * nightlyPrice);
-                    const currentPaymentStatus: PaymentStatus = inq.paymentStatus || "unpaid";
                     const convertedStayUsd = formatPriceUsd(totalPrice, usdRate);
+                    const conflicts = bookingStore.findConflictsForInquiry(inq);
+                    const stay = getStayStatus(inq.checkIn, inq.checkOut);
+                    const isCheckout = stay === "expired" || stay === "checkout_today" || Boolean(inq.isCheckedOut);
+
+                    // ĐƠN ĐÃ XÁC NHẬN (CONFIRMED) LÀ ĐƠN CHÍNH THỨC GIỮ PHÒNG, KHÔNG HIỂN THỊ CẢNH BÁO!
+                    // CHỈ CÁC ĐƠN CHƯA XÁC NHẬN (PENDING/CONTACTED) BỊ TRÙNG LỊCH THÌ MỚI HIỂN THỊ CẢNH BÁO!
+                    const hasConflict =
+                      inq.status !== "cancelled" &&
+                      !isCheckout &&
+                      (inq.status !== "confirmed"
+                        ? conflicts.length > 0
+                        : conflicts.some((c) => c.status === "confirmed"));
 
                     return (
                       <motion.div
@@ -2608,10 +2738,14 @@ export default function AdminPage() {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, scale: 0.96 }}
                         transition={{ duration: 0.25 }}
-                        whileHover={{ y: -3, transition: { duration: 0.2 } }}
+                        whileHover={{ y: -2, transition: { duration: 0.2 } }}
                         className={`bg-white rounded-3xl border p-5 sm:p-6 shadow-xs hover:shadow-lg transition-all duration-300 relative ${
-                          isNewlyArrived
+                          hasConflict
+                            ? "border-rose-300 ring-2 ring-rose-200/60 bg-rose-50/10"
+                            : isNewlyArrived
                             ? "border-[#C2A476] ring-4 ring-[#C2A476]/30 bg-amber-50/20"
+                            : inq.status === "confirmed"
+                            ? "border-emerald-200/90 hover:border-emerald-400"
                             : "border-[#EAE5DC] hover:border-[#C2A476]/50"
                         }`}
                       >
@@ -2619,49 +2753,55 @@ export default function AdminPage() {
                         {isNewlyArrived && (
                           <div className="mb-3 inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#C2A476] text-white text-[10px] font-bold uppercase tracking-wider animate-pulse">
                             <Sparkles className="w-3 h-3" />
-                            <span>Just Received (Real-Time Live)</span>
+                            <span>{language === "vi" ? "Đơn Mới Vừa Đến (Trực Tiếp)" : "Just Received (Live Sync)"}</span>
                           </div>
                         )}
 
                         {/* Overlapping Conflict Alert Banner */}
-                        {(() => {
-                          const conflicts = bookingStore.findConflictsForInquiry(inq);
-                          if (conflicts.length === 0) return null;
-                          return (
-                            <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-2xs">
-                              <div className="flex items-start gap-2.5">
-                                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                                <div>
-                                  <p className="font-bold text-rose-900 text-xs sm:text-sm">
-                                    Trùng Lịch Lưu Trú Cần Xử Lý!
-                                  </p>
-                                  <p className="text-[11px] text-rose-700 mt-0.5 leading-relaxed">
-                                    Đơn này trùng lịch với #{conflicts.map((c) => `${c.id} (${c.guestName}: ${c.checkIn} → ${c.checkOut})`).join(", ")}. Vui lòng đổi ngày hoặc huỷ đơn trùng.
-                                  </p>
-                                </div>
+                        {hasConflict && (
+                          <div className="mb-4 p-4 rounded-2xl bg-rose-50 border-2 border-rose-300 text-rose-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in shadow-xs">
+                            <div className="flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-xl bg-rose-100 border border-rose-300 flex items-center justify-center text-rose-700 shrink-0 mt-0.5">
+                                <AlertTriangle className="w-4 h-4 animate-bounce text-rose-600" />
                               </div>
-                              <div className="flex items-center gap-2 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingInquiry({ ...inq })}
-                                  className="px-3 py-1.5 bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-colors"
-                                >
-                                  Đổi Ngày
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickStatusChange(inq.id, "cancelled")}
-                                  className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-colors"
-                                >
-                                  Huỷ Đơn
-                                </button>
+                              <div>
+                                <p className="font-black text-rose-900 text-xs sm:text-sm">
+                                  {language === "vi" ? "⚠️ CẢNH BÁO TRÙNG LỊCH LƯU TRÚ!" : "⚠️ Schedule Conflict Detected!"}
+                                </p>
+                                <p className="text-[11px] text-rose-700 mt-1 leading-relaxed">
+                                  {language === "vi" ? (
+                                    conflicts.some((c) => c.status === "confirmed") ? (
+                                      <>Biệt thự này đã có khách chốt giữ lịch: <span className="font-bold font-mono">#{conflicts.filter((c) => c.status === "confirmed").map((c) => `${c.id} (${c.guestName}: ${c.checkIn} → ${c.checkOut})`).join(", ")}</span>. Vui lòng gọi khách này tư vấn đổi ngày hoặc sang căn villa khác!</>
+                                    ) : (
+                                      <>Đơn này trùng ngày với đơn chờ xử lý khác: <span className="font-bold font-mono">#{conflicts.map((c) => `${c.id} (${c.guestName}: ${c.checkIn} → ${c.checkOut})`).join(", ")}</span>. Vui lòng liên hệ khách sớm, ai chốt trước sẽ khóa phòng cho người đó!</>
+                                    )
+                                  ) : (
+                                    <>Dates conflict with reservation #{conflicts.map((c) => `${c.id} (${c.guestName})`).join(", ")}. Please resolve before confirming.</>
+                                  )}
+                                </p>
                               </div>
                             </div>
-                          );
-                        })()}
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setEditingInquiry({ ...inq })}
+                                className="px-3.5 py-2 bg-white hover:bg-neutral-50 text-neutral-800 border border-neutral-300 rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-colors"
+                              >
+                                {language === "vi" ? "✏️ Đổi Ngày/Căn" : "Change Dates"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleQuickStatusChange(inq.id, "cancelled")}
+                                className="px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-2xs cursor-pointer transition-colors"
+                              >
+                                {language === "vi" ? "❌ Huỷ Đơn Trùng" : "Cancel"}
+                              </button>
+                            </div>
+                          </div>
+                        )}
 
-                        {/* Card Header: Guest info on left, Status and Actions on right */}
-                        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-[#F0ECE1]">
+                        {/* Card Header: Guest & Villa info + Sale Status */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-[#F0ECE1]">
                           <div className="flex items-start sm:items-center gap-3">
                             <span className="font-mono text-xs font-black text-[#8A6B3D] bg-[#FAF8F5] border border-[#EAE5DC] px-2.5 py-1 rounded-xl shadow-2xs shrink-0">
                               #{inq.id}
@@ -2674,152 +2814,153 @@ export default function AdminPage() {
                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#FAF8F5] text-[#8A6B3D] border border-[#EAE5DC]">
                                   🏛️ {inq.villaName}
                                 </span>
-                                {(() => {
-                                  const stay = getStayStatus(inq.checkIn, inq.checkOut);
-                                  if (stay === "checkout_today") {
-                                    return (
-                                      <span className="text-[10px] font-bold bg-blue-50 text-blue-700 px-2.5 py-0.5 rounded-full border border-blue-200 animate-pulse">
-                                        {language === "vi" ? "⏰ Trả phòng hôm nay" : "⏰ Checkout Today"}
-                                      </span>
-                                    );
-                                  }
-                                  if (stay === "expired") {
-                                    return (
-                                      <span className="text-[10px] font-bold bg-neutral-100 text-neutral-600 px-2.5 py-0.5 rounded-full border border-neutral-200">
-                                        {language === "vi" ? "🏁 Đã trả phòng" : "Checked Out"}
-                                      </span>
-                                    );
-                                  }
-                                  if (stay === "in_house") {
-                                    return (
-                                      <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                                        {language === "vi" ? "🏡 Đang lưu trú" : "In-House"}
-                                      </span>
-                                    );
-                                  }
-                                  return null;
-                                })()}
+
+                                {/* Status Badges */}
+                                {inq.status === "pending" && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 animate-pulse">
+                                    <Clock className="w-3 h-3 text-amber-600" />
+                                    <span>{language === "vi" ? "⚡ Chờ Xử Lý" : "Pending"}</span>
+                                  </span>
+                                )}
+                                {inq.status === "contacted" && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-50 text-blue-800 border border-blue-300">
+                                    <PhoneCall className="w-3 h-3 text-blue-600" />
+                                    <span>{language === "vi" ? "📞 Đang Tư Vấn" : "In Progress"}</span>
+                                  </span>
+                                )}
+                                {inq.status === "confirmed" && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-300">
+                                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                    <span>{language === "vi" ? "✅ Đã Chốt & Khóa Lịch" : "Confirmed"}</span>
+                                  </span>
+                                )}
+                                {inq.status === "cancelled" && (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-neutral-100 text-neutral-500 border border-neutral-300 line-through">
+                                    <span>{language === "vi" ? "❌ Đã Huỷ" : "Cancelled"}</span>
+                                  </span>
+                                )}
+
+                                {/* Stay Status: Checkout / In-house */}
+                                {isCheckout && (
+                                  <span className="text-[10px] font-bold bg-purple-50 text-purple-700 px-2.5 py-0.5 rounded-full border border-purple-200">
+                                    {language === "vi" ? "🚪 Đã Trả Phòng" : "Checked Out"}
+                                  </span>
+                                )}
+                                {!isCheckout && stay === "in_house" && (
+                                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                                    {language === "vi" ? "🏡 Đang Lưu Trú" : "In-House"}
+                                  </span>
+                                )}
                               </div>
                             </div>
                           </div>
 
-                          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
-                            {/* Status Selector Dropdown */}
-                            <select
-                              value={inq.status}
-                              onChange={(e) => handleQuickStatusChange(inq.id, e.target.value as InquiryStatus)}
-                              className={`text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded-xl border focus:outline-none cursor-pointer transition-colors shadow-2xs ${
-                                inq.status === "pending"
-                                  ? "bg-amber-50 text-amber-800 border-amber-300"
-                                  : inq.status === "contacted"
-                                  ? "bg-blue-50 text-blue-800 border-blue-300"
-                                  : inq.status === "confirmed"
-                                  ? "bg-emerald-50 text-emerald-800 border-emerald-300"
-                                  : "bg-neutral-100 text-neutral-500 border-neutral-200"
-                              }`}
-                            >
-                              <option value="pending">● {t("admin.status_pending", "Pending")}</option>
-                              <option value="contacted">● {t("admin.status_contacted", "Contacted")}</option>
-                              <option value="confirmed">● {t("admin.status_confirmed", "Confirmed")}</option>
-                              <option value="cancelled">● {language === "vi" ? "Đã Huỷ (Nhả Lịch)" : "Cancelled (Release Dates)"}</option>
-                            </select>
-
-                            {/* Edit Button */}
+                          <div className="flex items-center gap-2 self-end sm:self-auto">
+                            {/* Edit dates & villa */}
                             <motion.button
                               whileHover={{ scale: 1.04 }}
                               whileTap={{ scale: 0.96 }}
+                              type="button"
                               onClick={() => setEditingInquiry({ ...inq })}
                               className="inline-flex items-center gap-1.5 bg-[#FAF7F2] hover:bg-[#f3ede1] text-[#8A6B3D] border border-[#E8E0D2] text-xs font-bold px-3 py-1.5 rounded-xl transition-colors cursor-pointer shadow-2xs"
-                              title="Chỉnh sửa thông tin đơn & ngày lưu trú"
+                              title={language === "vi" ? "Chỉnh sửa ngày hoặc chuyển căn villa" : "Edit booking dates or villa"}
                             >
                               <Edit3 className="w-3.5 h-3.5 text-[#C2A476]" />
-                              <span>{t("admin.edit_dates", "Edit")}</span>
+                              <span>{language === "vi" ? "Sửa" : "Edit"}</span>
                             </motion.button>
 
-                            {/* WhatsApp Button */}
-                            <motion.a
-                              whileHover={{ scale: 1.04 }}
-                              whileTap={{ scale: 0.96 }}
-                              href={whatsappLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center gap-1.5 bg-[#25D366] hover:bg-[#20ba59] text-white text-xs font-bold px-3 py-1.5 rounded-xl transition-colors shadow-2xs cursor-pointer"
-                              title="Chat WhatsApp trực tiếp với khách"
-                            >
-                              <MessageCircle className="w-3.5 h-3.5" />
-                              <span>WhatsApp</span>
-                            </motion.a>
-
-                            {/* Quick Turnover Action Button */}
-                            {(() => {
-                              const stay = getStayStatus(inq.checkIn, inq.checkOut);
-                              const isCheckout = stay === "expired" || stay === "checkout_today" || Boolean(inq.isCheckedOut);
-                              if (isCheckout) {
-                                return (
-                                  <motion.button
-                                    whileHover={{ scale: 1.04 }}
-                                    whileTap={{ scale: 0.96 }}
-                                    type="button"
-                                    onClick={() => {
-                                      setAdminViewTab("turnover");
-                                      setTurnoverSearchQuery(inq.id);
-                                    }}
-                                    className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs"
-                                    title={language === "vi" ? "Xem đơn này tại mục Trả Phòng & Dọn Dẹp" : "View in turnover tab"}
-                                  >
-                                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                                    <span>{language === "vi" ? "Mục Trả Phòng ➔" : "Turnover ➔"}</span>
-                                  </motion.button>
-                                );
-                              }
-                              if (stay === "in_house") {
-                                return (
-                                  <motion.button
-                                    whileHover={{ scale: 1.04 }}
-                                    whileTap={{ scale: 0.96 }}
-                                    type="button"
-                                    onClick={() => handleCheckOutGuest(inq.id, inq.guestName)}
-                                    className="inline-flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-600 hover:text-white text-indigo-700 border border-indigo-200 text-xs font-bold px-3 py-1.5 rounded-xl transition-all cursor-pointer shadow-2xs"
-                                    title={language === "vi" ? "Hoàn tất trả phòng và chuyển đơn qua mục Trả Phòng & Dọn Dẹp" : "Check out guest now"}
-                                  >
-                                    <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                                    <span>{language === "vi" ? "Trả Phòng" : "Check Out"}</span>
-                                  </motion.button>
-                                );
-                              }
-                              return null;
-                            })()}
-
-                            {/* Delete Button */}
+                            {/* Delete inquiry */}
                             <motion.button
                               whileHover={{ scale: 1.08 }}
                               whileTap={{ scale: 0.92 }}
+                              type="button"
                               onClick={() => handleRequestDelete(inq)}
                               className="p-1.5 text-neutral-400 hover:text-rose-600 rounded-xl hover:bg-rose-50 transition-colors cursor-pointer"
-                              title="Xoá đơn và giải phóng ngày trên lịch"
+                              title={language === "vi" ? "Xoá đơn và mở khóa ngày" : "Delete inquiry"}
                             >
                               <Trash2 className="w-4 h-4" />
                             </motion.button>
                           </div>
                         </div>
 
-                        {/* Booking Details Grid (Clean 4-column modern card) */}
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 py-3 text-xs">
+                        {/* Instant 1-Click Guest Communication Strip (Hotline, Zalo & WhatsApp) */}
+                        <div className="my-3 p-3 sm:p-3.5 rounded-2xl bg-[#14171A] text-white flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-sm border border-neutral-800">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center text-[#C2A476] shrink-0">
+                              <Phone className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] uppercase tracking-wider text-neutral-400 font-bold">
+                                  {language === "vi" ? "Hotline Khách:" : "Phone:"}
+                                </span>
+                                <a
+                                  href={`tel:${inq.phone}`}
+                                  className="text-sm sm:text-base font-black font-mono text-white tracking-wide hover:text-[#C2A476] transition-colors"
+                                >
+                                  {inq.phone}
+                                </a>
+                              </div>
+                              <span className="text-[11px] text-neutral-400 truncate block mt-0.5">
+                                {inq.email || (language === "vi" ? "Chưa có email" : "No email")}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* 1-Click Direct Action Buttons */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Gọi Điện Trực Tiếp */}
+                            <a
+                              href={`tel:${inq.phone}`}
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-neutral-900 hover:bg-[#C2A476] hover:text-white text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                              title="Bấm để gọi điện cho khách ngay lập tức"
+                            >
+                              <PhoneCall className="w-3.5 h-3.5 text-emerald-600" />
+                              <span>{language === "vi" ? "Gọi Điện" : "Call"}</span>
+                            </a>
+
+                            {/* Chat Zalo Trực Tiếp */}
+                            <a
+                              href={zaloLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#0068FF] hover:bg-[#0054cc] text-white text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                              title="Mở Zalo nhắn tin tư vấn khách"
+                            >
+                              <MessageCircle className="w-3.5 h-3.5" />
+                              <span>Chat Zalo</span>
+                            </a>
+
+                            {/* WhatsApp Trực Tiếp */}
+                            <a
+                              href={whatsappLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-2xs cursor-pointer"
+                              title="Chat WhatsApp quốc tế"
+                            >
+                              <span>WhatsApp</span>
+                            </a>
+                          </div>
+                        </div>
+
+                        {/* Booking Details Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 py-2 text-xs">
                           <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
-                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
-                              📅 {t("admin.stay_dates", "Stay Dates")}
+                            <span className="text-neutral-500 block text-[11px] uppercase font-bold tracking-wider">
+                              📅 {language === "vi" ? "Ngày lưu trú" : "Stay Dates"}
                             </span>
                             <p className="font-bold text-neutral-800 mt-1 truncate">
                               {inq.checkIn} → {inq.checkOut}
                             </p>
                             <span className="text-xs text-neutral-500 font-medium">
-                              ({stayNights} {language === "vi" ? "đêm lưu trú" : "nights"})
+                              ({stayNights} {language === "vi" ? "đêm" : "nights"})
                             </span>
                           </div>
 
                           <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
-                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
-                              👥 {t("admin.guest_count", "Guest Count")}
+                            <span className="text-neutral-500 block text-[11px] uppercase font-bold tracking-wider">
+                              👥 {language === "vi" ? "Số lượng khách" : "Guests"}
                             </span>
                             <p className="font-bold text-neutral-800 mt-1">
                               {inq.adults} {language === "vi" ? "Người lớn" : "Adults"}
@@ -2828,129 +2969,104 @@ export default function AdminPage() {
                           </div>
 
                           <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
-                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
-                              📞 {language === "vi" ? "Điện thoại / Hotline" : "Phone / Contact"}
+                            <span className="text-neutral-500 block text-[11px] uppercase font-bold tracking-wider">
+                              💰 {language === "vi" ? "Dự tính tiền phòng" : "Estimated Total"}
                             </span>
-                            <a
-                              href={`tel:${inq.phone}`}
-                              className="font-bold text-neutral-800 hover:text-[#C2A476] mt-1 block truncate transition-colors"
-                            >
-                              {inq.phone}
-                            </a>
+                            <p className="font-black text-neutral-900 mt-1 font-mono text-sm">
+                              {formatPriceVnd(totalPrice)}
+                            </p>
+                            <span className="text-[11px] text-neutral-500">
+                              ≈ ${convertedStayUsd} USD
+                            </span>
                           </div>
 
                           <div className="bg-[#FAF8F5]/80 p-3 rounded-xl border border-[#F0ECE1]">
-                            <span className="text-neutral-500 block text-xs uppercase font-bold tracking-wider">
-                              ✉️ {language === "vi" ? "Email khách hàng" : "Guest Email"}
+                            <span className="text-neutral-500 block text-[11px] uppercase font-bold tracking-wider">
+                              🏷️ {language === "vi" ? "Tình trạng lịch" : "Calendar Lock"}
                             </span>
-                            <a
-                              href={`mailto:${inq.email}`}
-                              className="font-bold text-neutral-800 hover:text-[#C2A476] mt-1 block truncate transition-colors"
-                            >
-                              {inq.email}
-                            </a>
-                          </div>
-                        </div>
-
-                        {/* FINANCIAL & PAYMENT STATUS ROW */}
-                        <div className="mt-2 pt-3 border-t border-[#F0ECE1] flex flex-col md:flex-row md:items-center justify-between gap-3 bg-gradient-to-r from-[#FAF8F5] via-white to-[#FAF8F5] p-3 rounded-2xl border border-[#EAE5DC]">
-                          {/* Total Price & Nights Breakdown */}
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-center text-[#8A6B3D] shrink-0 shadow-2xs">
-                              <CreditCard className="w-4 h-4 text-[#C2A476]" />
-                            </div>
-                            <div>
-                              <div className="flex items-baseline gap-2 flex-wrap">
-                                <span className="text-base sm:text-lg font-black text-neutral-900 tracking-tight font-mono">
-                                  {formatPriceVnd(totalPrice)}
-                                </span>
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 font-mono shadow-2xs">
-                                  <span>≈</span>
-                                  <span>${convertedStayUsd}</span>
-                                  <span className="text-xs font-normal text-emerald-700">USD</span>
-                                </span>
-                                <span className="text-xs text-neutral-600 font-medium hidden sm:inline">
-                                  • {stayNights} đêm × {formatPriceVnd(nightlyPrice)}/đêm
-                                </span>
-                              </div>
-                              {inq.paidAmountVnd !== undefined && currentPaymentStatus === "deposit" && (
-                                <p className="text-xs text-amber-700 font-bold mt-0.5">
-                                  {language === "vi" ? "Đã cọc:" : "Deposit:"} {formatPriceVnd(inq.paidAmountVnd)}
-                                </p>
-                              )}
-                            </div>
-                          </div>
-
-                          {/* Payment Status & Quick 1-Click Action Buttons */}
-                          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap pt-2 md:pt-0 border-t md:border-t-0 border-[#F0ECE1]">
-                            <span className="text-xs font-bold text-neutral-600 whitespace-nowrap">
-                              {language === "vi" ? "Thu Tiền:" : "Payment:"}
+                            <p className="font-bold text-neutral-800 mt-1">
+                              {inq.status === "confirmed" ? "🔒 Đã khóa trên web" : "🔓 Chưa khóa lịch"}
+                            </p>
+                            <span className="text-[11px] text-neutral-500">
+                              {formatPriceVnd(nightlyPrice)}/đêm
                             </span>
-
-                            <div className="inline-flex items-center p-1 bg-white rounded-xl border border-neutral-200 shadow-2xs gap-1">
-                              {/* Chưa thu (Unpaid) */}
-                              <motion.button
-                                whileTap={{ scale: 0.95 }}
-                                type="button"
-                                onClick={() => handleUpdatePaymentStatus(inq.id, "unpaid")}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                  currentPaymentStatus === "unpaid"
-                                    ? "bg-rose-600 text-white shadow-xs"
-                                    : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
-                                }`}
-                                title="Đánh dấu Chưa thu tiền"
-                              >
-                                <span className={`w-2 h-2 rounded-full ${currentPaymentStatus === "unpaid" ? "bg-white" : "bg-rose-500"}`} />
-                                <span>{language === "vi" ? "Chưa thu" : "Unpaid"}</span>
-                              </motion.button>
-
-                              {/* Đã cọc (Deposit) */}
-                              <motion.button
-                                whileTap={{ scale: 0.95 }}
-                                type="button"
-                                onClick={() => handleUpdatePaymentStatus(inq.id, "deposit")}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                  currentPaymentStatus === "deposit"
-                                    ? "bg-amber-500 text-white shadow-xs"
-                                    : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
-                                }`}
-                                title="Đánh dấu Đã cọc tiền phòng"
-                              >
-                                <span className={`w-2 h-2 rounded-full ${currentPaymentStatus === "deposit" ? "bg-white" : "bg-amber-500"}`} />
-                                <span>{language === "vi" ? "Đã cọc" : "Deposit"}</span>
-                              </motion.button>
-
-                              {/* Đã thu (Paid) */}
-                              <motion.button
-                                whileTap={{ scale: 0.95 }}
-                                type="button"
-                                onClick={() => handleUpdatePaymentStatus(inq.id, "paid")}
-                                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-                                  currentPaymentStatus === "paid"
-                                    ? "bg-emerald-600 text-white shadow-xs"
-                                    : "text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100"
-                                }`}
-                                title="Đánh dấu Đã thu đủ tiền phòng"
-                              >
-                                <CheckCircle2 className={`w-3.5 h-3.5 ${currentPaymentStatus === "paid" ? "text-white" : "text-emerald-600"}`} />
-                                <span>{language === "vi" ? "Đã thu" : "Paid"}</span>
-                              </motion.button>
-                            </div>
                           </div>
                         </div>
 
                         {/* Special Requests */}
                         {inq.specialRequests && (
-                          <div className="mt-2.5 p-2.5 bg-[#FAF8F5] rounded-xl text-xs text-neutral-700 border border-neutral-100">
+                          <div className="mt-2.5 p-2.5 bg-[#FAF8F5] rounded-xl text-xs text-neutral-700 border border-neutral-200/70">
                             <span className="font-bold text-neutral-900 block mb-0.5">
-                              {t("admin.special_notes", "Guest Special Notes / Reason:")}
+                              💬 {language === "vi" ? "Ghi chú của khách:" : "Guest Notes:"}
                             </span>
                             <p className="italic text-neutral-600">&ldquo;{inq.specialRequests}&rdquo;</p>
                           </div>
                         )}
 
-                        <div className="mt-2 text-[10px] text-neutral-400 text-right">
-                          {t("admin.created_at", "Received on")}: {new Date(inq.createdAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
+                        {/* Sale Action Bar (Tiến trình xử lý đơn hàng) */}
+                        <div className="mt-3.5 pt-3 border-t border-[#F0ECE1] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="text-[11px] text-neutral-400">
+                            {language === "vi" ? "Nhận lúc:" : "Received:"} {new Date(inq.createdAt).toLocaleString(language === "vi" ? "vi-VN" : "en-US")}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {/* Step: Pending -> Mark Contacted */}
+                            {inq.status === "pending" && (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickStatusChange(inq.id, "contacted")}
+                                className="px-3.5 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <PhoneCall className="w-3.5 h-3.5" />
+                                <span>{language === "vi" ? "📞 Đã Gọi / Đang Tư Vấn" : "Mark Contacted"}</span>
+                              </button>
+                            )}
+
+                            {/* Step: Confirm & Lock Room (Available for pending & contacted) */}
+                            {inq.status !== "confirmed" && inq.status !== "cancelled" && (
+                              <button
+                                type="button"
+                                onClick={() => handleConfirmBookingWithCheck(inq)}
+                                className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
+                                <span>{language === "vi" ? "✅ Khách Chốt: Khóa Phòng" : "Confirm & Lock Room"}</span>
+                              </button>
+                            )}
+
+                            {/* Step: In House / Checkout Today -> Check Out button */}
+                            {inq.status === "confirmed" && !isCheckout && (
+                              <button
+                                type="button"
+                                onClick={() => handleCheckOutGuest(inq.id, inq.guestName)}
+                                className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-bold transition-colors flex items-center gap-1.5 cursor-pointer"
+                                title={language === "vi" ? "Khách trả phòng và chuyển đơn sang mục Đã Trả Phòng" : "Check out guest"}
+                              >
+                                <Sparkles className="w-3.5 h-3.5 text-purple-600" />
+                                <span>{language === "vi" ? "🚪 Hoàn Tất Trả Phòng" : "Check Out"}</span>
+                              </button>
+                            )}
+
+                            {/* Step: Cancel / Release Dates */}
+                            {inq.status !== "cancelled" ? (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickStatusChange(inq.id, "cancelled")}
+                                className="px-3 py-1.5 rounded-xl bg-neutral-100 hover:bg-rose-50 hover:text-rose-700 text-neutral-600 border border-neutral-200 text-xs font-bold transition-colors cursor-pointer"
+                                title={language === "vi" ? "Huỷ đơn và nhả lịch cho khách khác đặt" : "Cancel reservation"}
+                              >
+                                <span>{language === "vi" ? "Hủy / Hết Phòng" : "Cancel"}</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleQuickStatusChange(inq.id, "pending")}
+                                className="px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-bold transition-colors cursor-pointer"
+                              >
+                                <span>{language === "vi" ? "Khôi Phục Đơn" : "Restore"}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </motion.div>
                     );
@@ -3753,6 +3869,8 @@ export default function AdminPage() {
                     src={maintenanceDialogVilla.image}
                     alt={maintenanceDialogVilla.name}
                     fill
+                    quality={90}
+                    sizes="96px"
                     className="object-cover"
                   />
                   <div className="absolute top-0.5 left-0.5 bg-black/80 text-white text-[9px] font-bold px-1 rounded">
