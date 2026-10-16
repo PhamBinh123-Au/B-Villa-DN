@@ -37,13 +37,13 @@ export function Header({ onOpenSearch, onOpenShortcuts }: HeaderProps) {
   }, []);
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const todayCheckIns = liveBookings.filter(
-    (b) => b.checkIn.startsWith(todayStr) && b.status !== 'cancelled'
+  const todayCheckIns = (liveBookings || []).filter(
+    (b) => typeof b?.checkIn === 'string' && b.checkIn.startsWith(todayStr) && b?.status !== 'cancelled'
   ).length;
-  const todayCheckOuts = liveBookings.filter(
-    (b) => b.checkOut.startsWith(todayStr) && b.status !== 'cancelled'
+  const todayCheckOuts = (liveBookings || []).filter(
+    (b) => typeof b?.checkOut === 'string' && b.checkOut.startsWith(todayStr) && b?.status !== 'cancelled'
   ).length;
-  const pendingCount = liveBookings.filter((b) => b.status === 'pending').length;
+  const pendingCount = (liveBookings || []).filter((b) => b?.status === 'pending').length;
 
   return (
     <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 sm:px-6 bg-white/85 dark:bg-[#14171A]/85 backdrop-blur-md border-b border-black/5 dark:border-white/5 transition-colors" suppressHydrationWarning>

@@ -48,15 +48,15 @@ export function GlobalSearchModal({ isOpen, onClose }: GlobalSearchModalProps) {
   const trimmed = query.trim().toLowerCase();
 
   // Search results from live database
-  const liveBookings = getLiveBookings();
+  const liveBookings = getLiveBookings() || [];
   const filteredBookings = trimmed
     ? liveBookings
         .filter(
           (b) =>
-            b.id.toLowerCase().includes(trimmed) ||
-            b.customerName.toLowerCase().includes(trimmed) ||
-            b.customerPhone.includes(trimmed) ||
-            b.villaId.toLowerCase().includes(trimmed)
+            (b?.id || '').toLowerCase().includes(trimmed) ||
+            (b?.customerName || '').toLowerCase().includes(trimmed) ||
+            (b?.customerPhone || '').includes(trimmed) ||
+            (b?.villaId || '').toLowerCase().includes(trimmed)
         )
         .slice(0, 6)
     : [];

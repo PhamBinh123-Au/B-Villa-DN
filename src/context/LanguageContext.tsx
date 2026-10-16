@@ -537,7 +537,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
         setLanguageState(saved);
       } else {
         // Detect browser language or default to Vietnamese
-        const browserLang = navigator.language.toLowerCase();
+        const browserLang = (navigator?.language || "").toLowerCase();
         if (browserLang.startsWith("en")) {
           setLanguageState("en");
         } else {

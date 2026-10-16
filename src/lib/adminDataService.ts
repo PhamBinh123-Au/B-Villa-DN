@@ -65,21 +65,23 @@ export function mapIdToVillaCode(id: VillaId): string {
 
 // ==================== INQUIRY <-> BOOKING CONVERTER ====================
 export function convertInquiryToBooking(inq: BookingInquiry): Booking {
-  const vId = mapVillaCodeToId(inq.villaId);
-  const nights = calculateStayNights(inq.checkIn, inq.checkOut);
-  const nightlyRate = bookingStore.getVillaPrice(inq.villaId);
-  const totalAmount = inq.totalPriceVnd || calculateStayTotal(inq.checkIn, inq.checkOut, nightlyRate);
+  const checkIn = typeof inq?.checkIn === 'string' ? inq.checkIn : '';
+  const checkOut = typeof inq?.checkOut === 'string' ? inq.checkOut : '';
+  const vId = inq?.villaId ? mapVillaCodeToId(inq.villaId) : 'B1';
+  const nights = checkIn && checkOut ? calculateStayNights(checkIn, checkOut) : 1;
+  const nightlyRate = inq?.villaId ? bookingStore.getVillaPrice(inq.villaId) : 18000000;
+  const totalAmount = inq?.totalPriceVnd || (checkIn && checkOut ? calculateStayTotal(checkIn, checkOut, nightlyRate) : nightlyRate);
   const usdRate = bookingStore.getUsdRate() || 25400;
   const totalAmountUSD = Math.round(totalAmount / usdRate);
 
   let status: BookingStatus = 'pending';
-  if (inq.status === 'confirmed') {
+  if (inq?.status === 'confirmed') {
     if (inq.isCheckedOut) {
       status = 'completed';
     } else if (inq.isCheckedIn) {
       status = 'checked_in';
     } else {
-      const stayState = getStayStatus(inq.checkIn, inq.checkOut);
+      const stayState = checkIn && checkOut ? getStayStatus(checkIn, checkOut) : 'upcoming';
       if (stayState === 'in_house') {
         status = 'checked_in';
       } else if (stayState === 'expired') {
@@ -88,37 +90,37 @@ export function convertInquiryToBooking(inq: BookingInquiry): Booking {
         status = 'confirmed';
       }
     }
-  } else if (inq.status === 'cancelled') {
+  } else if (inq?.status === 'cancelled') {
     status = 'cancelled';
-  } else if (inq.status === 'contacted' || inq.status === 'pending') {
+  } else if (inq?.status === 'contacted' || inq?.status === 'pending') {
     status = 'pending';
   }
 
   const paymentStatus: PaymentStatus =
-    inq.paymentStatus === 'paid'
+    inq?.paymentStatus === 'paid'
       ? 'paid'
-      : inq.paymentStatus === 'deposit'
+      : inq?.paymentStatus === 'deposit'
       ? 'deposit'
       : 'unpaid';
 
   return {
-    id: inq.id,
+    id: inq?.id || 'INQ-UNKNOWN',
     villaId: vId,
-    customerId: inq.phone || inq.email || inq.id,
-    customerName: inq.guestName || 'Khách Chưa Đặt Tên',
-    customerPhone: inq.phone || '',
-    customerEmail: inq.email || '',
+    customerId: inq?.phone || inq?.email || inq?.id || '',
+    customerName: inq?.guestName || 'Khách Chưa Đặt Tên',
+    customerPhone: inq?.phone || '',
+    customerEmail: inq?.email || '',
     customerIdNumber: '',
-    adults: inq.adults || 2,
-    children: inq.children || 0,
-    checkIn: inq.checkIn,
-    checkOut: inq.checkOut,
+    adults: inq?.adults || 2,
+    children: inq?.children || 0,
+    checkIn,
+    checkOut,
     nights,
-    source: (inq.source as BookingSource) || 'direct',
+    source: (inq?.source as BookingSource) || 'direct',
     status,
     paymentStatus,
-    specialRequests: inq.specialRequests || '',
-    staffNotes: inq.cleaningNotes || inq.paymentNotes || '',
+    specialRequests: inq?.specialRequests || '',
+    staffNotes: inq?.cleaningNotes || inq?.paymentNotes || '',
     priceBreakdown: {
       baseRate: nightlyRate,
       weekdayNights: nights,
@@ -137,15 +139,15 @@ export function convertInquiryToBooking(inq: BookingInquiry): Booking {
     },
     totalAmount,
     totalAmountUSD,
-    createdAt: inq.createdAt || new Date().toISOString(),
-    updatedAt: inq.createdAt || new Date().toISOString(),
+    createdAt: inq?.createdAt || new Date().toISOString(),
+    updatedAt: inq?.createdAt || new Date().toISOString(),
   };
 }
 
 // ==================== LIVE BOOKINGS FETCHER ====================
 export function getLiveBookings(): Booking[] {
-  const realInquiries = bookingStore.getInquiries();
-  return realInquiries.map(convertInquiryToBooking);
+  const realInquiries = bookingStore.getInquiries() || [];
+  return realInquiries.filter(Boolean).map(convertInquiryToBooking);
 }
 
 // ==================== LIVE DASHBOARD STATS COMPUTATION ====================
@@ -154,25 +156,28 @@ export function computeLiveDashboardStats(bookingsList: Booking[]): DashboardSta
   const curMonthStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-  const thisMonthBookings = bookingsList.filter(
-    (b) => b.checkIn.startsWith(curMonthStr) && b.status !== 'cancelled'
+  const thisMonthBookings = (bookingsList || []).filter(
+    (b) => typeof b?.checkIn === 'string' && b.checkIn.startsWith(curMonthStr) && b?.status !== 'cancelled'
   );
 
-  const pendingBookings = bookingsList.filter((b) => b.status === 'pending').length;
+  const pendingBookings = (bookingsList || []).filter((b) => b?.status === 'pending').length;
 
-  const currentGuests = bookingsList
+  const currentGuests = (bookingsList || [])
     .filter(
       (b) =>
+        b?.status &&
         b.status !== 'cancelled' &&
         b.status !== 'pending' &&
+        typeof b.checkIn === 'string' &&
+        typeof b.checkOut === 'string' &&
         b.checkIn <= todayStr &&
         todayStr < b.checkOut
     )
-    .reduce((acc, cur) => acc + (cur.adults + cur.children), 0);
+    .reduce((acc, cur) => acc + ((cur.adults || 0) + (cur.children || 0)), 0);
 
   const revenueThisMonth = thisMonthBookings
     .filter((b) => b.status === 'confirmed' || b.status === 'checked_in' || b.status === 'completed')
-    .reduce((acc, cur) => acc + cur.totalAmount, 0);
+    .reduce((acc, cur) => acc + (cur.totalAmount || 0), 0);
 
   const usdRate = bookingStore.getUsdRate() || 25400;
   const revenueThisMonthUSD = Math.round(revenueThisMonth / usdRate);
@@ -218,9 +223,9 @@ export function getLiveVillas(baseVillas: Villa[] = initialVillas): Villa[] {
     if (isMaintenance) {
       status = 'maintenance';
     } else if (!override.status) {
-      const activeBookings = bookingStore.getVillaActiveBookings(fullCode);
+      const activeBookings = bookingStore.getVillaActiveBookings(fullCode) || [];
       const isOccupiedToday = activeBookings.some(
-        (b) => b.status === 'confirmed' && b.checkIn <= todayStr && todayStr < b.checkOut
+        (b) => b?.status === 'confirmed' && typeof b?.checkIn === 'string' && typeof b?.checkOut === 'string' && b.checkIn <= todayStr && todayStr < b.checkOut
       );
       status = isOccupiedToday ? 'occupied' : 'available';
     }

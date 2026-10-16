@@ -18,10 +18,10 @@ export function OccupancyHeatmap() {
     const dayStr = `2025-10-${day.toString().padStart(2, '0')}`;
     
     // Check bookings that span this date
-    const dayBookings = bookings.filter((b) => {
-      const inDate = b.checkIn.slice(0, 10);
-      const outDate = b.checkOut.slice(0, 10);
-      return dayStr >= inDate && dayStr <= outDate && b.status !== 'cancelled';
+    const dayBookings = (bookings || []).filter((b) => {
+      const inDate = (b?.checkIn || '').slice(0, 10);
+      const outDate = (b?.checkOut || '').slice(0, 10);
+      return inDate && outDate && dayStr >= inDate && dayStr <= outDate && b?.status !== 'cancelled';
     });
 
     const bookedVillas = Array.from(new Set(dayBookings.map((b) => b.villaId)));

@@ -207,8 +207,8 @@ export const ContactModal: React.FC<ContactModalProps> = ({ isOpen, onClose }) =
                 <a
                   key={ch.id}
                   href={ch.href}
-                  target={ch.href.startsWith("tel:") ? undefined : "_blank"}
-                  rel={ch.href.startsWith("tel:") ? undefined : "noreferrer"}
+                  target={ch.href?.startsWith("tel:") ? undefined : "_blank"}
+                  rel={ch.href?.startsWith("tel:") ? undefined : "noreferrer"}
                   className={`group flex items-center justify-between gap-3 p-3 sm:p-3.5 rounded-2xl bg-white border border-[#EAE5DC] shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer ${ch.borderHover}`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
