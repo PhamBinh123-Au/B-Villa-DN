@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverStore } from "@/lib/serverStore";
 import { verifyAdminSession } from "@/lib/serverAuth";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,17 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
+
+    // Rate limiting: Max 30 updates per 5 minutes per IP (Checklist #9)
+    const ip = getClientIp(request);
+    const rateLimit = checkRateLimit(`prices_update:${ip}`, 30, 5 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Bạn đã cập nhật giá quá nhiều lần liên tiếp. Vui lòng thử lại sau ít phút." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { prices, villaId, priceVnd, usdRate } = body;
 

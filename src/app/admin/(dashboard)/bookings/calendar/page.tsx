@@ -480,19 +480,29 @@ export default function BookingsCalendarPage() {
         isOpen={slideOverOpen}
         onClose={() => setSlideOverOpen(false)}
         onUpdateStatus={async (id, st) => {
-          await updateBookingStatusInDb(id, st);
-          setBookingsList((prev) =>
-            prev.map((b) => (b.id === id ? { ...b, status: st } : b))
-          );
-          if (selectedBooking) {
-            setSelectedBooking((prev) => (prev ? { ...prev, status: st } : null));
+          try {
+            await updateBookingStatusInDb(id, st);
+            setBookingsList((prev) =>
+              prev.map((b) => (b.id === id ? { ...b, status: st } : b))
+            );
+            if (selectedBooking) {
+              setSelectedBooking((prev) => (prev ? { ...prev, status: st } : null));
+            }
+            addToast({
+              type: 'success',
+              title: 'Cập nhật trạng thái thành công',
+              message: `Đơn ${id} đã chuyển sang trạng thái mới.`,
+              duration: 4000,
+            });
+          } catch (err: any) {
+            console.warn('[calendar:onUpdateStatus] Handled gracefully:', err);
+            addToast({
+              type: 'warning',
+              title: 'Lưu ý cập nhật',
+              message: err?.message || 'Có xung đột phòng hoặc lỗi cập nhật.',
+              duration: 5000,
+            });
           }
-          addToast({
-            type: 'success',
-            title: 'Cập nhật trạng thái thành công',
-            message: `Đơn ${id} đã chuyển sang trạng thái mới.`,
-            duration: 4000,
-          });
         }}
       />
 

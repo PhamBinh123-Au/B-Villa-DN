@@ -381,7 +381,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                         unoptimized
                         sizes="88px"
                         className="object-cover"
-                        style={{ imageRendering: "-webkit-optimize-contrast" }}
                       />
                       <div className="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-sm text-white text-[9px] font-bold px-1 rounded">
                         {currentVilla.code}
@@ -441,7 +440,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                                   unoptimized
                                   sizes="80px"
                                   className="object-cover group-hover:scale-105 transition-transform duration-300"
-                                  style={{ imageRendering: "-webkit-optimize-contrast" }}
                                 />
                                 <div className="absolute top-0.5 left-0.5 bg-black/75 backdrop-blur-sm text-white text-[9px] font-bold px-1 rounded">
                                   {v.code}

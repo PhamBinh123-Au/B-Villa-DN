@@ -131,6 +131,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate villaId against known valid villas (Checklist #10)
+    const validVillaIds = ['b1-villa-4pn', 'b2-villa-4pn', 'b3-villa-2pn', 'b4-villa-4pn', 'B1', 'B2', 'B3', 'B4', 'b1', 'b2', 'b3', 'b4'];
+    const cleanVillaId = String(villaId).trim();
+    if (!validVillaIds.includes(cleanVillaId)) {
+      return NextResponse.json(
+        { error: "Mã biệt thự không hợp lệ." },
+        { status: 400 }
+      );
+    }
+
+    // Sanitize special requests & guest count
+    const cleanSpecialRequests = typeof body.specialRequests === 'string'
+      ? body.specialRequests.trim().replace(/[<>]/g, '').slice(0, 500)
+      : '';
+    const cleanGuests = Math.min(Math.max(1, Number(guests) || 2), 30);
+
     // Sanitize guest input object
     const cleanBooking = {
       ...body,
@@ -139,17 +155,31 @@ export async function POST(request: NextRequest) {
       email: email ? String(email).trim().toLowerCase() : "",
       checkIn: cleanCheckIn,
       checkOut: cleanCheckOut,
-      villaId: String(villaId).trim(),
-      guests: Number(guests) || 2,
+      villaId: cleanVillaId,
+      guests: cleanGuests,
+      specialRequests: cleanSpecialRequests,
     };
 
     const created = await serverStore.addInquiry(cleanBooking);
     const updatedData = await serverStore.getData();
+    const isAdmin = verifyAdminSession(request);
+
+    // Prevent customer PII data leak on public POST responses (Checklist #14)
+    const sanitizedInquiries = isAdmin
+      ? updatedData.inquiries
+      : updatedData.inquiries.map((b: any) => ({
+          id: b.id,
+          villaId: b.villaId,
+          checkIn: b.checkIn,
+          checkOut: b.checkOut,
+          status: b.status,
+          guestName: "Khách Đặt",
+        }));
 
     return NextResponse.json(
       {
         inquiry: created,
-        allInquiries: updatedData.inquiries,
+        allInquiries: sanitizedInquiries,
         maintenance: updatedData.maintenance,
         version: updatedData.version,
         isCloudStorage: serverStore.isCloudStorage(),

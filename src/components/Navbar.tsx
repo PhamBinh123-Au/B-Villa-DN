@@ -80,13 +80,6 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
           >
             {t("nav.amenities")}
           </a>
-          <button
-            type="button"
-            onClick={() => setIsContactOpen(true)}
-            className="hover:text-[#C2A476] transition-colors duration-200 cursor-pointer uppercase"
-          >
-            {t("nav.contact")}
-          </button>
         </nav>
 
         {/* Action Buttons & Language Switcher */}

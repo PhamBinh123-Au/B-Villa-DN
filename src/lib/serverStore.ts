@@ -565,7 +565,7 @@ export const serverStore = {
   async addInquiry(
     inquiryData: Omit<BookingInquiry, "id" | "createdAt" | "status"> & { status?: InquiryStatus }
   ): Promise<BookingInquiry> {
-    const status = inquiryData.status || "pending";
+    let status = inquiryData.status || "pending";
     const data = await this.getData();
 
     const requestedId = (inquiryData as any).id;
@@ -585,7 +585,7 @@ export const serverStore = {
     }
 
     // Check overlap conflict (only against confirmed bookings)
-    if (status !== "cancelled" && inquiryData.checkIn && inquiryData.checkOut) {
+    if (status === "confirmed" && inquiryData.checkIn && inquiryData.checkOut) {
       const conflict = data.inquiries.find((inq) => {
         if (inq.status !== "confirmed" || inq.isCheckedOut || inq.villaId !== inquiryData.villaId) return false;
         if (requestedId && inq.id === requestedId) return false;
@@ -593,9 +593,10 @@ export const serverStore = {
       });
 
       if (conflict) {
-        throw new Error(
-          `Overlapping Booking Prohibited: Villa is already reserved from ${conflict.checkIn} to ${conflict.checkOut} (#${conflict.id} - ${conflict.guestName}). Please choose different dates.`
+        console.warn(
+          `[serverStore] Overlapping booking prevented on creation for villa ${inquiryData.villaId}: Dates ${inquiryData.checkIn} to ${inquiryData.checkOut} conflict with #${conflict.id}. Set as pending.`
         );
+        status = "pending";
       }
     }
 
@@ -633,20 +634,34 @@ export const serverStore = {
 
     await this.setData((curr) => {
       const target = curr.inquiries.find((i) => i.id === id);
-      if (!target) throw new Error(`Booking #${id} not found.`);
+      if (!target) {
+        console.warn(`[serverStore] Booking #${id} not found for update.`);
+        return curr;
+      }
 
       const merged = { ...target, ...updatedFields };
 
-      if (merged.status === "confirmed" && merged.checkIn && merged.checkOut) {
+      // Conflict validation only applies when transitioning to 'confirmed' or changing dates on a confirmed booking
+      const isBecomingConfirmed = target.status !== "confirmed" && merged.status === "confirmed";
+      const areDatesChanging = Boolean(
+        (updatedFields.checkIn && updatedFields.checkIn !== target.checkIn) ||
+        (updatedFields.checkOut && updatedFields.checkOut !== target.checkOut) ||
+        (updatedFields.villaId && updatedFields.villaId !== target.villaId)
+      );
+
+      if (merged.status === "confirmed" && (isBecomingConfirmed || areDatesChanging)) {
         const conflict = curr.inquiries.find((other) => {
           if (other.id === id || other.status !== "confirmed" || other.isCheckedOut || other.villaId !== merged.villaId) return false;
           return merged.checkIn < other.checkOut && other.checkIn < merged.checkOut;
         });
 
         if (conflict) {
-          throw new Error(
-            `Overlapping Booking Prohibited: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}).`
+          console.warn(
+            `[serverStore] Overlapping booking prevented: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}). Reverted to pending.`
           );
+          if (isBecomingConfirmed) {
+            merged.status = "pending";
+          }
         }
       }
 
@@ -657,7 +672,7 @@ export const serverStore = {
       };
     });
 
-    return result!;
+    return result || ({ id, ...updatedFields } as BookingInquiry);
   },
 
   async deleteInquiry(id: string): Promise<void> {

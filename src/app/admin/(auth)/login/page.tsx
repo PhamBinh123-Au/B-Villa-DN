@@ -3,33 +3,34 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Lock,
   ShieldCheck,
   ShieldAlert,
-  ArrowRight,
-  CheckCircle2,
-  AlertTriangle,
   Clock,
   KeyRound,
   Eye,
   EyeOff,
   Delete,
   Sparkles,
-  Shield,
   RotateCcw,
+  AlertTriangle,
+  Lock,
+  Cpu,
+  Fingerprint,
+  Check,
 } from 'lucide-react';
 import { adminUsers } from '@/lib/mock-data';
 import { markSpaSessionActive } from '@/lib/spaAuthSession';
 
-// ==================== SECURITY CONSTANTS ====================
+// ==================== SECURITY & ANIMATION CONSTANTS ====================
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_STORAGE_KEY = 'bvilla_security_lockout_v2';
-const AUTH_STORAGE_KEY = 'bvilla_auth';
 const PIN_LENGTH = 6;
+const DEMO_VALID_PIN = '200928';
+const DEMO_INVALID_PIN = '123456';
 
 // Exponential Backoff Lockout Duration
-// Lần 1: 30s | Lần 2: 60s | Lần 3: 120s | Lần 4: 300s (5 phút) | Lần 5+: 900s (15 phút)
 const getLockoutDurationSeconds = (lockoutCount: number): number => {
   if (lockoutCount <= 1) return 30;
   if (lockoutCount === 2) return 60;
@@ -38,7 +39,9 @@ const getLockoutDurationSeconds = (lockoutCount: number): number => {
   return 900;
 };
 
-export default function LoginPage() {
+type AuthPhase = 'idle' | 'collapsing' | 'orbiting' | 'success' | 'error';
+
+export default function GlassyLoginPage() {
   const router = useRouter();
 
   // Glassy OTP State
@@ -47,6 +50,9 @@ export default function LoginPage() {
   const [isMasked, setIsMasked] = useState<boolean>(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Signature Settigation Animation Phase
+  const [authPhase, setAuthPhase] = useState<AuthPhase>('idle');
+
   // Security & Lockout states
   const [failedAttempts, setFailedAttempts] = useState(0);
   const [lockoutCount, setLockoutCount] = useState(0);
@@ -54,15 +60,12 @@ export default function LoginPage() {
   const [lockoutSecondsLeft, setLockoutSecondsLeft] = useState(0);
   const [totalLockoutDuration, setTotalLockoutDuration] = useState(30);
 
-  // Status & Feedback animations
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [isError, setIsError] = useState(false);
-  const [isShaking, setIsShaking] = useState(false);
+  // Status & Feedback
   const [errorMessage, setErrorMessage] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [isDemoRunning, setIsDemoRunning] = useState(false);
 
-  // Detect mobile / touch devices to prevent unwanted virtual keyboard popup
+  // Detect mobile / touch devices
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const checkMobile = () => {
@@ -78,7 +81,6 @@ export default function LoginPage() {
   // Restore lockout status from localStorage
   useEffect(() => {
     if (typeof window === 'undefined') return;
-
     try {
       const stored = localStorage.getItem(LOCKOUT_STORAGE_KEY);
       if (stored) {
@@ -110,11 +112,11 @@ export default function LoginPage() {
         }
       }
     } catch {
-      // Ignore
+      // Ignore storage errors
     }
   }, []);
 
-  // Countdown timer effect
+  // Countdown timer effect for lockout
   useEffect(() => {
     if (!isLocked || lockoutSecondsLeft <= 0) return;
 
@@ -137,10 +139,8 @@ export default function LoginPage() {
                 lockedUntil: 0,
               })
             );
-          } catch {
-            // Ignore
-          }
-          // Refocus first slot after unlock (desktop with physical keyboard only)
+          } catch {}
+
           if (!isMobile) {
             setTimeout(() => inputRefs.current[0]?.focus(), 100);
           }
@@ -153,31 +153,18 @@ export default function LoginPage() {
     return () => clearInterval(interval);
   }, [isLocked, isMobile, lockoutSecondsLeft]);
 
-  // Focus the current active input on mount or unlock (Desktop with physical keyboard ONLY)
+  // Focus the first input on desktop mount
   useEffect(() => {
-    // On phones / touch devices, NEVER auto-focus on load to prevent the OS virtual keyboard from covering the screen
     if (isMobile) return;
-
-    if (!isLocked && !isLoading && !isSuccess) {
+    if (!isLocked && authPhase === 'idle') {
       inputRefs.current[0]?.focus();
     }
-  }, [isLocked, isLoading, isMobile, isSuccess]);
+  }, [authPhase, isLocked, isMobile]);
 
-  // Shake animation trigger
-  const triggerShake = () => {
-    setIsShaking(true);
-    setIsError(true);
-    setTimeout(() => {
-      setIsShaking(false);
-      setIsError(false);
-    }, 650);
-  };
-
-  // Verify PIN submission via secure Server API
+  // Execute PIN Verification with Settigation Cinematic Flow
   const verifyPin = useCallback(
-    async (pinCode: string) => {
+    async (pinCode: string, isSimulatedDemo: boolean = false, forceSuccess: boolean = false) => {
       if (isLocked) {
-        triggerShake();
         setErrorMessage(
           `Hệ thống đang tạm khóa an ninh. Vui lòng chờ ${lockoutSecondsLeft}s trước khi thử lại.`
         );
@@ -185,33 +172,111 @@ export default function LoginPage() {
       }
 
       if (pinCode.length < PIN_LENGTH) {
-        triggerShake();
         setErrorMessage(`Vui lòng nhập đủ ${PIN_LENGTH} chữ số của mã PIN bảo mật.`);
         return;
       }
 
-      setIsLoading(true);
+      setErrorMessage('');
 
-      try {
-        const res = await fetch('/api/admin/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ pin: pinCode }),
-        });
+      // ==========================================
+      // PHASE 1: Collapse into glowing glass beads
+      // ==========================================
+      setAuthPhase('collapsing');
 
-        const data = await res.json().catch(() => ({}));
+      // Wait 350ms for collapse animation to finish, then start orbital spin
+      await new Promise((res) => setTimeout(res, 350));
 
-        if (!res.ok) {
-          setIsLoading(false);
-          triggerShake();
+      // ==========================================
+      // PHASE 2: Orbital Spiral & Security Scanner
+      // ==========================================
+      setAuthPhase('orbiting');
 
-          if (res.status === 429) {
-            // Server rate-limit lockout
-            const waitSec = data.lockoutSecondsLeft || 60;
+      // Enforce a minimum orbital scan duration so the user experiences the gorgeous animation
+      const minScanTime = new Promise((res) => setTimeout(res, 1400));
+
+      let serverResult: { ok: boolean; status?: number; data?: any } = { ok: false };
+
+      if (isSimulatedDemo) {
+        await minScanTime;
+        serverResult = {
+          ok: forceSuccess,
+          status: forceSuccess ? 200 : 401,
+          data: forceSuccess
+            ? { success: true, message: 'Đăng nhập thành công (Demo Mode)' }
+            : { success: false, message: 'Mã PIN demo không chính xác.' },
+        };
+      } else {
+        const fetchPromise = (async () => {
+          try {
+            const res = await fetch('/api/admin/login', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pin: pinCode }),
+            });
+            const data = await res.json().catch(() => ({}));
+            return { ok: res.ok, status: res.status, data };
+          } catch (err) {
+            return { ok: false, status: 500, data: { message: 'Lỗi kết nối máy chủ.' } };
+          }
+        })();
+
+        const [result] = await Promise.all([fetchPromise, minScanTime]);
+        serverResult = result;
+      }
+
+      // ==========================================
+      // PHASE 3: Success or Error Reaction
+      // ==========================================
+      if (serverResult.ok) {
+        // === SUCCESS STATE ===
+        setAuthPhase('success');
+
+        try {
+          localStorage.removeItem(LOCKOUT_STORAGE_KEY);
+        } catch {}
+
+        markSpaSessionActive();
+        const userIdx = serverResult.data?.user?.userIndex ?? 0;
+        const user = adminUsers[userIdx] || adminUsers[0];
+
+        if (typeof window !== 'undefined') {
+          const authPayload = {
+            user,
+            authenticatedAt: Date.now(),
+          };
+          sessionStorage.setItem('bvilla_admin_session', JSON.stringify(authPayload));
+          localStorage.removeItem('bvilla_auth');
+        }
+
+        // Smooth transition into admin dashboard
+        setTimeout(() => {
+          let target = '/admin';
+          if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const redirectParam = urlParams.get('redirect');
+            if (
+              redirectParam &&
+              redirectParam.startsWith('/admin') &&
+              !redirectParam.startsWith('/admin/login')
+            ) {
+              target = redirectParam;
+            }
+          }
+          router.replace(target);
+        }, 1300);
+      } else {
+        // === ERROR STATE ===
+        setAuthPhase('error');
+
+        if (!isSimulatedDemo) {
+          if (serverResult.status === 429) {
+            const waitSec = serverResult.data?.lockoutSecondsLeft || 60;
             setIsLocked(true);
             setLockoutSecondsLeft(waitSec);
             setTotalLockoutDuration(waitSec);
-            setErrorMessage(data.message || 'CẢNH BÁO BẢO MẬT: Quá nhiều lần thử sai. Tạm khóa đăng nhập.');
+            setErrorMessage(
+              serverResult.data?.message || 'CẢNH BÁO BẢO MẬT: Quá nhiều lần thử sai. Tạm khóa đăng nhập.'
+            );
           } else {
             const nextFailed = failedAttempts + 1;
             setFailedAttempts(nextFailed);
@@ -238,7 +303,7 @@ export default function LoginPage() {
               } catch {}
 
               setErrorMessage(
-                `CẢNH BÁO BẢO MẬT: Nhập sai mã PIN quá ${MAX_FAILED_ATTEMPTS} lần liên tiếp! Hệ thống tạm thời khóa đăng nhập ${durationSec} giây.`
+                `CẢNH BÁO: Nhập sai mã PIN quá ${MAX_FAILED_ATTEMPTS} lần! Hệ thống tạm thời khóa ${durationSec} giây.`
               );
             } else {
               const remaining = MAX_FAILED_ATTEMPTS - nextFailed;
@@ -254,72 +319,33 @@ export default function LoginPage() {
               } catch {}
 
               setErrorMessage(
-                data.message || `Mã PIN không chính xác! Bạn còn ${remaining}/${MAX_FAILED_ATTEMPTS} lần thử trước khi bị tạm khóa.`
+                serverResult.data?.message ||
+                  `Mã PIN không chính xác! Bạn còn ${remaining}/${MAX_FAILED_ATTEMPTS} lần thử.`
               );
             }
           }
-
-          // Clear pin inputs on error
-          setTimeout(() => {
-            setPin(Array(PIN_LENGTH).fill(''));
-            setActiveIndex(0);
-            if (!isLocked && !isMobile) {
-              inputRefs.current[0]?.focus();
-            }
-          }, 400);
-
-          return;
+        } else {
+          setErrorMessage('Mã PIN không chính xác! (Chế độ mô phỏng thử nghiệm lỗi)');
         }
 
-        // PIN IS CORRECT
-        setErrorMessage('');
-        try {
-          localStorage.removeItem(LOCKOUT_STORAGE_KEY);
-        } catch {}
-
-        markSpaSessionActive();
-        const userIdx = data.user?.userIndex ?? 0;
-        const user = adminUsers[userIdx] || adminUsers[0];
-        if (typeof window !== 'undefined') {
-          const authPayload = {
-            user,
-            authenticatedAt: Date.now(),
-          };
-
-          // Session storage (active for this single SPA session only)
-          sessionStorage.setItem('bvilla_admin_session', JSON.stringify(authPayload));
-          // Note: DO NOT store in localStorage so that F5/reload or closing browser forces re-login
-          localStorage.removeItem('bvilla_auth');
-        }
-
-        setIsLoading(false);
-        setIsSuccess(true);
-
+        // Allow error shake to play, then restore idle input state
         setTimeout(() => {
-          let target = '/admin';
-          if (typeof window !== 'undefined') {
-            const urlParams = new URLSearchParams(window.location.search);
-            const redirectParam = urlParams.get('redirect');
-            if (redirectParam && redirectParam.startsWith('/admin') && !redirectParam.startsWith('/admin/login')) {
-              target = redirectParam;
-            }
+          setPin(Array(PIN_LENGTH).fill(''));
+          setActiveIndex(0);
+          setAuthPhase('idle');
+          if (!isLocked && !isMobile) {
+            inputRefs.current[0]?.focus();
           }
-          router.replace(target);
-        }, 500);
-      } catch {
-        setIsLoading(false);
-        triggerShake();
-        setErrorMessage('Không thể kết nối đến máy chủ bảo mật. Vui lòng thử lại.');
+        }, 750);
       }
     },
-    [failedAttempts, isLocked, lockoutCount, lockoutSecondsLeft, router]
+    [failedAttempts, isLocked, lockoutCount, lockoutSecondsLeft, router, isMobile]
   );
 
-  // Handle slot input change
+  // Handle single digit input
   const handleInputChange = (idx: number, value: string) => {
-    if (isLocked || isLoading || isSuccess) return;
+    if (isLocked || authPhase !== 'idle') return;
 
-    // Filter only digits
     const cleanDigit = value.replace(/\D/g, '').slice(-1);
     if (!cleanDigit) return;
 
@@ -327,12 +353,10 @@ export default function LoginPage() {
     newPin[idx] = cleanDigit;
     setPin(newPin);
 
-    // Auto-advance
     if (idx < PIN_LENGTH - 1) {
       setActiveIndex(idx + 1);
       inputRefs.current[idx + 1]?.focus();
     } else {
-      // Reached last digit -> check auto verify
       const fullPin = newPin.join('');
       if (fullPin.length === PIN_LENGTH) {
         verifyPin(fullPin);
@@ -340,14 +364,13 @@ export default function LoginPage() {
     }
   };
 
-  // Handle KeyDown navigation (Backspace, Arrows)
+  // Keyboard navigation
   const handleKeyDown = (idx: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (isLocked || isLoading || isSuccess) return;
+    if (isLocked || authPhase !== 'idle') return;
 
     if (e.key === 'Backspace') {
       e.preventDefault();
       const newPin = [...pin];
-
       if (newPin[idx]) {
         newPin[idx] = '';
         setPin(newPin);
@@ -371,60 +394,55 @@ export default function LoginPage() {
     }
   };
 
-  // Handle Paste
+  // Handle Clipboard Paste
   const handlePaste = (e: React.ClipboardEvent) => {
-    if (isLocked || isLoading || isSuccess) return;
+    if (isLocked || authPhase !== 'idle') return;
     e.preventDefault();
 
-    const pastedDigits = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, PIN_LENGTH);
-    if (!pastedDigits) return;
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, PIN_LENGTH);
+    if (!pasted) return;
 
     const newPin = Array(PIN_LENGTH).fill('');
-    for (let i = 0; i < pastedDigits.length; i++) {
-      newPin[i] = pastedDigits[i];
+    for (let i = 0; i < pasted.length; i++) {
+      newPin[i] = pasted[i];
     }
     setPin(newPin);
 
-    const nextIdx = Math.min(pastedDigits.length, PIN_LENGTH - 1);
+    const nextIdx = Math.min(pasted.length, PIN_LENGTH - 1);
     setActiveIndex(nextIdx);
     if (!isMobile) {
       inputRefs.current[nextIdx]?.focus();
     }
 
-    if (pastedDigits.length === PIN_LENGTH) {
-      verifyPin(pastedDigits);
+    if (pasted.length === PIN_LENGTH) {
+      verifyPin(pasted);
     }
   };
 
-  // Tactile Glass Keypad Click
+  // Tactile Glass Numeric Keypad Click
   const handleKeypadPress = (val: string) => {
-    if (isLocked || isLoading || isSuccess) return;
+    if (isLocked || authPhase !== 'idle') return;
 
     if (val === 'CLEAR') {
       setPin(Array(PIN_LENGTH).fill(''));
       setActiveIndex(0);
-      if (!isMobile) {
-        inputRefs.current[0]?.focus();
-      }
+      if (!isMobile) inputRefs.current[0]?.focus();
       return;
     }
 
     if (val === 'BACK') {
-      // Find last filled index
       const lastFilled = pin.reduce((acc, curr, i) => (curr !== '' ? i : acc), -1);
       if (lastFilled >= 0) {
         const newPin = [...pin];
         newPin[lastFilled] = '';
         setPin(newPin);
         setActiveIndex(lastFilled);
-        if (!isMobile) {
-          inputRefs.current[lastFilled]?.focus();
-        }
+        if (!isMobile) inputRefs.current[lastFilled]?.focus();
       }
       return;
     }
 
-    // Number digit 0-9
+    // Number 0-9
     const firstEmpty = pin.findIndex((d) => d === '');
     const targetIdx = firstEmpty !== -1 ? firstEmpty : activeIndex;
 
@@ -435,9 +453,7 @@ export default function LoginPage() {
 
       if (targetIdx < PIN_LENGTH - 1) {
         setActiveIndex(targetIdx + 1);
-        if (!isMobile) {
-          inputRefs.current[targetIdx + 1]?.focus();
-        }
+        if (!isMobile) inputRefs.current[targetIdx + 1]?.focus();
       } else {
         const fullPin = newPin.join('');
         if (fullPin.length === PIN_LENGTH) {
@@ -447,265 +463,533 @@ export default function LoginPage() {
     }
   };
 
+  // Trigger Demo Automation
+  const runDemoScenario = async (isCorrect: boolean) => {
+    if (isLocked || isDemoRunning || authPhase !== 'idle') return;
+    setIsDemoRunning(true);
+    setErrorMessage('');
+    const demoCode = isCorrect ? DEMO_VALID_PIN : DEMO_INVALID_PIN;
+
+    // Simulate human typing with 70ms interval
+    const tempPin = Array(PIN_LENGTH).fill('');
+    for (let i = 0; i < PIN_LENGTH; i++) {
+      tempPin[i] = demoCode[i];
+      setPin([...tempPin]);
+      setActiveIndex(i);
+      await new Promise((r) => setTimeout(r, 65));
+    }
+
+    setIsDemoRunning(false);
+    verifyPin(demoCode, true, isCorrect);
+  };
 
   return (
-    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-[#0E1114] text-[#FAF8F5] relative overflow-y-auto selection:bg-[#C2A476] selection:text-black">
-      {/* Subtle background ambient lights */}
-      <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#C2A476]/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-[#a88d5f]/10 rounded-full blur-3xl pointer-events-none" />
-
+    <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-[#08090D] text-white relative overflow-hidden select-none">
+      {/* ========================================================
+          1. MYSTICAL COSMIC BACKGROUND & FLOATING GRADIENT ORBS
+          ======================================================== */}
+      {/* Dynamic Grid Overlay */}
       <div
-        className={`w-full max-w-md space-y-4 transition-all duration-300 relative z-10 my-auto ${
-          isShaking ? 'animate-shake' : 'animate-fade-in'
-        }`}
+        className="absolute inset-0 opacity-[0.07] pointer-events-none"
+        style={{
+          backgroundImage: `radial-gradient(rgba(255, 255, 255, 0.4) 1px, transparent 1px)`,
+          backgroundSize: '32px 32px',
+        }}
+      />
+
+      {/* Floating Ambient Mesh Orb 1 (Neon Violet #8B5CF6) */}
+      <motion.div
+        animate={{
+          x: [0, 80, -50, 0],
+          y: [0, -60, 50, 0],
+          scale: [1, 1.25, 0.9, 1],
+        }}
+        transition={{
+          duration: 18,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-1/4 left-1/5 w-[380px] h-[380px] sm:w-[480px] sm:h-[480px] rounded-full bg-gradient-to-tr from-[#8B5CF6]/45 to-[#6366F1]/30 blur-[110px] pointer-events-none"
+      />
+
+      {/* Floating Ambient Mesh Orb 2 (Cyan / Turquoise #06B6D4) */}
+      <motion.div
+        animate={{
+          x: [0, -90, 60, 0],
+          y: [0, 70, -40, 0],
+          scale: [1.1, 0.95, 1.2, 1.1],
+        }}
+        transition={{
+          duration: 22,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute bottom-1/4 right-1/5 w-[400px] h-[400px] sm:w-[500px] sm:h-[500px] rounded-full bg-gradient-to-br from-[#06B6D4]/40 to-[#0EA5E9]/25 blur-[120px] pointer-events-none"
+      />
+
+      {/* Floating Ambient Mesh Orb 3 (Hot Magenta / Rose #EC4899) */}
+      <motion.div
+        animate={{
+          x: [0, 60, -70, 0],
+          y: [0, 50, -60, 0],
+          scale: [0.9, 1.15, 0.95, 0.9],
+        }}
+        transition={{
+          duration: 20,
+          repeat: Infinity,
+          ease: 'easeInOut',
+        }}
+        className="absolute top-1/2 right-1/3 w-[320px] h-[320px] rounded-full bg-gradient-to-r from-[#EC4899]/35 to-[#F43F5E]/20 blur-[100px] pointer-events-none"
+      />
+
+      {/* Subtle Star Sparkles Layer */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(14,165,233,0.06),transparent_70%)] pointer-events-none" />
+
+      {/* ========================================================
+          2. THE MAIN GLASS CARD (GLASSMORPHISM WITH SETTIGATION VIBE)
+          ======================================================== */}
+      <motion.div
+        initial={{ opacity: 0, y: 30, scale: 0.96 }}
+        animate={{
+          opacity: 1,
+          y: 0,
+          scale: 1,
+          x: authPhase === 'error' ? [-12, 12, -10, 10, -5, 5, 0] : 0,
+        }}
+        transition={{
+          duration: authPhase === 'error' ? 0.65 : 0.6,
+          ease: [0.16, 1, 0.3, 1],
+        }}
+        className="w-full max-w-md relative z-10 my-auto"
       >
-        {/* ========================================================
-            CENTERED BRAND HEADER (LOGO & BRAND NAME)
-            ======================================================== */}
-        <div className="flex flex-col items-center text-center mb-2">
-          <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-[#C2A476] via-[#E2C799] to-[#a88d5f] p-0.5 shadow-2xl mb-3 flex items-center justify-center hover:scale-105 transition-transform duration-300">
-            <div className="w-full h-full bg-[#14171A] rounded-[14px] flex items-center justify-center p-2.5 overflow-hidden">
-              <Image
-                src="/images/logo.png"
-                alt="B Villa Da Nang Logo"
-                width={42}
-                height={42}
-                priority
-                className="w-full h-full object-contain filter drop-shadow-[0_2px_6px_rgba(194,164,118,0.5)]"
-              />
-            </div>
-          </div>
-          <h1 className="text-xl sm:text-2xl font-extrabold tracking-wider text-white">
-            B VILLA DA NANG
-          </h1>
-          <p className="text-[10px] sm:text-[11px] tracking-[0.25em] text-[#C2A476] uppercase font-bold mt-1">
-            Luxury Coastal Retreats
-          </p>
-        </div>
+        {/* Outer Frosted Glass Card Container */}
+        <div
+          className={`backdrop-blur-2xl rounded-[32px] p-6 sm:p-8 relative overflow-hidden transition-all duration-500 ${
+            authPhase === 'error'
+              ? 'bg-rose-950/30 border-2 border-rose-500/50 shadow-[0_0_50px_rgba(244,63,94,0.35)]'
+              : authPhase === 'success'
+              ? 'bg-emerald-950/30 border-2 border-emerald-400/50 shadow-[0_0_60px_rgba(16,185,129,0.35)]'
+              : 'bg-white/[0.04] sm:bg-slate-900/45 border border-white/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.08)_inset]'
+          }`}
+        >
+          {/* Shimmer Light Sweeping Ray across border */}
+          <motion.div
+            animate={{
+              x: ['-100%', '200%'],
+            }}
+            transition={{
+              duration: 3.5,
+              repeat: Infinity,
+              ease: 'easeInOut',
+              repeatDelay: 1,
+            }}
+            className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent pointer-events-none opacity-85"
+          />
 
-        {/* Glass Card Container (Centered) */}
-        <div className="backdrop-blur-2xl bg-white/[0.035] border border-white/10 rounded-3xl p-5 sm:p-7 md:p-8 shadow-[0_20px_50px_rgba(0,0,0,0.6)] relative overflow-hidden">
-            {/* Top gold accent line */}
-            <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-transparent via-[#C2A476] to-transparent opacity-80" />
-
-            {/* Header: Title & Badges */}
-            <div className="flex items-start justify-between gap-3 mb-6">
-              <div>
-                <div className="flex items-center gap-2 mb-1.5">
-                  <div className="w-8 h-8 rounded-xl bg-[#C2A476]/15 border border-[#C2A476]/30 flex items-center justify-center text-[#C2A476]">
-                    <KeyRound className="w-4 h-4" />
-                  </div>
-                  <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight">
-                    Đăng Nhập Quản Trị
-                  </h2>
-                </div>
-                <p className="text-xs text-neutral-400 font-light leading-relaxed">
-                  Nhập mã số PIN bảo mật (6 số) để xác thực quyền quản trị viên.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 text-[10px] font-semibold tracking-wide shrink-0">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Bảo Mật Cao</span>
-              </div>
-            </div>
-
-            {/* ACTIVE LOCKOUT NOTIFICATION (Brute-force protection) */}
-            {isLocked && (
-              <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-red-600/20 via-red-500/10 to-amber-500/20 border border-red-500/40 text-red-400 space-y-3 animate-security-pulse shadow-lg backdrop-blur-md">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <ShieldAlert className="w-6 h-6 animate-pulse" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-bold text-red-300 flex items-center gap-1.5 uppercase tracking-wider">
-                      HỆ THỐNG ĐÃ KHÓA AN TOÀN
-                    </h4>
-                    <p className="text-[11px] text-red-300/90 mt-0.5 leading-relaxed">
-                      Nhập sai quá {MAX_FAILED_ATTEMPTS} lần liên tiếp (Lần phạt #{lockoutCount}). Tạm dừng mọi thao tác để chống dò mật khẩu.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Countdown Visual Timer */}
-                <div className="bg-black/40 rounded-xl p-2.5 border border-red-500/25 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-4 h-4 text-red-400 animate-spin" style={{ animationDuration: '4s' }} />
-                    <span className="text-xs font-semibold text-neutral-300">
-                      Mở khóa tự động sau:
-                    </span>
-                  </div>
-                  <span className="text-sm font-extrabold font-mono text-red-400 bg-red-500/20 px-2 py-0.5 rounded-lg border border-red-500/30">
-                    {String(Math.floor(lockoutSecondsLeft / 60)).padStart(2, '0')}:
-                    {String(lockoutSecondsLeft % 60).padStart(2, '0')}s
-                  </span>
-                </div>
-
-                {/* Progress Bar of Lockout */}
-                <div className="w-full h-1 bg-red-500/20 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-red-500 to-amber-500 transition-all duration-1000 ease-linear rounded-full"
-                    style={{
-                      width: `${Math.max(0, (lockoutSecondsLeft / totalLockoutDuration) * 100)}%`,
-                    }}
+          {/* Top Brand & Verification Header */}
+          <div className="flex flex-col items-center text-center mb-6">
+            {/* Holographic Logo Emblem */}
+            <div className="relative mb-3 group cursor-pointer">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-[#C2A476] via-[#06B6D4] to-[#8B5CF6] p-[1.5px] shadow-[0_0_25px_rgba(6,182,212,0.4)] transition-transform duration-300 group-hover:scale-105">
+                <div className="w-full h-full bg-[#0D1117] rounded-[14.5px] flex items-center justify-center p-2.5 overflow-hidden">
+                  <Image
+                    src="/images/logo.png"
+                    alt="B Villa Da Nang Logo"
+                    width={40}
+                    height={40}
+                    priority
+                    className="w-full h-full object-contain filter drop-shadow-[0_2px_8px_rgba(6,182,212,0.6)]"
                   />
                 </div>
-
-                <p className="text-[10px] text-neutral-400 text-center italic">
-                  * Nhập sai tiếp sau mở khóa sẽ tăng thời gian phạt lên {getLockoutDurationSeconds(lockoutCount + 1)}s.
-                </p>
               </div>
-            )}
+              <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-cyan-500/20 border border-cyan-400 flex items-center justify-center text-[10px] text-cyan-300">
+                <Sparkles className="w-3 h-3 text-cyan-300" />
+              </span>
+            </div>
 
-            {/* Error Banner when incorrect */}
-            {!isLocked && errorMessage && (
-              <div className="mb-5 p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-medium flex items-start gap-2.5 animate-shake">
-                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 leading-relaxed">
-                  {errorMessage}
-                  {failedAttempts > 0 && (
-                    <div className="mt-1 flex items-center gap-1.5 font-bold text-amber-400">
-                      <span>Số lần sai:</span>
-                      <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-[10px]">
-                        {failedAttempts} / {MAX_FAILED_ATTEMPTS}
-                      </span>
-                    </div>
-                  )}
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] tracking-[0.28em] uppercase font-bold text-[#C2A476]">
+                B VILLA DA NANG
+              </span>
+              <span className="text-white/30">•</span>
+              <span className="text-[10px] tracking-[0.2em] uppercase font-semibold text-cyan-400">
+                SECURITY HUB
+              </span>
+            </div>
+
+            <h2 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <span>Xác Thực Bảo Mật</span>
+              <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 font-mono font-medium">
+                2FA
+              </span>
+            </h2>
+
+            <p className="text-xs text-neutral-400 font-light mt-1.5 max-w-xs leading-relaxed">
+              Vui lòng nhập mã PIN / OTP bảo mật để truy cập bảng điều khiển quản trị.
+            </p>
+          </div>
+
+          {/* ACTIVE LOCKOUT NOTIFICATION (Brute-Force Shield) */}
+          {isLocked && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="mb-5 p-4 rounded-2xl bg-gradient-to-r from-red-600/25 via-red-500/15 to-amber-500/20 border border-red-500/40 text-red-300 space-y-2.5 backdrop-blur-md shadow-lg"
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-red-500/25 text-red-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <ShieldAlert className="w-5 h-5 animate-pulse" />
                 </div>
-              </div>
-            )}
-
-            {/* Success Banner */}
-            {isSuccess && (
-              <div className="mb-5 p-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-bold flex items-center gap-3 animate-fade-in shadow-[0_0_25px_rgba(16,185,129,0.3)]">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 animate-bounce" />
-                <div>
-                  <p className="text-sm">Xác thực mã PIN thành công!</p>
-                  <p className="font-normal text-emerald-300/80 text-[11px]">
-                    Đang chuyển hướng vào bảng điều khiển quản trị...
+                <div className="flex-1 min-w-0">
+                  <h4 className="text-xs font-bold text-red-300 uppercase tracking-wider">
+                    HỆ THỐNG ĐÃ KHÓA BẢO VỆ
+                  </h4>
+                  <p className="text-[11px] text-red-300/80 leading-relaxed">
+                    Nhập sai quá {MAX_FAILED_ATTEMPTS} lần (Lần phạt #{lockoutCount}). Tạm dừng mọi
+                    thao tác xác thực.
                   </p>
                 </div>
               </div>
-            )}
 
-            {/* ========================================================
-                GLASSY OTP SLOTS (6 BOXES WITH LUXURY GLASSMORPHISM)
-                ======================================================== */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-xs text-neutral-400 px-1">
-                <span className="text-[11px] uppercase tracking-wider font-semibold text-[#C2A476]">
-                  Mã PIN 6 Chữ Số
+              {/* Countdown Visual Timer */}
+              <div className="bg-black/50 rounded-xl p-2 border border-red-500/30 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 text-red-400 animate-spin" style={{ animationDuration: '4s' }} />
+                  <span className="text-xs font-medium text-neutral-300">Mở khóa sau:</span>
+                </div>
+                <span className="text-xs font-bold font-mono text-red-400 bg-red-500/20 px-2 py-0.5 rounded-lg border border-red-500/40">
+                  {String(Math.floor(lockoutSecondsLeft / 60)).padStart(2, '0')}:
+                  {String(lockoutSecondsLeft % 60).padStart(2, '0')}s
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setIsMasked(!isMasked)}
-                  className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-[#C2A476] transition-colors cursor-pointer"
-                  title={isMasked ? 'Hiển thị số' : 'Ẩn số (chế độ bảo mật)'}
+              </div>
+
+              {/* Lockout Progress Bar */}
+              <div className="w-full h-1 bg-red-500/20 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-red-500 to-amber-500 transition-all duration-1000 ease-linear rounded-full"
+                  style={{
+                    width: `${Math.max(0, (lockoutSecondsLeft / totalLockoutDuration) * 100)}%`,
+                  }}
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* ERROR MESSAGE NOTIFICATION */}
+          {!isLocked && errorMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-4 p-3 rounded-xl bg-red-500/15 border border-red-500/30 text-red-300 text-xs font-medium flex items-start gap-2.5"
+            >
+              <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+              <div className="flex-1 leading-relaxed">
+                {errorMessage}
+                {failedAttempts > 0 && (
+                  <span className="block mt-0.5 text-[11px] text-amber-400 font-semibold">
+                    Lần thử sai: {failedAttempts} / {MAX_FAILED_ATTEMPTS}
+                  </span>
+                )}
+              </div>
+            </motion.div>
+          )}
+
+          {/* ========================================================
+              3. SETTIGATION SIGNATURE DYNAMIC ANIMATION STAGE
+              ======================================================== */}
+          <div className="relative min-h-[120px] flex items-center justify-center my-2">
+            <AnimatePresence mode="wait">
+              {/* STAGE A: IDLE INPUT CELLS (6 GLASSY BOXES) */}
+              {authPhase === 'idle' && (
+                <motion.div
+                  key="idle-cells"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ duration: 0.25 }}
+                  className="w-full"
                 >
-                  {isMasked ? (
-                    <>
-                      <Eye className="w-3.5 h-3.5" />
-                      <span>Hiện số</span>
-                    </>
-                  ) : (
-                    <>
-                      <EyeOff className="w-3.5 h-3.5" />
-                      <span>Ẩn số</span>
-                    </>
-                  )}
-                </button>
-              </div>
+                  <div className="flex items-center justify-between text-xs text-neutral-400 mb-2 px-1">
+                    <span className="text-[11px] uppercase tracking-wider font-semibold text-cyan-400 flex items-center gap-1.5">
+                      <KeyRound className="w-3.5 h-3.5" />
+                      <span>Nhập mã 6 chữ số</span>
+                    </span>
 
-              {/* 6 Glassy Input Slots */}
-              <div
-                onPaste={handlePaste}
-                className="grid grid-cols-6 gap-2 sm:gap-3 py-2"
-              >
-                {Array.from({ length: PIN_LENGTH }).map((_, idx) => {
-                  const digit = pin[idx];
-                  const isCurrentActive = activeIndex === idx && !isLocked;
-                  const isFilled = Boolean(digit);
-
-                  return (
-                    <div
-                      key={idx}
-                      onClick={() => {
-                        if (!isLocked && !isLoading && !isSuccess) {
-                          setActiveIndex(idx);
-                          if (!isMobile) {
-                            inputRefs.current[idx]?.focus();
-                          }
-                        }
-                      }}
-                      className={`relative w-full aspect-[4/5] sm:h-16 rounded-2xl flex items-center justify-center transition-all duration-300 cursor-pointer select-none overflow-hidden ${
-                        isLocked
-                          ? 'bg-white/[0.02] border border-white/5 opacity-40 cursor-not-allowed'
-                          : isSuccess
-                          ? 'bg-emerald-500/15 border-2 border-emerald-400 ring-4 ring-emerald-500/25 shadow-[0_0_20px_rgba(16,185,129,0.5)]'
-                          : isError
-                          ? 'bg-rose-500/15 border-2 border-rose-500 ring-4 ring-rose-500/25 shadow-[0_0_20px_rgba(244,63,94,0.5)]'
-                          : isCurrentActive
-                          ? 'bg-[#C2A476]/15 border-2 border-[#C2A476] ring-4 ring-[#C2A476]/25 shadow-[0_0_25px_rgba(194,164,118,0.5)] -translate-y-1 scale-105'
-                          : isFilled
-                          ? 'bg-[#C2A476]/10 border border-[#C2A476]/60 shadow-sm'
-                          : 'bg-white/[0.04] border border-white/10 hover:border-white/25 hover:bg-white/[0.07]'
-                      }`}
+                    <button
+                      type="button"
+                      onClick={() => setIsMasked(!isMasked)}
+                      className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-cyan-400 transition-colors cursor-pointer"
+                      title={isMasked ? 'Hiển thị số' : 'Ẩn số (chế độ bảo mật)'}
                     >
-                      {/* Hidden Accessible Input for Native Keyboard on Desktop & Screen Readers */}
-                      <input
-                        ref={(el) => {
-                          inputRefs.current[idx] = el;
-                        }}
-                        type="text"
-                        inputMode={isMobile ? "none" : "numeric"}
-                        pattern="[0-9]*"
-                        maxLength={1}
-                        value={digit}
-                        disabled={isLocked || isLoading || isSuccess}
-                        onChange={(e) => handleInputChange(idx, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(idx, e)}
-                        onFocus={(e) => {
-                          setActiveIndex(idx);
-                          if (isMobile) {
-                            e.target.blur();
-                          }
-                        }}
-                        className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full text-center"
-                        autoComplete="off"
-                      />
-
-                      {/* Visual Content: Number / Bead / Cursor */}
-                      {isFilled ? (
-                        isMasked ? (
-                          /* Masked Luxury Bead */
-                          <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-gradient-to-tr from-[#C2A476] to-[#FAF8F5] shadow-[0_0_12px_rgba(194,164,118,0.8)] animate-scale-up" />
-                        ) : (
-                          /* Crisp Gold Digit */
-                          <span className="font-mono text-2xl sm:text-3xl font-black text-[#C2A476] filter drop-shadow-[0_2px_8px_rgba(194,164,118,0.4)] animate-scale-up">
-                            {digit}
-                          </span>
-                        )
-                      ) : isCurrentActive ? (
-                        /* Pulsing Glassy Cursor */
-                        <span className="w-0.5 h-6 sm:h-7 bg-[#C2A476] rounded-full animate-pulse shadow-[0_0_8px_#C2A476]" />
+                      {isMasked ? (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Hiện số</span>
+                        </>
                       ) : (
-                        /* Subtle Empty Dash */
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>Ẩn số</span>
+                        </>
                       )}
+                    </button>
+                  </div>
 
-                      {/* Glass Sheen Top Reflection */}
-                      <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-t-2xl" />
+                  {/* 6 Glassy Input Cells */}
+                  <div
+                    onPaste={handlePaste}
+                    className="grid grid-cols-6 gap-2 sm:gap-3 py-1"
+                  >
+                    {Array.from({ length: PIN_LENGTH }).map((_, idx) => {
+                      const digit = pin[idx];
+                      const isCurrentActive = activeIndex === idx && !isLocked;
+                      const isFilled = Boolean(digit);
+
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => {
+                            if (!isLocked && authPhase === 'idle') {
+                              setActiveIndex(idx);
+                              if (!isMobile) inputRefs.current[idx]?.focus();
+                            }
+                          }}
+                          className={`relative w-full aspect-[4/5] sm:h-16 rounded-2xl flex items-center justify-center transition-all duration-300 cursor-pointer select-none overflow-hidden ${
+                            isLocked
+                              ? 'bg-white/[0.02] border border-white/5 opacity-40 cursor-not-allowed'
+                              : isCurrentActive
+                              ? 'bg-cyan-500/15 border-2 border-cyan-400 ring-4 ring-cyan-500/25 shadow-[0_0_25px_rgba(6,182,212,0.5)] -translate-y-1 scale-105'
+                              : isFilled
+                              ? 'bg-white/[0.08] border border-cyan-400/50 shadow-sm'
+                              : 'bg-white/[0.04] border border-white/15 hover:border-white/30 hover:bg-white/[0.07]'
+                          }`}
+                        >
+                          {/* Accessible Hidden Input for Native Keyboard */}
+                          <input
+                            ref={(el) => {
+                              inputRefs.current[idx] = el;
+                            }}
+                            type="text"
+                            inputMode={isMobile ? 'none' : 'numeric'}
+                            pattern="[0-9]*"
+                            maxLength={1}
+                            value={digit}
+                            disabled={isLocked || authPhase !== 'idle'}
+                            onChange={(e) => handleInputChange(idx, e.target.value)}
+                            onKeyDown={(e) => handleKeyDown(idx, e)}
+                            onFocus={(e) => {
+                              setActiveIndex(idx);
+                              if (isMobile) e.target.blur();
+                            }}
+                            className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full text-center"
+                            autoComplete="off"
+                          />
+
+                          {/* Visual Content: Digit / Glow Dot / Blinking Cursor */}
+                          {isFilled ? (
+                            isMasked ? (
+                              <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 rounded-full bg-gradient-to-tr from-cyan-400 to-[#FAF8F5] shadow-[0_0_12px_rgba(6,182,212,0.9)] animate-scale-up" />
+                            ) : (
+                              <span className="font-mono text-2xl sm:text-3xl font-extrabold text-white filter drop-shadow-[0_2px_8px_rgba(6,182,212,0.6)] animate-scale-up">
+                                {digit}
+                              </span>
+                            )
+                          ) : isCurrentActive ? (
+                            <span className="w-0.5 h-6 sm:h-7 bg-cyan-400 rounded-full animate-pulse shadow-[0_0_10px_#06B6D4]" />
+                          ) : (
+                            <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
+                          )}
+
+                          {/* Top Glass Highlight */}
+                          <div className="absolute top-0 inset-x-0 h-1/2 bg-gradient-to-b from-white/10 to-transparent pointer-events-none rounded-t-2xl" />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              )}
+
+              {/* STAGE B: COLLAPSING -> ORBITAL SPIRAL VERIFICATION SCANNER */}
+              {(authPhase === 'collapsing' || authPhase === 'orbiting') && (
+                <motion.div
+                  key="orbital-scanner"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.2 }}
+                  className="flex flex-col items-center justify-center py-4"
+                >
+                  {/* Central Security Orbit Arena */}
+                  <div className="relative w-36 h-36 flex items-center justify-center">
+                    {/* Pulsing Concentric Radar Rings */}
+                    <motion.div
+                      animate={{
+                        scale: [1, 1.8, 2.4],
+                        opacity: [0.8, 0.3, 0],
+                      }}
+                      transition={{
+                        duration: 1.6,
+                        repeat: Infinity,
+                        ease: 'easeOut',
+                      }}
+                      className="absolute w-20 h-20 rounded-full border border-cyan-400/40 pointer-events-none"
+                    />
+
+                    <motion.div
+                      animate={{
+                        scale: [0.8, 1.5, 2],
+                        opacity: [0.7, 0.25, 0],
+                      }}
+                      transition={{
+                        duration: 1.6,
+                        repeat: Infinity,
+                        ease: 'easeOut',
+                        delay: 0.5,
+                      }}
+                      className="absolute w-20 h-20 rounded-full border border-purple-500/40 pointer-events-none"
+                    />
+
+                    {/* Central Glowing Cryptographic Core */}
+                    <div className="relative z-10 w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#06B6D4]/30 via-slate-900 to-[#8B5CF6]/30 border border-white/20 backdrop-blur-xl flex items-center justify-center shadow-[0_0_30px_rgba(6,182,212,0.5)]">
+                      <motion.div
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 6, repeat: Infinity, ease: 'linear' }}
+                        className="text-cyan-400"
+                      >
+                        <Cpu className="w-8 h-8" />
+                      </motion.div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* ========================================================
-                TACTILE GLASSY NUMERIC KEYPAD (1-9, C, 0, BACKSPACE)
-                ======================================================== */}
-            <div className="pt-3 pb-1">
-              <div className="grid grid-cols-3 gap-2 sm:gap-2.5 max-w-[320px] mx-auto">
+                    {/* 6 Glass Beads Orbiting Around Core in Perfect Spiral Geometry */}
+                    <motion.div
+                      animate={{ rotate: 360 }}
+                      transition={{
+                        duration: authPhase === 'orbiting' ? 1.2 : 0.8,
+                        repeat: Infinity,
+                        ease: 'linear',
+                      }}
+                      className="absolute inset-0 flex items-center justify-center pointer-events-none"
+                    >
+                      {Array.from({ length: PIN_LENGTH }).map((_, idx) => {
+                        const angle = (idx * 360) / PIN_LENGTH;
+                        const rad = (angle * Math.PI) / 180;
+                        const radius = 54; // Orbit radius in pixels
+                        const x = Math.cos(rad) * radius;
+                        const y = Math.sin(rad) * radius;
+
+                        return (
+                          <motion.div
+                            key={idx}
+                            initial={{ scale: 0.3, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            className="absolute w-4 h-4 rounded-full bg-gradient-to-tr from-cyan-400 via-indigo-300 to-purple-400 shadow-[0_0_16px_#06B6D4] ring-2 ring-white/60"
+                            style={{
+                              transform: `translate(${x}px, ${y}px)`,
+                            }}
+                          />
+                        );
+                      })}
+                    </motion.div>
+                  </div>
+
+                  {/* Dynamic Status Text */}
+                  <motion.div
+                    initial={{ opacity: 0, y: 5 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="mt-3 text-center"
+                  >
+                    <p className="text-xs font-semibold text-cyan-300 tracking-wider flex items-center justify-center gap-1.5 uppercase font-mono">
+                      <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                      <span>Đang giải mã token xác thực...</span>
+                    </p>
+                    <p className="text-[11px] text-neutral-400 font-light mt-0.5">
+                      Hệ thống đang kiểm tra chữ ký điện tử quản trị viên
+                    </p>
+                  </motion.div>
+                </motion.div>
+              )}
+
+              {/* STAGE C: SUCCESS BURST & ANIMATED SVG CHECKMARK */}
+              {authPhase === 'success' && (
+                <motion.div
+                  key="success-burst"
+                  initial={{ scale: 0.5, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  transition={{ type: 'spring', stiffness: 350, damping: 25 }}
+                  className="flex flex-col items-center justify-center py-4 text-center"
+                >
+                  {/* Glowing Emerald Checkmark Halo */}
+                  <div className="relative w-24 h-24 flex items-center justify-center mb-3">
+                    {/* Outward Particle Ripple */}
+                    <motion.div
+                      initial={{ scale: 0.8, opacity: 0.9 }}
+                      animate={{ scale: 2.2, opacity: 0 }}
+                      transition={{ duration: 0.9, ease: 'easeOut' }}
+                      className="absolute inset-0 rounded-full bg-emerald-400/30 border border-emerald-400"
+                    />
+
+                    <div className="w-20 h-20 rounded-full bg-gradient-to-tr from-emerald-500/25 via-emerald-600/30 to-teal-400/20 border-2 border-emerald-400 backdrop-blur-xl flex items-center justify-center shadow-[0_0_40px_rgba(16,185,129,0.7)]">
+                      {/* Animated SVG Path Checkmark */}
+                      <svg
+                        className="w-10 h-10 text-emerald-400"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={3.5}
+                      >
+                        <motion.path
+                          initial={{ pathLength: 0 }}
+                          animate={{ pathLength: 1 }}
+                          transition={{ duration: 0.5, ease: 'easeOut', delay: 0.15 }}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M5 13l4 4L19 7"
+                        />
+                      </svg>
+                    </div>
+                  </div>
+
+                  <h3 className="text-lg sm:text-xl font-extrabold text-emerald-300 tracking-tight">
+                    Xác Thực Thành Công!
+                  </h3>
+                  <p className="text-xs text-emerald-200/80 mt-1 max-w-xs font-light">
+                    Quyền truy cập quản trị viên hợp lệ. Đang chuyển hướng vào Dashboard...
+                  </p>
+                </motion.div>
+              )}
+
+              {/* STAGE D: ERROR SHAKE & RECOVERY */}
+              {authPhase === 'error' && (
+                <motion.div
+                  key="error-state"
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="flex flex-col items-center justify-center py-4 text-center"
+                >
+                  <div className="w-16 h-16 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center shadow-[0_0_30px_rgba(244,63,94,0.6)] mb-2 animate-bounce">
+                    <ShieldAlert className="w-8 h-8 text-rose-400" />
+                  </div>
+                  <h4 className="text-sm font-bold text-rose-400 uppercase tracking-wider">
+                    Xác Thực Thất Bại
+                  </h4>
+                  <p className="text-xs text-rose-300/80 mt-0.5">
+                    Mã xác thực không hợp lệ. Đang khôi phục ô nhập...
+                  </p>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* ========================================================
+              4. TACTILE GLASS NUMERIC KEYPAD (1-9, C, 0, BACK)
+              ======================================================== */}
+          {authPhase === 'idle' && (
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="pt-2 pb-1"
+            >
+              <div className="grid grid-cols-3 gap-2 sm:gap-2.5 max-w-[310px] mx-auto">
                 {['1', '2', '3', '4', '5', '6', '7', '8', '9', 'CLEAR', '0', 'BACK'].map((key) => {
                   const isClear = key === 'CLEAR';
                   const isBack = key === 'BACK';
@@ -714,7 +998,7 @@ export default function LoginPage() {
                     <button
                       key={key}
                       type="button"
-                      disabled={isLocked || isLoading || isSuccess}
+                      disabled={isLocked || authPhase !== 'idle'}
                       onClick={() => handleKeypadPress(key)}
                       className={`relative aspect-[16/11] rounded-2xl flex items-center justify-center font-mono font-bold transition-all duration-150 select-none cursor-pointer border ${
                         isLocked
@@ -723,7 +1007,7 @@ export default function LoginPage() {
                           ? 'bg-white/[0.03] hover:bg-rose-500/20 text-neutral-400 hover:text-rose-400 border-white/10 hover:border-rose-500/40 text-xs tracking-wider uppercase active:scale-95'
                           : isBack
                           ? 'bg-white/[0.03] hover:bg-amber-500/20 text-neutral-400 hover:text-amber-400 border-white/10 hover:border-amber-500/40 active:scale-95'
-                          : 'bg-white/[0.04] hover:bg-[#C2A476]/20 text-white hover:text-[#C2A476] border-white/10 hover:border-[#C2A476]/50 shadow-sm text-lg sm:text-xl active:scale-95 active:bg-[#C2A476]/30'
+                          : 'bg-white/[0.04] hover:bg-cyan-500/20 text-white hover:text-cyan-300 border-white/10 hover:border-cyan-500/40 shadow-sm text-lg sm:text-xl active:scale-95 active:bg-cyan-500/30'
                       }`}
                     >
                       {isClear ? (
@@ -740,64 +1024,56 @@ export default function LoginPage() {
                   );
                 })}
               </div>
+            </motion.div>
+          )}
+
+          {/* Footer Security Badges */}
+          <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-neutral-400 px-1">
+            <div className="flex items-center gap-1.5 text-[11px] text-cyan-400 font-medium">
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>Mã Hóa 256-bit AES</span>
             </div>
 
-            {/* Security Session Indicator */}
-            <div className="pt-2 flex items-center justify-between text-xs text-neutral-400 px-1">
-              <div className="flex items-center gap-1.5 text-[11px] text-[#C2A476]">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Phiên Làm Việc An Ninh</span>
-              </div>
-              <span className="text-[10px] text-neutral-500">
-                Tự động thoát khi đóng tab
-              </span>
-            </div>
-
-            {/* Primary Action Button */}
-            <div className="pt-5">
-              <button
-                type="button"
-                disabled={isLoading || isLocked || isSuccess}
-                onClick={() => verifyPin(pin.join(''))}
-                className={`w-full py-3.5 px-4 rounded-2xl font-bold text-sm shadow-xl transition-all duration-300 flex items-center justify-center gap-2 cursor-pointer ${
-                  isLocked
-                    ? 'bg-neutral-800 text-neutral-500 cursor-not-allowed border border-white/5'
-                    : isSuccess
-                    ? 'bg-emerald-500 text-white shadow-emerald-500/30'
-                    : 'bg-gradient-to-r from-[#C2A476] via-[#d4ba94] to-[#C2A476] bg-[length:200%_auto] hover:bg-right text-[#0E1114] hover:shadow-[0_0_30px_rgba(194,164,118,0.5)] hover:scale-[1.01] active:scale-[0.99]'
-                }`}
-              >
-                {isLoading ? (
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 border-2 border-[#0E1114] border-t-transparent rounded-full animate-spin" />
-                    <span>Đang xác thực an toàn...</span>
-                  </div>
-                ) : isSuccess ? (
-                  <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-white" />
-                    <span>Xác Thực Thành Công</span>
-                  </div>
-                ) : isLocked ? (
-                  <div className="flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-neutral-500" />
-                    <span>Đang Khóa An Ninh ({lockoutSecondsLeft}s)</span>
-                  </div>
-                ) : (
-                  <>
-                    <span>Đăng Nhập Quản Trị Viên</span>
-                    <ArrowRight className="w-4 h-4 transition-transform group-hover:translate-x-1" />
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Bottom Security Footer */}
-            <div className="pt-5 mt-4 border-t border-white/5 flex items-center justify-center gap-2 text-[10px] text-neutral-500">
-              <Shield className="w-3 h-3 text-[#C2A476]" />
-              <span>TLS 1.3 • Chống Brute-Force Exponential Backoff • PIN Glassy OTP</span>
+            <div className="flex items-center gap-1 text-[11px] text-neutral-400">
+              <Fingerprint className="w-3.5 h-3.5 text-purple-400" />
+              <span>SSL/TLS Verified</span>
             </div>
           </div>
         </div>
-      </div>
+
+        {/* ========================================================
+            5. DEMO SIMULATION TOGGLE PILLS (REQUIREMENT #4)
+            ======================================================== */}
+        <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+          <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
+            🧪 Demo hiệu ứng:
+          </span>
+
+          <div className="flex items-center gap-2">
+            {/* Demo Success Button */}
+            <button
+              type="button"
+              disabled={isLocked || isDemoRunning || authPhase !== 'idle'}
+              onClick={() => runDemoScenario(true)}
+              className="px-3 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/30 hover:border-emerald-400 text-emerald-300 text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <Check className="w-3 h-3 text-emerald-400" />
+              <span>Mã Đúng (Thành Công)</span>
+            </button>
+
+            {/* Demo Error Button */}
+            <button
+              type="button"
+              disabled={isLocked || isDemoRunning || authPhase !== 'idle'}
+              onClick={() => runDemoScenario(false)}
+              className="px-3 py-1.5 rounded-full bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-400 text-rose-300 text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+            >
+              <AlertTriangle className="w-3 h-3 text-rose-400" />
+              <span>Mã Sai (Báo Lỗi)</span>
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
   );
 }

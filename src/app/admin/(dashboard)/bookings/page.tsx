@@ -118,22 +118,32 @@ export default function BookingsListPage() {
   };
 
   const handleUpdateStatus = async (id: string, newStatus: BookingStatus) => {
-    setData((prev) =>
-      prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
-    );
-    if (activeBooking && activeBooking.id === id) {
-      setActiveBooking((prev) => (prev ? { ...prev, status: newStatus } : null));
+    try {
+      setData((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
+      );
+      if (activeBooking && activeBooking.id === id) {
+        setActiveBooking((prev) => (prev ? { ...prev, status: newStatus } : null));
+      }
+
+      // Persist to DB and sync calendar
+      await updateBookingStatusInDb(id, newStatus);
+
+      addToast({
+        type: 'success',
+        title: 'Cập nhật trạng thái',
+        message: `Đơn ${id} đã được cập nhật thành "${getStatusLabel(newStatus)}".`,
+        duration: 4000,
+      });
+    } catch (err: any) {
+      console.warn('[handleUpdateStatus] Handled gracefully:', err);
+      addToast({
+        type: 'warning',
+        title: 'Lưu ý cập nhật',
+        message: err?.message || 'Không thể cập nhật trạng thái đơn do trùng lịch.',
+        duration: 5000,
+      });
     }
-
-    // Persist to DB and sync calendar
-    await updateBookingStatusInDb(id, newStatus);
-
-    addToast({
-      type: 'success',
-      title: 'Cập nhật trạng thái',
-      message: `Đơn ${id} đã được cập nhật thành "${getStatusLabel(newStatus)}".`,
-      duration: 4000,
-    });
   };
 
   // Filtered dataset
@@ -161,26 +171,36 @@ export default function BookingsListPage() {
     const selectedIds = selectedIndices.map((idx) => filteredData[idx]?.id).filter(Boolean);
     if (selectedIds.length === 0) return;
 
-    setData((prev) =>
-      prev.map((b) =>
-        selectedIds.includes(b.id) && b.status === 'pending'
-          ? { ...b, status: 'confirmed' }
-          : b
-      )
-    );
-    setRowSelection({});
+    try {
+      setData((prev) =>
+        prev.map((b) =>
+          selectedIds.includes(b.id) && b.status === 'pending'
+            ? { ...b, status: 'confirmed' }
+            : b
+        )
+      );
+      setRowSelection({});
 
-    // Persist all selected to DB
-    for (const id of selectedIds) {
-      await confirmBookingInDb(id);
+      // Persist all selected to DB
+      for (const id of selectedIds) {
+        await confirmBookingInDb(id);
+      }
+
+      addToast({
+        type: 'success',
+        title: 'Xác nhận hàng loạt',
+        message: `Đã xác nhận ${selectedIds.length} đơn đặt phòng được chọn.`,
+        duration: 5000,
+      });
+    } catch (err: any) {
+      console.warn('[handleBulkConfirm] Handled gracefully:', err);
+      addToast({
+        type: 'warning',
+        title: 'Lưu ý xác nhận hàng loạt',
+        message: err?.message || 'Một số đơn không thể xác nhận do trùng lịch.',
+        duration: 5000,
+      });
     }
-
-    addToast({
-      type: 'success',
-      title: 'Xác nhận hàng loạt',
-      message: `Đã xác nhận ${selectedIds.length} đơn đặt phòng được chọn.`,
-      duration: 5000,
-    });
   };
 
   // Open luxury dialog for bulk delete

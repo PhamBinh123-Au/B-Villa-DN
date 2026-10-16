@@ -1,5 +1,6 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
+  darkMode: "class",
   content: [
     "./src/pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -8,6 +9,17 @@ module.exports = {
   theme: {
     extend: {
       colors: {
+        ivory: "#FAF9F6",
+        sand: "#F3EFE6",
+        charcoal: "#18181B",
+        stonewarm: "#78716C",
+        champagne: "#C5A059",
+        moss: "#2C3E35",
+        brand: {
+          DEFAULT: "#C2A476",
+          light: "#d4ba94",
+          dark: "#a88d5f",
+        },
         luxury: {
           bg: "#FAF8F5",
           surface: "#FFFFFF",
@@ -21,8 +33,9 @@ module.exports = {
         },
       },
       fontFamily: {
-        serif: ["var(--font-serif)", "Playfair Display", "Georgia", "serif"],
-        sans: ["var(--font-sans)", "Inter", "system-ui", "sans-serif"],
+        sans: ["var(--font-quicksand)", "Quicksand", "system-ui", "-apple-system", "sans-serif"],
+        serif: ["var(--font-quicksand)", "Quicksand", "sans-serif"],
+        heading: ["var(--font-quicksand)", "Quicksand", "sans-serif"],
       },
     },
   },

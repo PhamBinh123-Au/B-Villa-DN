@@ -78,13 +78,16 @@ const iconMap: Record<string, React.ReactNode> = {
   ShieldCheck: <ShieldCheck className="w-6 h-6 text-[#C2A476]" />,
 };
 
-const INITIAL_AMENITIES: AmenityItem[] = DEFAULT_AMENITIES.map((item) => ({
-  icon: item.iconName || "Sparkles",
-  titleVi: item.name,
-  titleEn: item.name,
-  descVi: item.description,
-  descEn: item.description,
-}));
+const INITIAL_AMENITIES: AmenityItem[] = DEFAULT_AMENITIES.map((item) => {
+  const cleanName = item.name.replace(/\s*\(300Mbps\)/gi, "");
+  return {
+    icon: item.iconName || "Sparkles",
+    titleVi: cleanName,
+    titleEn: cleanName,
+    descVi: item.description,
+    descEn: item.description,
+  };
+});
 
 export const AmenitiesSection: React.FC = () => {
   const { language } = useLanguage();
@@ -95,13 +98,16 @@ export const AmenitiesSection: React.FC = () => {
       const live = getLiveAmenities();
       if (live && live.length > 0) {
         setAmenities(
-          live.map((item) => ({
-            icon: item.iconName || "Sparkles",
-            titleVi: item.name,
-            titleEn: item.name,
-            descVi: item.description,
-            descEn: item.description,
-          }))
+          live.map((item) => {
+            const cleanName = item.name.replace(/\s*\(300Mbps\)/gi, "");
+            return {
+              icon: item.iconName || "Sparkles",
+              titleVi: cleanName,
+              titleEn: cleanName,
+              descVi: item.description,
+              descEn: item.description,
+            };
+          })
         );
       }
     };

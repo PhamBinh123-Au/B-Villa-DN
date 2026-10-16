@@ -108,8 +108,7 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
               fill
               unoptimized
               sizes="100vw"
-              className="object-cover object-center group-hover:scale-[1.04] transition-transform duration-700 ease-out will-change-transform"
-              style={{ imageRendering: "-webkit-optimize-contrast" }}
+              className="object-cover object-center group-hover:scale-[1.04] transition-transform duration-700 ease-out"
             />
             {/* Elegant bottom scrim - keeps upper half of photo crystal clear & vibrant */}
             <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/90 via-black/40 to-transparent pointer-events-none" />
@@ -183,7 +182,6 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
                 unoptimized
                 sizes="100vw"
                 className="object-contain object-center"
-                style={{ imageRendering: "-webkit-optimize-contrast" }}
               />
             </div>
 

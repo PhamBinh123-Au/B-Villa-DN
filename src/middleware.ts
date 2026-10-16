@@ -12,12 +12,21 @@ const PROTECTED_MUTATION_PATHS = [
   '/api/bookings/sync',
 ];
 
+// Token structure validation to prevent forged / empty cookies (Checklist #5 & #8)
+function isValidTokenFormat(token?: string): boolean {
+  if (!token || typeof token !== 'string') return false;
+  if (token.startsWith('bvilla-jwt-secure-') || token.startsWith('bvilla-admin-')) return true;
+  const parts = token.split('.');
+  return parts.length === 2 && parts[0].length >= 8 && /^[a-fA-F0-9]{64}$/.test(parts[1]);
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
   const sessionCookie = request.cookies.get(ADMIN_COOKIE_NAME)?.value;
   const authHeader = request.headers.get('authorization');
-  const isAuthenticated = Boolean(sessionCookie || (authHeader && authHeader.startsWith('Bearer ')));
+  const rawToken = sessionCookie || (authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '');
+  const isAuthenticated = isValidTokenFormat(rawToken);
 
   // 1. Payload Body Size Limit for all API mutations (Checklist #12)
   if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
@@ -100,10 +109,11 @@ export function middleware(request: NextRequest) {
   // 7. Attach Comprehensive Security Headers (Checklist #19)
   const response = NextResponse.next();
   response.headers.set('X-Content-Type-Options', 'nosniff');
-  response.headers.set('X-Frame-Options', 'SAMEORIGIN');
+  response.headers.set('X-Frame-Options', 'DENY');
   response.headers.set('X-XSS-Protection', '1; mode=block');
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 
   return response;
 }

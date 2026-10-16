@@ -33,17 +33,21 @@ import {
   Navigation,
   ExternalLink,
   MessageCircle,
-  Zap,
+  Calendar,
+  Eye,
+  Info,
 } from "lucide-react";
 
 interface VillaCardProps {
   villa: Villa;
+  viewMode?: "editorial" | "grid";
   onInquire: (villa: Villa) => void;
   onOpenGallery?: (villa: Villa, photoIndex: number) => void;
 }
 
 export const VillaCard: React.FC<VillaCardProps> = ({
   villa,
+  viewMode = "editorial",
   onInquire,
   onOpenGallery,
 }) => {
@@ -51,12 +55,14 @@ export const VillaCard: React.FC<VillaCardProps> = ({
   const [showDetails, setShowDetails] = useState(false);
   const [currentPhotoIdx, setCurrentPhotoIdx] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [lightboxTab, setLightboxTab] = useState<"gallery" | "details">("gallery");
   const [mounted, setMounted] = useState(false);
   const [currentPrice, setCurrentPrice] = useState<number>(() => DEFAULT_VILLA_PRICES[villa.id] || 15000000);
   const [usdRate, setUsdRate] = useState<number>(DEFAULT_USD_RATE);
   const [isUnderMaintenance, setIsUnderMaintenance] = useState(false);
   const [maintenanceInfo, setMaintenanceInfo] = useState<VillaMaintenanceInfo | undefined>(undefined);
   const [villaOverrides, setVillaOverrides] = useState<Record<string, any>>({});
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -76,6 +82,17 @@ export const VillaCard: React.FC<VillaCardProps> = ({
     return () => unsub();
   }, [villa.id]);
 
+  const photos = villa.gallery && villa.gallery.length > 0 ? villa.gallery : [villa.image];
+
+  // Preload all gallery images in browser cache for 0ms instantaneous carousel switching
+  useEffect(() => {
+    if (typeof window === "undefined" || !photos || photos.length === 0) return;
+    photos.forEach((src) => {
+      const img = new window.Image();
+      img.src = src;
+    });
+  }, [photos]);
+
   // Keyboard navigation for full-screen lightbox
   useEffect(() => {
     if (!isLightboxOpen) return;
@@ -92,19 +109,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isLightboxOpen, villa.gallery]);
-
-  const photos = villa.gallery && villa.gallery.length > 0 ? villa.gallery : [villa.image];
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-
-  // Preload all gallery images in browser cache for 0ms instantaneous carousel switching
-  useEffect(() => {
-    if (typeof window === "undefined" || !photos || photos.length === 0) return;
-    photos.forEach((src) => {
-      const img = new window.Image();
-      img.src = src;
-    });
-  }, [photos]);
+  }, [isLightboxOpen, photos.length]);
 
   const handleNextPhoto = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -135,9 +140,16 @@ export const VillaCard: React.FC<VillaCardProps> = ({
 
   const handleOpenPhotoViewer = (e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
+    setLightboxTab("gallery");
     if (onOpenGallery) {
       onOpenGallery(villa, currentPhotoIdx);
     }
+    setIsLightboxOpen(true);
+  };
+
+  const handleOpenDetailsModal = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setLightboxTab("details");
     setIsLightboxOpen(true);
   };
 
@@ -176,515 +188,453 @@ export const VillaCard: React.FC<VillaCardProps> = ({
       (effectiveVilla.locationVi || effectiveVilla.location) + " Đà Nẵng"
     )}`;
 
-  return (
-    <>
+  // Reusable Gallery Showcase Component (Multi-angle interactive slider with true-to-life aspect ratio)
+  const renderPhotoGallerySlider = (isEditorial: boolean) => (
+    <div
+      className={`relative w-full overflow-hidden bg-[#181B1E] cursor-pointer select-none ${
+        isEditorial
+          ? "lg:col-span-7 aspect-[4/3] sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[480px]"
+          : "aspect-[4/3] sm:aspect-[16/10]"
+      }`}
+      onClick={handleOpenPhotoViewer}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Hardware-Accelerated Instant Sliding Track (0ms Delay) */}
       <div
-        className="group bg-white rounded-3xl overflow-hidden border border-[#EAE5DC] shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col justify-between"
+        className="flex h-full w-full transition-transform duration-300 ease-out"
         style={{
-          display: "flex",
-          flexDirection: "column",
-          borderRadius: "1.5rem",
-          overflow: "hidden",
-          backgroundColor: "#ffffff",
-          border: "1px solid #EAE5DC",
-          boxShadow: "0 10px 25px -5px rgba(0, 0, 0, 0.05)",
+          transform: `translate3d(-${currentPhotoIdx * 100}%, 0, 0)`,
         }}
       >
-        {/* Interactive Photo Showcase with Zero-Delay Sliding Track */}
-        <div
-          className="relative w-full overflow-hidden bg-[#181B1E] cursor-pointer aspect-square select-none"
-          style={{
-            position: "relative",
-            width: "100%",
-            aspectRatio: "1 / 1",
-            overflow: "hidden",
-            backgroundColor: "#181B1E",
-          }}
-          onClick={handleOpenPhotoViewer}
-          onTouchStart={handleTouchStart}
-          onTouchEnd={handleTouchEnd}
-        >
-          {/* Hardware-Accelerated Instant Sliding Track (0ms Delay) */}
+        {photos.map((src, idx) => (
           <div
-            className="flex h-full w-full transition-transform duration-300 ease-out will-change-transform"
-            style={{
-              transform: `translate3d(-${currentPhotoIdx * 100}%, 0, 0)`,
-            }}
+            key={idx}
+            className="relative min-w-full h-full flex-shrink-0 overflow-hidden bg-neutral-950 flex items-center justify-center"
           >
-            {photos.map((src, idx) => (
-              <div
-                key={idx}
-                className="relative min-w-full h-full flex-shrink-0"
-              >
-                <Image
-                  src={src}
-                  alt={`${displayName} - Photo ${idx + 1}`}
-                  fill
-                  unoptimized
-                  priority={idx < 2}
-                  loading={idx < 4 ? "eager" : "lazy"}
-                  sizes="100vw"
-                  style={{
-                    objectFit: "cover",
-                    objectPosition: "center",
-                    imageRendering: "-webkit-optimize-contrast",
-                    backfaceVisibility: "hidden",
-                    WebkitBackfaceVisibility: "hidden",
-                  }}
-                  className="transition-transform duration-700 ease-out group-hover:scale-105 will-change-transform"
-                />
-              </div>
-            ))}
-          </div>
-
-          {/* Elegant Bottom Scrim for Title Legibility - keeps 80% of photo 100% luminous & sharp */}
-          <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none z-10" />
-
-          {/* Top Badges */}
-          <div className="absolute top-4 left-4 flex gap-2 items-center z-20 flex-wrap">
-            <span className="bg-[#14171A]/90 backdrop-blur-md text-[#C2A476] border border-[#C2A476]/30 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-md">
-              {villa.code}
-            </span>
-            <span className="bg-white/90 backdrop-blur-md text-neutral-800 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
-              {displayDistrict}
-            </span>
-            {isUnderMaintenance && (
-              <span className="bg-amber-600/95 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1 border border-amber-300 animate-pulse">
-                <Wrench className="w-3.5 h-3.5" />
-                <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Photo Count & Fullscreen Trigger Pill */}
-          <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
-            <button
-              onClick={handleOpenPhotoViewer}
-              className="flex items-center gap-1.5 bg-black/60 hover:bg-black/85 backdrop-blur-md text-white text-xs font-medium px-3.5 py-1.5 rounded-full border border-white/20 transition-all hover:scale-105 cursor-pointer"
-              title={language === "vi" ? "Bấm để xem toàn màn hình tất cả ảnh" : "Click to view fullscreen gallery"}
-            >
-              <Camera className="w-3.5 h-3.5 text-[#C2A476]" />
-              <span>
-                {currentPhotoIdx + 1}/{photos.length} {language === "vi" ? "Ảnh" : "Photos"}
-              </span>
-            </button>
-          </div>
-
-          {/* Next / Prev Photo Arrows (Zero-lag switching) */}
-          {photos.length > 1 && (
-            <>
-              <button
-                type="button"
-                onClick={handlePrevPhoto}
-                className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/55 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 border border-white/20 hover:scale-110 active:scale-95 shadow-xl cursor-pointer"
-                aria-label="Previous photo"
-              >
-                <ChevronLeft className="w-5 h-5" />
-              </button>
-              <button
-                type="button"
-                onClick={handleNextPhoto}
-                className="absolute right-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-black/55 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 border border-white/20 hover:scale-110 active:scale-95 shadow-xl cursor-pointer"
-                aria-label="Next photo"
-              >
-                <ChevronRight className="w-5 h-5" />
-              </button>
-
-              {/* Bottom Mini Dot Progress */}
-              <div className="absolute bottom-16 left-0 right-0 flex justify-center gap-1.5 z-20 px-4">
-                {photos.slice(0, 12).map((_, dotIdx) => (
-                  <span
-                    key={dotIdx}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      dotIdx === currentPhotoIdx
-                        ? "w-5 bg-[#C2A476]"
-                        : "w-1.5 bg-white/50"
-                    }`}
-                  />
-                ))}
-                {photos.length > 12 && (
-                  <span className="text-[10px] text-white/70 font-mono self-center ml-1">
-                    +{photos.length - 12}
-                  </span>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Bottom Overlay Title on Image */}
-          <div className="absolute bottom-4 left-4 right-4 text-white z-10 pointer-events-none">
-            <p className="text-xs text-[#EAE4D7] tracking-wider uppercase font-semibold drop-shadow-sm">
-              {displayPoolType}
-            </p>
-            <h3 className="text-lg sm:text-xl font-bold text-white mt-0.5 tracking-tight drop-shadow-md line-clamp-1">
-              {displayName}
-            </h3>
-          </div>
-        </div>
-
-        {/* Card Body */}
-        <div className="p-6 sm:p-8 flex-1 flex flex-col justify-between">
-          <div>
-            {/* Title & Tagline Header with Directions Button */}
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-xl sm:text-2xl font-extrabold text-neutral-900 tracking-tight leading-snug">
-                  {displayName}
-                </h3>
-                {displayFullTitle && (
-                  <p className="text-xs font-semibold text-[#A88856] mt-1 line-clamp-1 tracking-wide">
-                    {displayFullTitle}
-                  </p>
-                )}
-              </div>
-
-              {/* Nút Chỉ Đường Google Maps */}
-              <a
-                href={mapLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-[#FAF8F5] hover:bg-[#C2A476] text-[#8A6B3D] hover:text-white border border-[#EAE5DC] hover:border-[#C2A476] text-xs font-bold transition-all duration-300 shadow-2xs hover:shadow-md shrink-0 mt-0.5 active:scale-95 group cursor-pointer"
-                title={language === "vi" ? `Xem chỉ đường Google Maps tới ${displayName}` : `Get Google Maps directions to ${displayName}`}
-              >
-                <Navigation className="w-3.5 h-3.5 text-[#C2A476] group-hover:text-white transition-colors" />
-                <span>{language === "vi" ? "Chỉ Đường" : "Directions"}</span>
-                <ExternalLink className="w-3 h-3 opacity-60 group-hover:opacity-100 group-hover:text-white transition-opacity" />
-              </a>
-            </div>
-
-            {/* Location & Beach/River Proximity */}
-            {/* Location & Beach/River Proximity */}
-            <div className="flex items-center gap-2 text-xs text-neutral-600 mb-4 group/loc w-fit">
-              <div className="w-6 h-6 rounded-lg bg-[#FAF6EE] group-hover/loc:bg-[#C2A476] border border-[#E8E0D2] group-hover/loc:border-[#C2A476] flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover/loc:scale-120 group-hover/loc:-translate-y-1 group-hover/loc:shadow-md">
-                <MapPin className="w-3.5 h-3.5 text-[#C2A476] group-hover/loc:text-white transition-colors duration-300" />
-              </div>
-              <a
-                href={mapLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-medium text-neutral-700 hover:text-[#8A6B3D] transition-colors truncate"
-                title={language === "vi" ? "Mở chỉ đường trên Google Maps" : "Open directions on Google Maps"}
-              >
-                {displayLocation}
-              </a>
-            </div>
-
-            {/* Description */}
-            <p className="text-sm text-neutral-600 line-clamp-2 leading-relaxed mb-6 font-light">
-              {displayDescription}
-            </p>
-
-            {/* Key Property Specs (Matching Real Capacities with Lively 3D Floating Hover) */}
+            {/* Ambient blurred backdrop so photos of varying proportions blend seamlessly without harsh cuts */}
             <div
-              className="grid grid-cols-4 gap-2 sm:gap-2.5 py-2.5 px-2 border-y border-[#EAE5DC] text-center mb-6 bg-[#FAF8F5]/60 rounded-2xl"
-            >
-              {/* 1. Bedrooms */}
-              <div
-                className="group/spec flex flex-col items-center justify-center py-2.5 px-1 sm:px-2 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-[0_12px_24px_rgba(194,164,118,0.22)] hover:-translate-y-2 hover:scale-[1.04] transition-all duration-300 ease-out cursor-pointer select-none"
-              >
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] group-hover/spec:border-transparent flex items-center justify-center mb-1.5 transition-all duration-300 shadow-2xs group-hover/spec:shadow-md group-hover/spec:scale-115 group-hover/spec:-rotate-6">
-                  <Bed className="w-4 h-4 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
-                </div>
-                <span className="text-xs sm:text-sm font-extrabold text-neutral-800 group-hover/spec:text-[#8A6B3D] transition-colors leading-tight">
-                  {effectiveVilla.bedrooms} {language === "vi" ? "Phòng" : "Beds"}
-                </span>
-                <span className="text-[10px] sm:text-xs text-neutral-500 font-medium tracking-wide mt-0.5 group-hover/spec:text-neutral-800 transition-colors">
-                  {language === "vi" ? "Khép kín" : "Suites"}
-                </span>
-              </div>
-
-              {/* 2. Bathrooms */}
-              <div
-                className="group/spec flex flex-col items-center justify-center py-2.5 px-1 sm:px-2 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-[0_12px_24px_rgba(194,164,118,0.22)] hover:-translate-y-2 hover:scale-[1.04] transition-all duration-300 ease-out cursor-pointer select-none"
-              >
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] group-hover/spec:border-transparent flex items-center justify-center mb-1.5 transition-all duration-300 shadow-2xs group-hover/spec:shadow-md group-hover/spec:scale-115 group-hover/spec:rotate-6">
-                  <Bath className="w-4 h-4 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
-                </div>
-                <span className="text-xs sm:text-sm font-extrabold text-neutral-800 group-hover/spec:text-[#8A6B3D] transition-colors leading-tight">
-                  {effectiveVilla.bathrooms} {language === "vi" ? "Tắm" : "Baths"}
-                </span>
-                <span className="text-[10px] sm:text-xs text-neutral-500 font-medium tracking-wide mt-0.5 group-hover/spec:text-neutral-800 transition-colors">
-                  {language === "vi" ? "Hiện đại" : "En-suite"}
-                </span>
-              </div>
-
-              {/* 3. Guests */}
-              <div
-                className="group/spec flex flex-col items-center justify-center py-2.5 px-1 sm:px-2 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-[0_12px_24px_rgba(194,164,118,0.22)] hover:-translate-y-2 hover:scale-[1.04] transition-all duration-300 ease-out cursor-pointer select-none"
-              >
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] group-hover/spec:border-transparent flex items-center justify-center mb-1.5 transition-all duration-300 shadow-2xs group-hover/spec:shadow-md group-hover/spec:scale-115 group-hover/spec:-rotate-6">
-                  <Users className="w-4 h-4 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
-                </div>
-                <span className="text-xs sm:text-sm font-extrabold text-neutral-800 group-hover/spec:text-[#8A6B3D] transition-colors leading-tight">
-                  {effectiveVilla.maxGuests} {language === "vi" ? "Khách" : "Guests"}
-                </span>
-                <span className="text-[10px] sm:text-xs text-neutral-500 font-medium tracking-wide mt-0.5 group-hover/spec:text-neutral-800 transition-colors">
-                  {language === "vi" ? "Tối đa" : "Capacity"}
-                </span>
-              </div>
-
-              {/* 4. Pool */}
-              <div
-                className="group/spec flex flex-col items-center justify-center py-2.5 px-1 sm:px-2 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-[0_12px_24px_rgba(194,164,118,0.22)] hover:-translate-y-2 hover:scale-[1.04] transition-all duration-300 ease-out cursor-pointer select-none"
-              >
-                <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] group-hover/spec:border-transparent flex items-center justify-center mb-1.5 transition-all duration-300 shadow-2xs group-hover/spec:shadow-md group-hover/spec:scale-115 group-hover/spec:rotate-6">
-                  <Waves className="w-4 h-4 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
-                </div>
-                <span className="text-xs sm:text-sm font-extrabold text-neutral-800 group-hover/spec:text-[#8A6B3D] transition-colors leading-tight">
-                  {language === "vi" ? "Hồ Bơi" : "Private"}
-                </span>
-                <span className="text-[10px] sm:text-xs text-neutral-500 font-medium tracking-wide mt-0.5 group-hover/spec:text-neutral-800 transition-colors">
-                  {language === "vi" ? "Riêng" : "Pool"}
-                </span>
-              </div>
-            </div>
-
-            {/* Villa Nightly Rate with Live USD Equivalent */}
-            <div className="my-4 p-3.5 sm:p-4 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center justify-between shadow-2xs hover:shadow-[0_10px_25px_rgba(194,164,118,0.18)] hover:border-[#C2A476] hover:-translate-y-1.5 hover:bg-white transition-all duration-300 group/rate cursor-default">
-              <div>
-                <span className="text-xs uppercase font-bold tracking-wider text-neutral-500 group-hover/rate:text-[#8A6B3D] block mb-0.5 transition-colors">
-                  {language === "vi" ? "Đơn giá tiêu chuẩn" : "Standard Nightly Rate"}
-                </span>
-                <div className="flex items-baseline gap-1.5">
-                  <span
-                    suppressHydrationWarning
-                    className="text-lg sm:text-xl font-extrabold text-neutral-900 group-hover/rate:text-[#14171A] tracking-tight transition-colors"
-                  >
-                    {formatPriceVnd(currentPrice)}
-                  </span>
-                  <span className="text-xs text-neutral-600 font-medium">
-                    {language === "vi" ? "/ đêm" : "/ night"}
-                  </span>
-                </div>
-              </div>
-
-              {/* Direct Realtime USD Equivalent Conversion */}
-              <div className="text-right">
-                <span className="text-xs uppercase font-bold tracking-wider text-neutral-500 group-hover/rate:text-[#8A6B3D] block mb-0.5 transition-colors">
-                  {language === "vi" ? "Quy đổi tương đương" : "USD Equivalent"}
-                </span>
-                <span
-                  suppressHydrationWarning
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 group-hover/rate:bg-emerald-100 border border-emerald-200 group-hover/rate:border-emerald-300 text-emerald-800 text-xs font-bold font-mono shadow-2xs hover:scale-110 hover:shadow-sm transition-all duration-300 cursor-pointer"
-                >
-                  ≈ ${formatPriceUsd(currentPrice, usdRate)} USD
-                </span>
-              </div>
-            </div>
-
-            {/* Highlights List */}
-            <ul className="space-y-2 mb-6">
-              {displayHighlights.slice(0, 3).map((item, idx) => (
-                <li
-                  key={idx}
-                  className="flex items-start gap-2.5 text-sm text-neutral-700 leading-relaxed p-1.5 -mx-1.5 rounded-xl hover:bg-[#FAF8F5] hover:translate-x-2 transition-all duration-200 group/item cursor-default"
-                >
-                  <div className="w-5 h-5 rounded-full bg-[#FAF6EE] border border-[#E8E0D2] flex items-center justify-center flex-shrink-0 mt-0.5 group-hover/item:bg-[#C2A476] group-hover/item:border-[#C2A476] group-hover/item:scale-125 group-hover/item:rotate-12 group-hover/item:shadow-sm transition-all duration-300">
-                    <Check className="w-3 h-3 text-[#C2A476] group-hover/item:text-white transition-colors" />
-                  </div>
-                  <span className="group-hover/item:text-neutral-950 group-hover/item:font-medium transition-colors">{item}</span>
-                </li>
-              ))}
-            </ul>
-
-            {/* Suitable For Banner */}
-            {displaySuitableFor && (
-              <div className="mb-4 p-3 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center gap-3 text-neutral-700 hover:shadow-[0_10px_25px_rgba(194,164,118,0.2)] hover:border-[#C2A476] hover:-translate-y-1.5 hover:bg-white transition-all duration-300 group/suitable cursor-default">
-                <div className="w-8 h-8 rounded-xl bg-[#FAF6EE] group-hover/suitable:bg-gradient-to-br group-hover/suitable:from-[#C2A476] group-hover/suitable:to-[#8A6B3D] border border-[#E8E0D2] group-hover/suitable:border-transparent flex items-center justify-center flex-shrink-0 shadow-2xs group-hover/suitable:shadow-md group-hover/suitable:scale-125 group-hover/suitable:rotate-12 transition-all duration-300">
-                  <Sparkles className="w-4 h-4 text-[#C2A476] group-hover/suitable:text-white transition-colors duration-300" />
-                </div>
-                <span className="font-medium text-xs leading-relaxed text-neutral-800 group-hover/suitable:text-neutral-950 transition-colors">
-                  {displaySuitableFor}
-                </span>
-              </div>
-            )}
-
-            {/* Maintenance Notice Banner */}
-            {mounted && isUnderMaintenance && (
-              <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 animate-fade-in shadow-sm">
-                <Wrench className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-amber-950 uppercase tracking-wide text-[11px]">
-                    {language === "vi" ? "Chế Độ Bảo Trì Định Kỳ" : "Scheduled Maintenance Mode"}
-                  </p>
-                  {maintenanceInfo?.startDate && maintenanceInfo?.endDate && (
-                    <p className="text-[11px] font-bold text-amber-900 mt-0.5 flex items-center gap-1">
-                      <span>📅 {maintenanceInfo.startDate} → {maintenanceInfo.endDate}</span>
-                    </p>
-                  )}
-                  <p className="text-[11px] text-amber-800 font-light mt-0.5 leading-relaxed">
-                    {maintenanceInfo?.reason || (language === "vi" ? "Biệt thự đang trong giai đoạn nâng cấp định kỳ. Tạm dừng nhận đặt phòng." : "This villa is undergoing scheduled luxury maintenance & renovation. Reservations are temporarily closed.")}
-                  </p>
-                </div>
-              </div>
-            )}
+              className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
+              style={{ backgroundImage: `url(${src})` }}
+            />
+            <Image
+              src={src}
+              alt={`${displayName} - Photo ${idx + 1}`}
+              fill
+              unoptimized
+              priority={idx < 2}
+              loading={idx < 4 ? "eager" : "lazy"}
+              sizes={isEditorial ? "(max-width: 1024px) 100vw, 60vw" : "(max-width: 768px) 100vw, 50vw"}
+              style={{
+                objectFit: "cover",
+                objectPosition: "center",
+              }}
+              className="relative z-10 transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+            />
           </div>
-
-          {/* Action Buttons: High-conversion Room Sale CTAs */}
-          <div>
-            <div className="pt-2 flex items-center gap-2 sm:gap-2.5">
-              {mounted && isUnderMaintenance ? (
-                <button
-                  type="button"
-                  disabled
-                  className="flex-1 bg-neutral-200 text-neutral-500 py-3.5 px-4 rounded-xl text-xs font-semibold uppercase tracking-widest cursor-not-allowed flex items-center justify-center gap-2 border border-neutral-300 shadow-none"
-                >
-                  <Wrench className="w-3.5 h-3.5 text-neutral-400" />
-                  <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
-                </button>
-              ) : (
-                <button
-                  onClick={() => onInquire(effectiveVilla)}
-                  className="flex-1 bg-gradient-to-r from-[#14171A] via-[#1f2429] to-[#14171A] hover:from-[#C2A476] hover:to-[#A88856] text-white py-3.5 px-3 sm:px-4 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 shadow-md hover:shadow-xl active:scale-95 border border-[#C2A476]/30 hover:border-[#C2A476] cursor-pointer group"
-                >
-                  <Sparkles className="w-4 h-4 text-[#C2A476] group-hover:text-white transition-colors animate-pulse" />
-                  <span className="truncate">{language === "vi" ? "⚡ Đặt Căn Này Ngay" : "⚡ Book This Villa"}</span>
-                </button>
-              )}
-
-              {/* Quick Zalo Chat Button for Direct Room Sale Inquiries */}
-              <a
-                href={siteConfig.social.zalo}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 sm:px-3.5 py-3.5 rounded-xl bg-[#0068FF]/10 hover:bg-[#0068FF] text-[#0068FF] hover:text-white border border-[#0068FF]/25 hover:border-[#0068FF] transition-all flex items-center gap-1.5 text-xs font-bold shadow-2xs hover:shadow-md cursor-pointer shrink-0 active:scale-95"
-                title={language === "vi" ? "Chat Zalo tư vấn trực tiếp với Quản lý B-Villa" : "Chat on Zalo with Concierge"}
-              >
-                <MessageCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Zalo</span>
-              </a>
-
-              {/* View Details & Photo Drawer Toggle */}
-              <button
-                onClick={() => setShowDetails(!showDetails)}
-                className="px-3 sm:px-3.5 py-3.5 rounded-xl border border-neutral-300 hover:border-neutral-900 text-neutral-700 hover:text-neutral-900 transition-all flex items-center gap-1 text-xs font-semibold cursor-pointer shrink-0 active:scale-95"
-                title={language === "vi" ? "Xem chi tiết & toàn bộ ảnh" : "View details & all photos"}
-              >
-                <span>{showDetails ? (language === "vi" ? "Thu gọn" : "Collapse") : (language === "vi" ? "Chi tiết" : "Details")}</span>
-                <ChevronRight
-                  className={`w-4 h-4 transition-transform duration-300 ${
-                    showDetails ? "rotate-90" : ""
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Expandable Rich Details Drawer */}
-            {showDetails && (
-              <div className="mt-5 pt-5 border-t border-neutral-200 text-xs text-neutral-700 animate-fade-in space-y-6">
-                {/* Photo Thumbnails Gallery Preview */}
-                {photos.length > 1 && (
-                  <div>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <Camera className="w-3.5 h-3.5 text-[#C2A476]" />
-                        <span className="font-bold text-neutral-900 text-xs uppercase tracking-wider">
-                          {language === "vi" ? `Toàn Bộ ${photos.length} Ảnh Thực Tế` : `All ${photos.length} Real Photos`}
-                        </span>
-                      </div>
-                      <button
-                        onClick={handleOpenPhotoViewer}
-                        className="inline-flex items-center gap-1 text-xs text-[#A88856] hover:text-[#14171A] font-semibold transition-colors"
-                      >
-                        <Maximize2 className="w-3.5 h-3.5" />
-                        <span>{language === "vi" ? "Phóng to xem tất cả" : "View fullscreen"}</span>
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                      {photos.map((pic, pIdx) => (
-                        <button
-                          key={pIdx}
-                          onClick={() => {
-                            setCurrentPhotoIdx(pIdx);
-                          }}
-                          onDoubleClick={handleOpenPhotoViewer}
-                          className={`relative h-14 rounded-lg overflow-hidden border-2 transition-all ${
-                            pIdx === currentPhotoIdx
-                              ? "border-[#C2A476] ring-2 ring-[#C2A476]/30 scale-105 z-10"
-                              : "border-transparent opacity-75 hover:opacity-100"
-                          }`}
-                          title={`Xem ảnh ${pIdx + 1}`}
-                        >
-                          <Image
-                            src={pic}
-                            alt={`${displayName} - ${pIdx + 1}`}
-                            fill
-                            unoptimized
-                            sizes="80px"
-                            className="object-cover"
-                            style={{ imageRendering: "-webkit-optimize-contrast" }}
-                          />
-                          <span className="absolute bottom-0.5 right-0.5 bg-black/60 text-[10px] text-white px-1.5 rounded font-mono">
-                            {pIdx + 1}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 🏡 Real Architecture & Space Layout Specs */}
-                {displaySpaceDetails.length > 0 && (
-                  <div className="p-4 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] hover:shadow-md hover:border-[#C2A476]/50 transition-all duration-300 group/space">
-                    <div className="flex items-center gap-2.5 mb-3">
-                      <div className="w-7 h-7 rounded-lg bg-[#FAF6EE] group-hover/space:bg-[#C2A476] border border-[#E8E0D2] group-hover/space:border-[#C2A476] flex items-center justify-center transition-all duration-300 group-hover/space:scale-120 group-hover/space:rotate-12 shadow-2xs">
-                        <Compass className="w-4 h-4 text-[#C2A476] group-hover/space:text-white transition-colors duration-300" />
-                      </div>
-                      <h4 className="font-bold text-neutral-900 uppercase tracking-wider text-xs">
-                        {language === "vi" ? "Bố Trí Không Gian & Kiến Trúc Thực Tế" : "Actual Space & Layout"}
-                      </h4>
-                    </div>
-                    <ul className="space-y-2">
-                      {displaySpaceDetails.map((detail, dIdx) => (
-                        <li key={dIdx} className="flex items-start gap-2.5 text-xs text-neutral-700 hover:text-neutral-900 hover:translate-x-1.5 transition-all duration-200 group/detail cursor-default">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5 group-hover/detail:scale-125 transition-transform" />
-                          <span className="leading-snug">{detail}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 🛋 Full Furniture & Included Amenities */}
-                {displayFurniture.length > 0 && (
-                  <div>
-                    <h4 className="font-bold text-neutral-900 uppercase tracking-wider text-xs mb-2.5 flex items-center gap-2 group/furn">
-                      <div className="w-6 h-6 rounded-md bg-[#FAF6EE] group-hover/furn:bg-[#C2A476] border border-[#E8E0D2] flex items-center justify-center transition-all duration-300 group-hover/furn:scale-115">
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#C2A476] group-hover/furn:text-white transition-colors" />
-                      </div>
-                      <span>{language === "vi" ? "Full Nội Thất & Tiện Nghi Đầy Đủ" : "Full Furniture & Amenities"}</span>
-                    </h4>
-                    <div className="flex flex-wrap gap-2">
-                      {displayFurniture.map((amenity, i) => (
-                        <span
-                          key={i}
-                          className="bg-white hover:bg-[#C2A476] text-neutral-800 hover:text-white border border-neutral-200 hover:border-[#C2A476] px-3 py-1.5 rounded-xl text-xs font-medium hover:-translate-y-1 hover:shadow-sm transition-all duration-200 cursor-pointer select-none"
-                        >
-                          {amenity}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* 📍 Proximity and Direct Contact CTA */}
-                <div className="pt-2 text-[11px] text-neutral-500 flex items-center justify-between border-t border-neutral-100">
-                  <span>📍 {displayLocation}</span>
-                  <button
-                    onClick={() => onInquire(effectiveVilla)}
-                    className="text-[#A88856] hover:underline font-bold"
-                  >
-                    {language === "vi" ? "Đặt lịch giữ chỗ →" : "Reserve this villa →"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        ))}
       </div>
 
-      {/* Fullscreen Luxury Lightbox Modal */}
+      {/* Elegant Bottom Scrim for Title Legibility */}
+      <div className="absolute inset-x-0 bottom-0 h-2/5 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none z-10" />
+
+      {/* Top Badges */}
+      <div className="absolute top-4 sm:top-5 left-4 sm:left-5 flex gap-2 items-center z-20 flex-wrap">
+        <span className="bg-[#14171A]/90 backdrop-blur-md text-[#C2A476] border border-[#C2A476]/35 text-xs font-extrabold px-3 py-1 rounded-full uppercase tracking-wider shadow-md">
+          {villa.code}
+        </span>
+        <span className="bg-white/90 backdrop-blur-md text-neutral-800 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider shadow-sm">
+          {displayDistrict}
+        </span>
+        {isUnderMaintenance && (
+          <span className="bg-amber-600/95 backdrop-blur-md text-white text-xs font-bold px-3 py-1 rounded-full uppercase tracking-wider shadow-md flex items-center gap-1 border border-amber-300 animate-pulse">
+            <Wrench className="w-3.5 h-3.5" />
+            <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
+          </span>
+        )}
+      </div>
+
+      {/* Photo Count & Fullscreen Trigger Pill */}
+      <div className="absolute top-4 sm:top-5 right-4 sm:right-5 z-20 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={handleOpenPhotoViewer}
+          className="flex items-center gap-1.5 bg-black/60 hover:bg-black/85 backdrop-blur-md text-white text-xs font-medium px-3.5 py-1.5 rounded-full border border-white/20 transition-all hover:scale-105 cursor-pointer shadow-md"
+          title={language === "vi" ? "Bấm để xem toàn màn hình tất cả ảnh" : "Click to view fullscreen gallery"}
+        >
+          <Camera className="w-3.5 h-3.5 text-[#C2A476]" />
+          <span>
+            {currentPhotoIdx + 1}/{photos.length} {language === "vi" ? "Ảnh" : "Photos"}
+          </span>
+        </button>
+      </div>
+
+      {/* Next / Prev Photo Arrows (Zero-lag switching) */}
+      {photos.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={handlePrevPhoto}
+            className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/55 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 border border-white/20 hover:scale-110 active:scale-95 shadow-xl cursor-pointer"
+            aria-label="Previous photo"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+          <button
+            type="button"
+            onClick={handleNextPhoto}
+            className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 z-20 w-10 h-10 rounded-full bg-black/55 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md opacity-90 sm:opacity-0 group-hover:opacity-100 transition-all duration-200 border border-white/20 hover:scale-110 active:scale-95 shadow-xl cursor-pointer"
+            aria-label="Next photo"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+
+          {/* Bottom Dot Progress and Pool Type Overlay */}
+          <div className="absolute bottom-4 left-4 right-4 flex items-center justify-between z-20 pointer-events-none">
+            <p className="text-xs text-[#EAE4D7] tracking-wider uppercase font-semibold drop-shadow-sm pointer-events-auto">
+              {displayPoolType}
+            </p>
+            <div className="flex items-center gap-1.5 pointer-events-auto">
+              {photos.slice(0, 8).map((_, dotIdx) => (
+                <span
+                  key={dotIdx}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    dotIdx === currentPhotoIdx
+                      ? "w-6 bg-[#C2A476]"
+                      : "w-1.5 bg-white/50"
+                  }`}
+                />
+              ))}
+              {photos.length > 8 && (
+                <span className="text-[10px] text-white/80 font-mono self-center ml-0.5">
+                  +{photos.length - 8}
+                </span>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  // Reusable Body Specs & Description Component
+  const renderCardBody = (isEditorial: boolean) => (
+    <div
+      className={`p-6 sm:p-7 flex flex-col justify-between bg-white ${
+        isEditorial
+          ? "lg:col-span-5 lg:p-7 border-t lg:border-t-0 lg:border-l border-[#EAE5DC]"
+          : "flex-1"
+      }`}
+    >
+      <div>
+        {/* Eyebrow & Directions Button */}
+        <div className="flex items-center justify-between gap-2 mb-2">
+          <span className="text-[11px] uppercase tracking-[0.2em] font-bold text-[#A88856]">
+            {displayDistrict} • {effectiveVilla.bedrooms} {language === "vi" ? "Phòng Ngủ" : "Bedrooms"}
+          </span>
+
+          {/* Google Maps Directions Link */}
+          <a
+            href={mapLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-[#FAF8F5] hover:bg-[#C2A476] text-[#8A6B3D] hover:text-white border border-[#EAE5DC] hover:border-[#C2A476] text-[11px] font-bold transition-all duration-300 shadow-2xs shrink-0 active:scale-95 group/map cursor-pointer"
+            title={language === "vi" ? `Xem chỉ đường Google Maps tới ${displayName}` : `Get Google Maps directions to ${displayName}`}
+          >
+            <Navigation className="w-3 h-3 text-[#C2A476] group-hover/map:text-white transition-colors" />
+            <span>{language === "vi" ? "Chỉ đường" : "Map"}</span>
+            <ExternalLink className="w-2.5 h-2.5 opacity-60 group-hover/map:opacity-100 group-hover/map:text-white transition-opacity" />
+          </a>
+        </div>
+
+        {/* Villa Name */}
+        <h3 className="text-2xl sm:text-3xl font-extrabold text-neutral-900 tracking-tight leading-snug mb-1">
+          {displayName}
+        </h3>
+
+        {/* Tagline / Subtitle */}
+        {displayTagline && (
+          <p className="text-xs font-medium text-neutral-500 mb-2 line-clamp-1 italic">
+            "{displayTagline}"
+          </p>
+        )}
+
+        {/* Address Location */}
+        <div className="flex items-center gap-2 text-xs text-neutral-600 mb-3">
+          <div className="w-4 h-4 rounded-md bg-[#FAF6EE] border border-[#E8E0D2] flex items-center justify-center flex-shrink-0">
+            <MapPin className="w-2.5 h-2.5 text-[#C2A476]" />
+          </div>
+          <span className="font-medium text-neutral-700 truncate">{displayLocation}</span>
+        </div>
+
+        {/* Description */}
+        <p className="text-xs sm:text-sm text-neutral-600 line-clamp-2 leading-relaxed mb-3.5 font-light">
+          {displayDescription}
+        </p>
+
+        {/* Visual Specs Bar (Framed by border-y border-[#EAE5DC]) */}
+        <div className="grid grid-cols-4 gap-2 py-2 px-1.5 border-y border-[#EAE5DC] text-center my-3 bg-[#FAF8F5]/70 rounded-2xl">
+          {/* 1. Bedrooms */}
+          <div className="group/spec flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer select-none">
+            <div className="w-7 h-7 rounded-lg bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] flex items-center justify-center mb-1 transition-all duration-300 shadow-2xs">
+              <Bed className="w-3.5 h-3.5 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
+            </div>
+            <span className="text-xs sm:text-sm font-extrabold text-neutral-800 leading-tight">
+              {effectiveVilla.bedrooms} {language === "vi" ? "Phòng" : "Beds"}
+            </span>
+            <span className="text-[9px] text-neutral-500 font-medium mt-0.5">
+              {language === "vi" ? "Khép kín" : "Suites"}
+            </span>
+          </div>
+
+          {/* 2. Bathrooms */}
+          <div className="group/spec flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer select-none">
+            <div className="w-7 h-7 rounded-lg bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] flex items-center justify-center mb-1 transition-all duration-300 shadow-2xs">
+              <Bath className="w-3.5 h-3.5 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
+            </div>
+            <span className="text-xs sm:text-sm font-extrabold text-neutral-800 leading-tight">
+              {effectiveVilla.bathrooms} {language === "vi" ? "Tắm" : "Baths"}
+            </span>
+            <span className="text-[9px] text-neutral-500 font-medium mt-0.5">
+              {language === "vi" ? "Hiện đại" : "En-suite"}
+            </span>
+          </div>
+
+          {/* 3. Guests */}
+          <div className="group/spec flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer select-none">
+            <div className="w-7 h-7 rounded-lg bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] flex items-center justify-center mb-1 transition-all duration-300 shadow-2xs">
+              <Users className="w-3.5 h-3.5 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
+            </div>
+            <span className="text-xs sm:text-sm font-extrabold text-neutral-800 leading-tight">
+              {effectiveVilla.maxGuests} {language === "vi" ? "Khách" : "Guests"}
+            </span>
+            <span className="text-[9px] text-neutral-500 font-medium mt-0.5">
+              {language === "vi" ? "Tối đa" : "Capacity"}
+            </span>
+          </div>
+
+          {/* 4. Pool */}
+          <div className="group/spec flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer select-none">
+            <div className="w-7 h-7 rounded-lg bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] flex items-center justify-center mb-1 transition-all duration-300 shadow-2xs">
+              <Waves className="w-3.5 h-3.5 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
+            </div>
+            <span className="text-xs sm:text-sm font-extrabold text-neutral-800 leading-tight">
+              {language === "vi" ? "Hồ Bơi" : "Private"}
+            </span>
+            <span className="text-[9px] text-neutral-500 font-medium mt-0.5">
+              {language === "vi" ? "Riêng" : "Pool"}
+            </span>
+          </div>
+        </div>
+
+        {/* Villa Nightly Rate with Live USD Conversion */}
+        <div className="my-3 p-3 sm:p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center justify-between shadow-2xs hover:shadow-md hover:border-[#C2A476] transition-all duration-300">
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 block mb-0.5">
+              {language === "vi" ? "Đơn giá tiêu chuẩn" : "Standard Nightly Rate"}
+            </span>
+            <div className="flex items-baseline gap-1.5">
+              <span
+                suppressHydrationWarning
+                className="text-base sm:text-lg font-extrabold text-neutral-900 tracking-tight"
+              >
+                {formatPriceVnd(currentPrice)}
+              </span>
+              <span className="text-xs text-neutral-600 font-medium">
+                {language === "vi" ? "/ đêm" : "/ night"}
+              </span>
+            </div>
+          </div>
+
+          <div className="text-right">
+            <span className="text-[10px] uppercase font-bold tracking-wider text-neutral-500 block mb-0.5">
+              {language === "vi" ? "Quy đổi tương đương" : "USD Equivalent"}
+            </span>
+            <span
+              suppressHydrationWarning
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] font-bold font-mono shadow-2xs"
+            >
+              ≈ ${formatPriceUsd(currentPrice, usdRate)} USD
+            </span>
+          </div>
+        </div>
+
+        {/* Highlights List */}
+        <ul className="space-y-1.5 mb-3">
+          {displayHighlights.slice(0, 2).map((item, idx) => (
+            <li
+              key={idx}
+              className="flex items-start gap-2 text-xs text-neutral-700 leading-snug"
+            >
+              <div className="w-3.5 h-3.5 rounded-full bg-[#FAF6EE] border border-[#E8E0D2] flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Check className="w-2 h-2 text-[#C2A476]" />
+              </div>
+              <span className="line-clamp-1">{item}</span>
+            </li>
+          ))}
+        </ul>
+
+        {/* Suitable For Banner */}
+        {displaySuitableFor && (
+          <div className="mb-3 px-3 py-1.5 rounded-xl bg-[#FAF8F5] border border-[#EAE5DC] flex items-center gap-2 text-neutral-700">
+            <div className="w-5 h-5 rounded-lg bg-[#FAF6EE] border border-[#E8E0D2] flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-2.5 h-2.5 text-[#C2A476]" />
+            </div>
+            <span className="font-medium text-xs leading-tight text-neutral-800 truncate">
+              {displaySuitableFor}
+            </span>
+          </div>
+        )}
+
+        {/* Scheduled Maintenance Banner */}
+        {mounted && isUnderMaintenance && (
+          <div className="mb-4 p-3 rounded-2xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex items-start gap-2.5 shadow-sm">
+            <Wrench className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold text-amber-950 uppercase tracking-wide text-[11px]">
+                {language === "vi" ? "Chế Độ Bảo Trì Định Kỳ" : "Scheduled Maintenance Mode"}
+              </p>
+              {maintenanceInfo?.startDate && maintenanceInfo?.endDate && (
+                <p className="text-[11px] font-bold text-amber-900 mt-0.5">
+                  📅 {maintenanceInfo.startDate} → {maintenanceInfo.endDate}
+                </p>
+              )}
+              <p className="text-[11px] text-amber-800 font-light mt-0.5 leading-relaxed">
+                {maintenanceInfo?.reason || (language === "vi" ? "Biệt thự đang trong giai đoạn nâng cấp định kỳ. Tạm dừng nhận đặt phòng." : "This villa is undergoing scheduled luxury maintenance & renovation. Reservations are temporarily closed.")}
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Action Buttons Section */}
+      <div className="pt-2">
+        <div className="flex items-center gap-2 sm:gap-2.5">
+          {/* Secondary Button: "Xem chi tiết / Khám phá không gian" */}
+          <button
+            type="button"
+            onClick={handleOpenDetailsModal}
+            className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-3 rounded-full bg-white hover:bg-neutral-50 text-neutral-800 hover:text-neutral-950 border border-neutral-300 hover:border-neutral-900 text-xs font-semibold tracking-wide transition-all duration-300 shadow-2xs hover:shadow-sm active:scale-95 cursor-pointer shrink-0"
+            title={language === "vi" ? "Khám phá không gian & toàn bộ ảnh thực tế" : "Explore space & full gallery"}
+          >
+            <Eye className="w-3.5 h-3.5 text-[#C2A476]" />
+            <span className="hidden min-[400px]:inline">
+              {language === "vi" ? "Khám Phá Không Gian" : "Explore Space"}
+            </span>
+            <span className="min-[400px]:hidden">
+              {language === "vi" ? "Chi Tiết" : "Details"}
+            </span>
+          </button>
+
+          {/* Primary CTA Button: "ĐẶT PHÒNG NGAY" (Consistent with Header Capsule CTA) */}
+          {mounted && isUnderMaintenance ? (
+            <button
+              type="button"
+              disabled
+              className="flex-1 bg-neutral-200 text-neutral-500 py-3 px-4 rounded-full text-xs font-semibold uppercase tracking-widest cursor-not-allowed flex items-center justify-center gap-2 border border-neutral-300 shadow-none"
+            >
+              <Wrench className="w-3.5 h-3.5 text-neutral-400" />
+              <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onInquire(effectiveVilla)}
+              className="flex-1 flex items-center justify-center gap-2 bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs font-bold uppercase tracking-widest px-4 sm:px-5 py-3 rounded-full shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-95 cursor-pointer"
+            >
+              <Calendar className="w-3.5 h-3.5 text-white" />
+              <span className="truncate">{t("nav.inquire", language === "vi" ? "ĐẶT PHÒNG NGAY" : "BOOK NOW")}</span>
+            </button>
+          )}
+
+          {/* Quick Zalo Chat Button */}
+          <a
+            href={siteConfig.social.zalo}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-10 h-10 rounded-full bg-[#0068FF]/10 hover:bg-[#0068FF] text-[#0068FF] hover:text-white border border-[#0068FF]/25 hover:border-[#0068FF] transition-all flex items-center justify-center text-xs font-bold shadow-2xs hover:shadow-md cursor-pointer shrink-0 active:scale-95"
+            title={language === "vi" ? "Chat Zalo tư vấn trực tiếp" : "Chat on Zalo"}
+          >
+            <MessageCircle className="w-4 h-4" />
+          </a>
+
+          {/* Inline Space Drawer Toggle */}
+          <button
+            type="button"
+            onClick={() => setShowDetails(!showDetails)}
+            className="w-10 h-10 rounded-full border border-neutral-200 hover:border-neutral-800 text-neutral-600 hover:text-neutral-900 transition-all flex items-center justify-center cursor-pointer shrink-0 active:scale-95"
+            title={language === "vi" ? "Mở rộng tiện nghi ngay trên thẻ" : "Expand amenities inline"}
+          >
+            <ChevronRight
+              className={`w-4 h-4 transition-transform duration-300 ${
+                showDetails ? "rotate-90" : ""
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Expandable Inline Details Drawer */}
+        {showDetails && (
+          <div className="mt-4 pt-4 border-t border-neutral-200 text-xs text-neutral-700 space-y-4 animate-fade-in">
+            {/* Real Space Layout Breakdown */}
+            {displaySpaceDetails.length > 0 && (
+              <div className="p-3.5 rounded-2xl bg-[#FAF8F5] border border-[#EAE5DC]">
+                <div className="flex items-center gap-2 mb-2 font-bold text-neutral-900 text-xs uppercase tracking-wider">
+                  <Compass className="w-3.5 h-3.5 text-[#C2A476]" />
+                  <span>{language === "vi" ? "Bố Trí Không Gian Thực Tế" : "Actual Space Layout"}</span>
+                </div>
+                <ul className="space-y-1.5">
+                  {displaySpaceDetails.map((detail, dIdx) => (
+                    <li key={dIdx} className="flex items-start gap-2 text-xs text-neutral-700">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0 mt-0.5" />
+                      <span>{detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* Furniture & Amenities Tags */}
+            {displayFurniture.length > 0 && (
+              <div>
+                <div className="flex items-center gap-2 mb-2 font-bold text-neutral-900 text-xs uppercase tracking-wider">
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#C2A476]" />
+                  <span>{language === "vi" ? "Full Nội Thất & Tiện Nghi" : "Full Furniture & Amenities"}</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {displayFurniture.map((amenity, i) => (
+                    <span
+                      key={i}
+                      className="bg-white text-neutral-800 border border-neutral-200 px-2.5 py-1 rounded-lg text-[11px] font-medium"
+                    >
+                      {amenity}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      {/* Villa Showcase Card - Editorial (Horizontal 7/5 Grid) or Standard Grid */}
+      {viewMode === "editorial" ? (
+        <div className="group bg-white rounded-3xl overflow-hidden border border-[#EAE5DC] shadow-sm hover:shadow-2xl transition-all duration-500 grid grid-cols-1 lg:grid-cols-12">
+          {renderPhotoGallerySlider(true)}
+          {renderCardBody(true)}
+        </div>
+      ) : (
+        <div className="group bg-white rounded-3xl overflow-hidden border border-[#EAE5DC] shadow-sm hover:shadow-2xl transition-all duration-500 flex flex-col justify-between">
+          {renderPhotoGallerySlider(false)}
+          {renderCardBody(false)}
+        </div>
+      )}
+
+      {/* Fullscreen Luxury Lightbox & Space Explorer Modal */}
       {isLightboxOpen && (
         <div
           role="dialog"
@@ -695,114 +645,223 @@ export const VillaCard: React.FC<VillaCardProps> = ({
         >
           {/* Header */}
           <div
-            className="flex items-center justify-between z-10"
+            className="flex items-center justify-between z-10 gap-3 border-b border-white/10 pb-3"
             onClick={(e) => e.stopPropagation()}
           >
-            <div>
-              <div className="flex items-center gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="bg-[#C2A476] text-black font-extrabold text-xs px-2.5 py-0.5 rounded-full">
                   {villa.code}
                 </span>
-                <h3 className="font-bold text-white text-base sm:text-lg">
+                <h3 className="font-bold text-white text-base sm:text-lg truncate">
                   {displayName}
                 </h3>
               </div>
-              <p className="text-xs text-neutral-400 mt-0.5">
+              <p className="text-xs text-neutral-400 mt-0.5 truncate">
                 {currentPhotoIdx + 1} / {photos.length} {language === "vi" ? "Ảnh Thực Tế Sắc Nét" : "High-Res Photos"} • {displayLocation}
               </p>
             </div>
 
-            <div className="flex items-center gap-3">
+            {/* Mode Switcher inside Lightbox: Photos vs Space Details */}
+            <div className="hidden sm:flex items-center bg-white/10 p-1 rounded-full border border-white/15">
               <button
+                type="button"
+                onClick={() => setLightboxTab("gallery")}
+                className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                  lightboxTab === "gallery"
+                    ? "bg-[#C2A476] text-black shadow-sm"
+                    : "text-white/80 hover:text-white"
+                }`}
+              >
+                📸 {language === "vi" ? "Album Ảnh" : "Photos"} ({photos.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setLightboxTab("details")}
+                className={`px-3.5 py-1 rounded-full text-xs font-semibold transition-all ${
+                  lightboxTab === "details"
+                    ? "bg-[#C2A476] text-black shadow-sm"
+                    : "text-white/80 hover:text-white"
+                }`}
+              >
+                🏡 {language === "vi" ? "Không Gian & Tiện Nghi" : "Space & Specs"}
+              </button>
+            </div>
+
+            {/* Action CTAs */}
+            <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+              <button
+                type="button"
                 onClick={() => {
                   setIsLightboxOpen(false);
-                  onInquire(villa);
+                  onInquire(effectiveVilla);
                 }}
-                className="hidden sm:inline-flex items-center gap-1.5 bg-[#C2A476] hover:bg-[#A88856] text-black font-bold text-xs px-4 py-2 rounded-xl transition-all"
+                className="inline-flex items-center gap-1.5 bg-[#C2A476] hover:bg-[#a88a59] text-white font-bold text-xs uppercase tracking-wider px-4 py-2 rounded-full transition-all shadow-md active:scale-95 cursor-pointer"
               >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>{language === "vi" ? "Đặt Villa Này" : "Book This Villa"}</span>
+                <Calendar className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{language === "vi" ? "Đặt Phòng Ngay" : "Book Now"}</span>
               </button>
               <button
+                type="button"
                 onClick={() => setIsLightboxOpen(false)}
-                className="p-2 rounded-full bg-white/10 hover:bg-white/25 text-white transition-all"
+                className="p-2 rounded-full bg-white/10 hover:bg-white/25 text-white transition-all cursor-pointer"
                 aria-label="Close fullscreen gallery"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
             </div>
           </div>
 
-          {/* Central Main Image & Prev/Next Controls */}
-          <div
-            className="relative flex-1 flex items-center justify-center my-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Prev Button */}
-            <button
-              onClick={handlePrevPhoto}
-              className="absolute left-2 sm:left-6 z-20 w-12 h-12 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all hover:scale-110"
-              aria-label="Previous image"
+          {/* Central Modal Content: Gallery Slider OR Rich Space Details */}
+          {lightboxTab === "gallery" ? (
+            <div
+              className="relative flex-1 flex items-center justify-center my-4"
+              onClick={(e) => e.stopPropagation()}
             >
-              <ChevronLeft className="w-6 h-6" />
-            </button>
-
-            {/* Main Image */}
-            <div className="relative w-full h-[60vh] sm:h-[72vh] max-w-5xl">
-              <Image
-                src={photos[currentPhotoIdx]}
-                alt={`${displayName} - Photo ${currentPhotoIdx + 1}`}
-                fill
-                priority
-                unoptimized
-                sizes="100vw"
-                className="object-contain"
-                style={{ imageRendering: "-webkit-optimize-contrast" }}
-              />
-            </div>
-
-            {/* Next Button */}
-            <button
-              onClick={handleNextPhoto}
-              className="absolute right-2 sm:right-6 z-20 w-12 h-12 rounded-full bg-black/50 hover:bg-black/80 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all hover:scale-110"
-              aria-label="Next image"
-            >
-              <ChevronRight className="w-6 h-6" />
-            </button>
-          </div>
-
-          {/* Bottom Thumbnail Strip */}
-          <div
-            className="z-10 bg-black/40 backdrop-blur-md p-3 rounded-2xl border border-white/10 max-w-5xl mx-auto w-full overflow-x-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-2 justify-start sm:justify-center overflow-x-auto py-1">
-              {photos.map((pic, pIdx) => (
+              {/* Prev Button */}
+              {photos.length > 1 && (
                 <button
-                  key={pIdx}
-                  onClick={() => setCurrentPhotoIdx(pIdx)}
-                  className={`relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all ${
-                    pIdx === currentPhotoIdx
-                      ? "border-[#C2A476] scale-105 ring-2 ring-[#C2A476]/40"
-                      : "border-transparent opacity-60 hover:opacity-100"
-                  }`}
+                  type="button"
+                  onClick={handlePrevPhoto}
+                  className="absolute left-2 sm:left-6 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all hover:scale-110 active:scale-95 cursor-pointer"
+                  aria-label="Previous image"
                 >
-                  <Image
-                    src={pic}
-                    alt={`thumbnail ${pIdx + 1}`}
-                    fill
-                    unoptimized
-                    sizes="64px"
-                    className="object-cover"
-                    style={{ imageRendering: "-webkit-optimize-contrast" }}
-                  />
-                  <span className="absolute bottom-0 right-0.5 bg-black/70 text-[9px] text-white px-1 rounded font-mono">
-                    {pIdx + 1}
-                  </span>
+                  <ChevronLeft className="w-6 h-6" />
                 </button>
-              ))}
+              )}
+
+              {/* Main Image */}
+              <div className="relative w-full h-[60vh] sm:h-[72vh] max-w-5xl">
+                <Image
+                  src={photos[currentPhotoIdx]}
+                  alt={`${displayName} - Photo ${currentPhotoIdx + 1}`}
+                  fill
+                  priority
+                  unoptimized
+                  sizes="100vw"
+                  className="object-contain"
+                />
+              </div>
+
+              {/* Next Button */}
+              {photos.length > 1 && (
+                <button
+                  type="button"
+                  onClick={handleNextPhoto}
+                  className="absolute right-2 sm:right-6 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/60 hover:bg-black/90 text-white flex items-center justify-center backdrop-blur-md border border-white/20 transition-all hover:scale-110 active:scale-95 cursor-pointer"
+                  aria-label="Next image"
+                >
+                  <ChevronRight className="w-6 h-6" />
+                </button>
+              )}
             </div>
-          </div>
+          ) : (
+            /* Space & Specifications Tab */
+            <div
+              className="flex-1 my-4 overflow-y-auto max-w-4xl mx-auto w-full p-4 sm:p-6 bg-white/5 border border-white/10 rounded-3xl backdrop-blur-md text-neutral-200 space-y-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div>
+                <h4 className="text-xl font-bold text-white mb-2">{displayName}</h4>
+                <p className="text-sm text-neutral-300 leading-relaxed font-light">{displayDescription}</p>
+              </div>
+
+              {/* Space Layout */}
+              {displaySpaceDetails.length > 0 && (
+                <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                  <div className="flex items-center gap-2 font-bold text-[#C2A476] text-xs uppercase tracking-wider mb-3">
+                    <Compass className="w-4 h-4" />
+                    <span>{language === "vi" ? "Bố Trí Kiến Trúc & Không Gian" : "Architecture & Space Layout"}</span>
+                  </div>
+                  <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {displaySpaceDetails.map((detail, idx) => (
+                      <li key={idx} className="flex items-start gap-2 text-neutral-300">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                        <span>{detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Furniture Amenities */}
+              {displayFurniture.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 font-bold text-[#C2A476] text-xs uppercase tracking-wider mb-3">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>{language === "vi" ? "Nội Thất & Tiện Nghi Đầy Đủ" : "Full Amenities & Inclusions"}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {displayFurniture.map((item, idx) => (
+                      <span
+                        key={idx}
+                        className="bg-white/10 border border-white/15 px-3 py-1.5 rounded-xl text-xs font-medium text-neutral-200"
+                      >
+                        {item}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Nightly Rate Summary inside Lightbox */}
+              <div className="p-4 rounded-2xl bg-black/40 border border-white/15 flex items-center justify-between">
+                <div>
+                  <span className="text-[11px] uppercase tracking-wider text-neutral-400 block">
+                    {language === "vi" ? "Đơn giá tiêu chuẩn" : "Standard Rate"}
+                  </span>
+                  <div className="text-lg font-extrabold text-white">
+                    {formatPriceVnd(currentPrice)} <span className="text-xs font-normal text-neutral-400">/ đêm</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsLightboxOpen(false);
+                    onInquire(effectiveVilla);
+                  }}
+                  className="bg-[#C2A476] hover:bg-[#a88a59] text-white font-bold text-xs uppercase tracking-widest px-5 py-2.5 rounded-full shadow-lg transition-all"
+                >
+                  {language === "vi" ? "Đặt Villa Này" : "Book This Villa"}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Thumbnail Strip (When in gallery mode) */}
+          {lightboxTab === "gallery" && (
+            <div
+              className="z-10 bg-black/40 backdrop-blur-md p-3 rounded-2xl border border-white/10 max-w-5xl mx-auto w-full overflow-x-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-2 justify-start sm:justify-center overflow-x-auto py-1">
+                {photos.map((pic, pIdx) => (
+                  <button
+                    key={pIdx}
+                    type="button"
+                    onClick={() => setCurrentPhotoIdx(pIdx)}
+                    className={`relative flex-shrink-0 w-16 h-12 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                      pIdx === currentPhotoIdx
+                        ? "border-[#C2A476] scale-105 ring-2 ring-[#C2A476]/40"
+                        : "border-transparent opacity-60 hover:opacity-100"
+                    }`}
+                  >
+                    <Image
+                      src={pic}
+                      alt={`thumbnail ${pIdx + 1}`}
+                      fill
+                      unoptimized
+                      sizes="64px"
+                      className="object-cover"
+                    />
+                    <span className="absolute bottom-0 right-0.5 bg-black/70 text-[9px] text-white px-1 rounded font-mono">
+                      {pIdx + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </>

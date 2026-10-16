@@ -10,6 +10,12 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        ivory: "#FAF9F6",
+        sand: "#F3EFE6",
+        charcoal: "#18181B",
+        stonewarm: "#78716C",
+        champagne: "#C5A059",
+        moss: "#2C3E35",
         brand: {
           DEFAULT: "#C2A476",
           light: "#d4ba94",

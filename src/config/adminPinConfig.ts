@@ -22,8 +22,8 @@ export const ADMIN_PINS: Record<string, AdminPinAccount> = {
   // 1. MÃ PIN SUPER ADMIN (Toàn quyền quản trị hệ thống)
   // 👉 BẠN THAY ĐỔI MÃ 6 SỐ Ở ĐÂY:
   // -------------------------------------------------------------
-  '123456': {
-    pin: '123456',
+  '200928': {
+    pin: '200928',
     role: 'super_admin',
     label: 'Super Admin - Quản Trị Cao Cấp',
     userIndex: 0,
@@ -43,8 +43,8 @@ export const ADMIN_PINS: Record<string, AdminPinAccount> = {
   // 3. MÃ PIN QUẢN LÝ VILLA (Quản lý đặt phòng, lịch phòng, khách)
   // 👉 BẠN THAY ĐỔI MÃ 6 SỐ Ở ĐÂY:
   // -------------------------------------------------------------
-  '654321': {
-    pin: '654321',
+  '000000': {
+    pin: '000000',
     role: 'manager',
     label: 'Quản Lý Villa',
     userIndex: 1,

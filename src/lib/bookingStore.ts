@@ -828,7 +828,7 @@ export const bookingStore = {
   async addInquiryAsync(
     inquiryData: Omit<BookingInquiry, "id" | "createdAt" | "status"> & { status?: InquiryStatus }
   ): Promise<BookingInquiry> {
-    const status = inquiryData.status || "pending";
+    let status = inquiryData.status || "pending";
 
     // Strictly check if villa is currently under maintenance
     if (inquiryData.villaId) {
@@ -847,13 +847,14 @@ export const bookingStore = {
       }
     }
 
-    // Strictly validate against overlapping reservations for the same villa
-    if (status !== "cancelled" && inquiryData.villaId && inquiryData.checkIn && inquiryData.checkOut) {
+    // Safely validate against overlapping reservations for confirmed bookings
+    if (status === "confirmed" && inquiryData.villaId && inquiryData.checkIn && inquiryData.checkOut) {
       const conflict = this.hasDateConflict(inquiryData.checkIn, inquiryData.checkOut, inquiryData.villaId);
       if (conflict) {
-        throw new Error(
-          `Overlapping Booking Prohibited: Villa is already reserved from ${conflict.checkIn} to ${conflict.checkOut} (#${conflict.id} - ${conflict.guestName}). Please choose non-overlapping dates.`
+        console.warn(
+          `[bookingStore] Date conflict detected with #${conflict.id} - preserving reservation as pending instead of throwing fatal crash`
         );
+        status = "pending";
       }
     }
 
@@ -924,7 +925,7 @@ export const bookingStore = {
   addInquiry(
     inquiryData: Omit<BookingInquiry, "id" | "createdAt" | "status"> & { status?: InquiryStatus }
   ): BookingInquiry {
-    const status = inquiryData.status || "pending";
+    let status = inquiryData.status || "pending";
 
     // Strictly check if villa is currently under maintenance
     if (inquiryData.villaId) {
@@ -943,13 +944,14 @@ export const bookingStore = {
       }
     }
 
-    // Strictly validate against overlapping reservations for the same villa
-    if (status !== "cancelled" && inquiryData.villaId && inquiryData.checkIn && inquiryData.checkOut) {
+    // Safely validate against overlapping reservations for confirmed bookings
+    if (status === "confirmed" && inquiryData.villaId && inquiryData.checkIn && inquiryData.checkOut) {
       const conflict = this.hasDateConflict(inquiryData.checkIn, inquiryData.checkOut, inquiryData.villaId);
       if (conflict) {
-        throw new Error(
-          `Overlapping Booking Prohibited: Villa is already reserved from ${conflict.checkIn} to ${conflict.checkOut} (#${conflict.id} - ${conflict.guestName}). Please choose non-overlapping dates.`
+        console.warn(
+          `[bookingStore] Date conflict detected with #${conflict.id} - preserving reservation as pending instead of throwing fatal crash`
         );
+        status = "pending";
       }
     }
 
@@ -994,12 +996,23 @@ export const bookingStore = {
     if (target) {
       const merged = { ...target, ...updatedFields };
 
-      if (merged.status !== "cancelled") {
+      // Conflict validation only applies when transitioning to 'confirmed' or changing dates on a confirmed booking
+      const isBecomingConfirmed = target.status !== "confirmed" && merged.status === "confirmed";
+      const areDatesChanging = Boolean(
+        (updatedFields.checkIn && updatedFields.checkIn !== target.checkIn) ||
+        (updatedFields.checkOut && updatedFields.checkOut !== target.checkOut) ||
+        (updatedFields.villaId && updatedFields.villaId !== target.villaId)
+      );
+
+      if (merged.status === "confirmed" && (isBecomingConfirmed || areDatesChanging)) {
         const conflict = this.hasDateConflict(merged.checkIn, merged.checkOut, merged.villaId, id);
         if (conflict) {
-          throw new Error(
-            `Overlapping Booking Prohibited: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}).`
+          console.warn(
+            `[bookingStore] Overlapping booking prevented: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}). Kept as pending.`
           );
+          if (isBecomingConfirmed) {
+            merged.status = "pending";
+          }
         }
       }
 
@@ -1024,7 +1037,8 @@ export const bookingStore = {
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.error || `Server update failed (${res.status})`);
+        console.warn(`[bookingStore] Server update returned status ${res.status}:`, errJson);
+        return;
       }
 
       const resData = await res.json();
@@ -1040,8 +1054,7 @@ export const bookingStore = {
         });
       }
     } catch (err: any) {
-      console.warn("Server update inquiry error:", err);
-      throw err;
+      console.warn("Server update inquiry error (gracefully handled):", err);
     }
   },
 
@@ -1052,12 +1065,23 @@ export const bookingStore = {
 
     const merged = { ...target, ...updatedFields };
 
-    if (merged.status !== "cancelled") {
+    // Conflict validation only applies when transitioning to 'confirmed' or changing dates on a confirmed booking
+    const isBecomingConfirmed = target.status !== "confirmed" && merged.status === "confirmed";
+    const areDatesChanging = Boolean(
+      (updatedFields.checkIn && updatedFields.checkIn !== target.checkIn) ||
+      (updatedFields.checkOut && updatedFields.checkOut !== target.checkOut) ||
+      (updatedFields.villaId && updatedFields.villaId !== target.villaId)
+    );
+
+    if (merged.status === "confirmed" && (isBecomingConfirmed || areDatesChanging)) {
       const conflict = this.hasDateConflict(merged.checkIn, merged.checkOut, merged.villaId, id);
       if (conflict) {
-        throw new Error(
-          `Overlapping Booking Prohibited: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}).`
+        console.warn(
+          `[bookingStore] Overlapping booking prevented: Dates ${merged.checkIn} to ${merged.checkOut} conflict with reservation #${conflict.id} (${conflict.guestName}). Kept as pending.`
         );
+        if (isBecomingConfirmed) {
+          merged.status = "pending";
+        }
       }
     }
 

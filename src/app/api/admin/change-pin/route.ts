@@ -54,7 +54,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate updated config content
+    const superAdminPin = role === 'super_admin' ? newPin : '200928';
+    const managerPin = role === 'manager' ? newPin : '000000';
+
+    // Generate updated config content preserving env checks
     const updatedContent = `/**
  * =======================================================================
  * CẤU HÌNH MÃ PIN ĐĂNG NHẬP TRANG QUẢN TRỊ B VILLA ĐÀ NẴNG
@@ -79,8 +82,8 @@ export const ADMIN_PINS: Record<string, AdminPinAccount> = {
   // 1. MÃ PIN SUPER ADMIN (Toàn quyền quản trị hệ thống)
   // 👉 BẠN THAY ĐỔI MÃ 6 SỐ Ở ĐÂY:
   // -------------------------------------------------------------
-  '${role === 'super_admin' ? newPin : '123456'}': {
-    pin: '${role === 'super_admin' ? newPin : '123456'}',
+  '${superAdminPin}': {
+    pin: '${superAdminPin}',
     role: 'super_admin',
     label: 'Super Admin - Quản Trị Cao Cấp',
     userIndex: 0,
@@ -100,8 +103,8 @@ export const ADMIN_PINS: Record<string, AdminPinAccount> = {
   // 3. MÃ PIN QUẢN LÝ VILLA (Quản lý đặt phòng, lịch phòng, khách)
   // 👉 BẠN THAY ĐỔI MÃ 6 SỐ Ở ĐÂY:
   // -------------------------------------------------------------
-  '${role === 'manager' ? newPin : '654321'}': {
-    pin: '${role === 'manager' ? newPin : '654321'}',
+  '${managerPin}': {
+    pin: '${managerPin}',
     role: 'manager',
     label: 'Quản Lý Villa',
     userIndex: 1,
@@ -110,20 +113,57 @@ export const ADMIN_PINS: Record<string, AdminPinAccount> = {
 
 /**
  * Hàm kiểm tra mã PIN nhập vào
+ * Ưu tiên kiểm tra biến môi trường process.env để tránh hardcode trên production (Checklist #1)
  */
 export function verifyAdminPin(enteredPin: string): AdminPinAccount | null {
-  return ADMIN_PINS[enteredPin] || null;
+  if (!enteredPin || typeof enteredPin !== 'string') return null;
+  const trimmed = enteredPin.trim();
+
+  // 1. Kiểm tra mã PIN Super Admin từ biến môi trường
+  const envAdminPin = process.env.ADMIN_PIN || process.env.DEFAULT_ADMIN_PIN;
+  if (envAdminPin && trimmed === envAdminPin) {
+    return {
+      pin: envAdminPin,
+      role: 'super_admin',
+      label: 'Super Admin',
+      userIndex: 0,
+    };
+  }
+
+  // 2. Kiểm tra mã PIN Quản Lý từ biến môi trường
+  const envManagerPin = process.env.MANAGER_PIN || process.env.DEFAULT_MANAGER_PIN;
+  if (envManagerPin && trimmed === envManagerPin) {
+    return {
+      pin: envManagerPin,
+      role: 'manager',
+      label: 'Quản Lý Villa',
+      userIndex: 1,
+    };
+  }
+
+  // 3. Fallback danh sách PIN nội bộ
+  return ADMIN_PINS[trimmed] || null;
 }
 `;
 
-    // Write to disk
-    fs.writeFileSync(PIN_CONFIG_PATH, updatedContent, 'utf-8');
+    // Write to disk safely
+    try {
+      fs.writeFileSync(PIN_CONFIG_PATH, updatedContent, 'utf-8');
+    } catch {
+      // In read-only serverless/cloud environments, configuration cannot be written to disk at runtime
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'Môi trường đám mây đang ở chế độ Read-Only. Vui lòng thiết lập biến môi trường ADMIN_PIN / MANAGER_PIN trên trang quản lý lưu trữ (Vercel / Cloud).' 
+        },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
       message: `Đổi mã PIN ${role === 'super_admin' ? 'Super Admin' : 'Quản Lý'} thành công! Mã PIN mới: ${newPin}.`,
       newPin,
-      filePath: 'src/config/adminPinConfig.ts',
     });
   } catch (error: any) {
     console.error('Lỗi khi đổi mã PIN:', error);

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { serverStore } from "@/lib/serverStore";
 import { verifyAdminSession } from "@/lib/serverAuth";
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized: Quyền cập nhật trạng thái bảo trì chỉ dành cho Quản Trị Viên." },
         { status: 401 }
+      );
+    }
+
+    // Rate limiting: Max 30 updates per 5 minutes per IP (Checklist #9)
+    const ip = getClientIp(request);
+    const rateLimit = checkRateLimit(`maintenance_update:${ip}`, 30, 5 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Bạn đã cập nhật trạng thái bảo trì quá nhiều lần. Vui lòng thử lại sau ít phút." },
+        { status: 429 }
       );
     }
 

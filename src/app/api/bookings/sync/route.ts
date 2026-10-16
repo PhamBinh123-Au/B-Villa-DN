@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { serverStore } from "@/lib/serverStore";
 import { verifyAdminSession } from "@/lib/serverAuth";
 
+import { checkRateLimit, getClientIp } from "@/lib/rateLimit";
+
 export const dynamic = "force-dynamic";
 
 export async function GET(request: NextRequest) {
@@ -56,6 +58,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "Unauthorized: Quyền nhập dữ liệu đồng bộ chỉ dành cho Quản Trị Viên." },
         { status: 401 }
+      );
+    }
+
+    // Rate limiting: Max 10 sync imports per 5 minutes per IP (Checklist #9)
+    const ip = getClientIp(request);
+    const rateLimit = checkRateLimit(`db_sync:${ip}`, 10, 5 * 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { error: "Bạn đã thực hiện đồng bộ quá nhiều lần. Vui lòng thử lại sau 5 phút." },
+        { status: 429 }
       );
     }
 

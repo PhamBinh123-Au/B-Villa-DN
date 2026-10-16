@@ -65,14 +65,15 @@ export const ExperienceSection: React.FC = () => {
       <div className="absolute top-0 right-0 w-96 h-96 bg-[#C2A476]/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute bottom-0 left-0 w-96 h-96 bg-[#C2A476]/10 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-6 md:px-12 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+      <div className="max-w-7xl xl:max-w-[1440px] mx-auto px-6 md:px-10 lg:px-12 relative z-10">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 xl:gap-16 items-stretch">
           {/* Left Column: Story & Philosophy */}
           <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-40px" }}
             transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+            className="lg:col-span-6 xl:col-span-5 flex flex-col justify-between"
           >
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 border border-white/20 text-[#C2A476] text-xs uppercase tracking-[0.2em] mb-4">
               <Sparkles className="w-3.5 h-3.5" />
@@ -154,10 +155,10 @@ export const ExperienceSection: React.FC = () => {
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true, margin: "-40px" }}
             transition={{ duration: 0.9, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-            className="relative"
+            className="lg:col-span-6 xl:col-span-7 flex flex-col h-full"
           >
-            {/* Main Interactive Image Frame */}
-            <div className="relative h-[480px] sm:h-[540px] rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-neutral-900 group">
+            {/* Main Interactive Image Frame - Expansive & Majestic */}
+            <div className="relative w-full h-[540px] sm:h-[620px] lg:h-full lg:min-h-[660px] xl:min-h-[720px] rounded-3xl overflow-hidden shadow-2xl border border-white/15 bg-neutral-900 group">
               {EXPERIENCE_PHOTOS.map((photo, idx) => (
                 <div
                   key={photo.src}
@@ -170,9 +171,9 @@ export const ExperienceSection: React.FC = () => {
                     alt={language === "vi" ? photo.titleVi : photo.titleEn}
                     fill
                     priority={idx === 0}
-                    quality={95}
-                    sizes="(max-width: 1024px) 100vw, 720px"
-                    className="object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-1000 ease-out will-change-transform"
+                    unoptimized
+                    sizes="(max-width: 1024px) 100vw, 900px"
+                    className="object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-700 ease-out"
                   />
                 </div>
               ))}
@@ -182,16 +183,16 @@ export const ExperienceSection: React.FC = () => {
 
               {/* Top Badge: General Collection Tag */}
               <div className="absolute top-6 left-6 z-30">
-                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-[#EAE4D7] text-[11px] font-semibold uppercase tracking-wider">
+                <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/20 text-[#EAE4D7] text-[11px] sm:text-xs font-semibold uppercase tracking-wider shadow-lg">
                   <Sparkles className="w-3.5 h-3.5 text-[#C2A476]" />
                   <span>{language === "vi" ? "Bộ Sưu Tập Biệt Thự Chọn Lọc" : "Curated Sanctuary Collection"}</span>
                 </span>
               </div>
 
               {/* Bottom Caption Overlay */}
-              <div className="absolute bottom-6 left-6 right-6 z-30">
+              <div className="absolute bottom-6 left-6 right-6 sm:bottom-8 sm:left-8 sm:right-8 z-30">
                 <div className="flex items-center justify-between gap-3 mb-2">
-                  <span className="text-xs uppercase tracking-widest text-[#C2A476] font-semibold">
+                  <span className="text-xs sm:text-sm uppercase tracking-widest text-[#C2A476] font-semibold">
                     {language === "vi" ? currentPhoto.tagVi : currentPhoto.tagEn}
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -199,10 +200,10 @@ export const ExperienceSection: React.FC = () => {
                       <button
                         key={i}
                         onClick={() => setActivePhotoIndex(i)}
-                        className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                        className={`h-1.5 sm:h-2 rounded-full transition-all duration-300 cursor-pointer ${
                           i === activePhotoIndex
-                            ? "w-6 bg-[#C2A476]"
-                            : "w-2 bg-white/40 hover:bg-white/70"
+                            ? "w-7 sm:w-8 bg-[#C2A476]"
+                            : "w-2 sm:w-2.5 bg-white/40 hover:bg-white/70"
                         }`}
                         aria-label={`View photo ${i + 1}`}
                       />
@@ -210,23 +211,23 @@ export const ExperienceSection: React.FC = () => {
                   </div>
                 </div>
 
-                <h3 className="text-xl sm:text-2xl text-white font-bold leading-snug tracking-tight">
+                <h3 className="text-xl sm:text-2xl lg:text-3xl text-white font-bold leading-snug tracking-tight">
                   {language === "vi" ? currentPhoto.titleVi : currentPhoto.titleEn}
                 </h3>
-                <p className="text-xs text-neutral-300 font-light mt-1 line-clamp-2">
+                <p className="text-xs sm:text-sm text-neutral-300 font-light mt-1.5 line-clamp-2 max-w-2xl leading-relaxed">
                   {language === "vi" ? currentPhoto.descriptionVi : currentPhoto.descriptionEn}
                 </p>
 
                 {/* Thumbnail Previews Bar */}
-                <div className="grid grid-cols-4 gap-2 mt-4 pt-3 border-t border-white/15">
+                <div className="grid grid-cols-4 gap-2.5 sm:gap-3.5 mt-5 pt-4 border-t border-white/15">
                   {EXPERIENCE_PHOTOS.map((thumb, tIdx) => (
                     <button
                       key={thumb.src}
                       type="button"
                       onClick={() => setActivePhotoIndex(tIdx)}
-                      className={`relative h-12 rounded-xl overflow-hidden border transition-all cursor-pointer ${
+                      className={`relative h-14 sm:h-16 lg:h-18 rounded-xl sm:rounded-2xl overflow-hidden border transition-all cursor-pointer ${
                         tIdx === activePhotoIndex
-                          ? "border-[#C2A476] ring-2 ring-[#C2A476]/50 scale-105"
+                          ? "border-[#C2A476] ring-2 ring-[#C2A476]/50 scale-[1.03]"
                           : "border-white/20 opacity-60 hover:opacity-100"
                       }`}
                     >
@@ -234,7 +235,7 @@ export const ExperienceSection: React.FC = () => {
                         src={thumb.src}
                         alt={language === "vi" ? thumb.tagVi : thumb.tagEn}
                         fill
-                        sizes="120px"
+                        sizes="160px"
                         quality={85}
                         className="object-cover"
                       />

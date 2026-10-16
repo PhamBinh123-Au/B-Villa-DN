@@ -41,29 +41,24 @@ export const siteConfig: SiteConfig = {
   // Bạn có thể thêm, bớt hoặc thay đổi đường dẫn ảnh tại đây (ảnh lưu trong thư mục public/images/...)
   heroSlides: [
     {
-      image: "/images/B1/B1.15.jpg", // Ảnh nền 1: Mặt tiền & hồ bơi B1
-      title: "B1 Villa • Hồ Bơi Sân Vườn Biển Sơn Trà",
-      subtitle: "Thành Vinh 3, Sơn Trà • Vài Bước Chân Ra Biển",
-    },
-    {
-      image: "/images/B2/B2.5.jpg", // Ảnh nền 2: Giếng trời & hồ bơi B2
-      title: "B2 Villa • Giếng Trời & Thác Nước Tự Nhiên",
+      image: "/images/B2/B2.5.jpg", // Ảnh nền 1: Giếng trời, hồ bơi & phòng ngủ ấm cúng (2048x1536 2K)
+      title: "B2 Villa • Hồ Bơi Giếng Trời & Phòng Ngủ Ấm Cúng",
       subtitle: "Nước Mặn 3, Ngũ Hành Sơn • Biệt Thự Ven Sông Yên Bình",
     },
     {
-      image: "/images/B4/B4.7.jpg", // Ảnh nền 3: Hồ bơi biệt lập B4
-      title: "B4 Villa • Hồ Bơi Biệt Lập & Thác Nước Đôi",
-      subtitle: "Thành Vinh 2, Sơn Trà • Không Gian Nghỉ Dưỡng Riêng Tư",
+      image: "/images/B2/B2.2.jpg", // Ảnh nền 2: Hồ bơi liền kề & phòng khách mở sang trọng (2048x1536 2K)
+      title: "B2 Villa • Hồ Bơi Liền Kề & Không Gian Sống Mở",
+      subtitle: "Ven Sông Ngũ Hành Sơn • Ánh Sáng Tự Nhiên & Tiện Nghi Đẳng Cấp",
     },
     {
-      image: "/images/B2/B2.1.jpg", // Ảnh nền 4: Phòng khách sang trọng B2
-      title: "B2 Villa • Phòng Khách Mở & Nội Thất Sang Trọng",
-      subtitle: "Ven Sông Ngũ Hành Sơn • Đầy Đủ Tiện Nghi Cao Cấp",
+      image: "/images/B2/B2.14.jpg", // Ảnh nền 3: Bể bơi trong nhà & ánh sáng chan hòa (2048x1536 2K)
+      title: "B Villa Luxury • Bể Bơi Trong Nhà & Ánh Sáng Tuyệt Mỹ",
+      subtitle: "Thiết Kế Kiến Trúc Sang Trọng • Thư Thái Tuyệt Đối",
     },
     {
-      image: "/images/B4/B4.16.jpg", // Ảnh nền 5: Mặt tiền đá trắng B4
-      title: "B4 Villa • Mặt Tiền Đá Trắng & Hoa Giấy Rực Rỡ",
-      subtitle: "Sơn Trà, Đà Nẵng • Kiến Trúc Nghỉ Dưỡng Tuyệt Mỹ",
+      image: "/images/B2/B2.9.jpg", // Ảnh nền 4: Góc chill hồ bơi & nội thất gỗ ấm áp (2048x1536 2K)
+      title: "B Villa Sanctuary • Góc Chill Hồ Bơi & Nội Thất Gỗ Ấm Áp",
+      subtitle: "Không Gian Nghỉ Dưỡng Riêng Tư • Ấm Cúng & Tinh Tế",
     },
   ],
 

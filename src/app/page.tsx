@@ -48,7 +48,7 @@ export default function HomePage() {
 
   return (
     <LenisProvider>
-      <main className="min-h-screen bg-[#FAF8F5] text-[#14171A] selection:bg-[#C2A476] selection:text-white relative">
+      <main className="min-h-screen bg-ivory text-charcoal selection:bg-[#C2A476] selection:text-white relative">
         {/* Navigation */}
         <Navbar onOpenBooking={() => handleOpenBooking(null)} />
 

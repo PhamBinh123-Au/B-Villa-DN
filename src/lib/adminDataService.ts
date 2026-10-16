@@ -446,7 +446,7 @@ export const DEFAULT_AMENITIES = [
   },
   {
     id: 'am-2',
-    name: 'WiFi Tốc Độ Cao (300Mbps)',
+    name: 'WiFi Tốc Độ Cao',
     iconName: 'Wifi',
     countVillas: 4,
     description: 'Phủ sóng toàn bộ khuôn viên phòng khách, phòng ngủ và sân vườn',
@@ -590,13 +590,18 @@ export function getLiveAmenities(): typeof DEFAULT_AMENITIES {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
-        return parsed.filter(
-          (a) =>
-            a.id !== 'am-5' &&
-            a.id !== 'am-6' &&
-            !a.name?.toLowerCase().includes('đỗ xe') &&
-            !a.name?.toLowerCase().includes('view biển')
-        );
+        return parsed
+          .filter(
+            (a) =>
+              a.id !== 'am-5' &&
+              a.id !== 'am-6' &&
+              !a.name?.toLowerCase().includes('đỗ xe') &&
+              !a.name?.toLowerCase().includes('view biển')
+          )
+          .map((a) => ({
+            ...a,
+            name: a.name ? a.name.replace(/\s*\(300Mbps\)/gi, '') : a.name,
+          }));
       }
     }
   } catch {}
