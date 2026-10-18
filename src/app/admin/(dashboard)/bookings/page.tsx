@@ -30,9 +30,10 @@ import {
   Building,
   RotateCcw,
   FileSpreadsheet,
+  RefreshCw,
 } from 'lucide-react';
-import { bookings as initialBookings, getStatusColor, getStatusLabel, getVillaColor } from '@/lib/mock-data';
-import { Booking, BookingStatus, VillaId } from '@/lib/types';
+import { bookings as initialBookings, getStatusColor, getStatusLabel, getVillaColor, getPaymentStatusLabel } from '@/lib/mock-data';
+import { Booking, BookingStatus, PaymentStatus, VillaId } from '@/lib/types';
 import { formatVND, cn } from '@/lib/utils';
 import { BookingSlideOver } from '@/components/admin/bookings/BookingSlideOver';
 import { InvoiceModal } from '@/components/admin/bookings/InvoiceModal';
@@ -43,6 +44,7 @@ import {
   cancelBookingInDb,
   deleteBookingInDb,
   updateBookingStatusInDb,
+  updateBookingPaymentStatusInDb,
   confirmBookingInDb,
 } from '@/lib/adminDataService';
 import { bookingStore } from '@/lib/bookingStore';
@@ -58,6 +60,29 @@ export default function BookingsListPage() {
   const [activeBooking, setActiveBooking] = useState<Booking | null>(null);
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleSyncCloud = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const res = await bookingStore.forceSyncCloud();
+      setData(getLiveBookings());
+      addToast({
+        type: 'success',
+        title: 'Đồng bộ thành công',
+        message: `Đã đồng bộ ${res.count} đơn đặt phòng với máy chủ đám mây.`,
+      });
+    } catch {
+      addToast({
+        type: 'error',
+        title: 'Lỗi đồng bộ',
+        message: 'Không thể kết nối đến máy chủ. Vui lòng thử lại.',
+      });
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
+  };
   const [invoiceBooking, setInvoiceBooking] = useState<Booking | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     isOpen: boolean;
@@ -119,11 +144,20 @@ export default function BookingsListPage() {
 
   const handleUpdateStatus = async (id: string, newStatus: BookingStatus) => {
     try {
+      const willBePaid = newStatus === 'checked_in' || newStatus === 'completed';
       setData((prev) =>
-        prev.map((b) => (b.id === id ? { ...b, status: newStatus } : b))
+        prev.map((b) => (b.id === id ? { 
+          ...b, 
+          status: newStatus,
+          ...(willBePaid ? { paymentStatus: 'paid' as PaymentStatus } : {})
+        } : b))
       );
       if (activeBooking && activeBooking.id === id) {
-        setActiveBooking((prev) => (prev ? { ...prev, status: newStatus } : null));
+        setActiveBooking((prev) => (prev ? { 
+          ...prev, 
+          status: newStatus,
+          ...(willBePaid ? { paymentStatus: 'paid' as PaymentStatus } : {})
+        } : null));
       }
 
       // Persist to DB and sync calendar
@@ -132,7 +166,9 @@ export default function BookingsListPage() {
       addToast({
         type: 'success',
         title: 'Cập nhật trạng thái',
-        message: `Đơn ${id} đã được cập nhật thành "${getStatusLabel(newStatus)}".`,
+        message: willBePaid 
+          ? `Đơn ${id} đã chuyển sang "${getStatusLabel(newStatus)}" và tự động cập nhật "Đã Thanh Toán".`
+          : `Đơn ${id} đã được cập nhật thành "${getStatusLabel(newStatus)}".`,
         duration: 4000,
       });
     } catch (err: any) {
@@ -142,6 +178,34 @@ export default function BookingsListPage() {
         title: 'Lưu ý cập nhật',
         message: err?.message || 'Không thể cập nhật trạng thái đơn do trùng lịch.',
         duration: 5000,
+      });
+    }
+  };
+
+  const handleUpdatePaymentStatus = async (id: string, newPaymentStatus: PaymentStatus) => {
+    try {
+      setData((prev) =>
+        prev.map((b) => (b.id === id ? { ...b, paymentStatus: newPaymentStatus } : b))
+      );
+      if (activeBooking && activeBooking.id === id) {
+        setActiveBooking((prev) => (prev ? { ...prev, paymentStatus: newPaymentStatus } : null));
+      }
+
+      await updateBookingPaymentStatusInDb(id, newPaymentStatus);
+
+      addToast({
+        type: 'success',
+        title: 'Cập nhật thanh toán',
+        message: `Đơn ${id} đã chuyển sang "${getPaymentStatusLabel(newPaymentStatus)}".`,
+        duration: 3500,
+      });
+    } catch (err: any) {
+      console.warn('[handleUpdatePaymentStatus] error:', err);
+      addToast({
+        type: 'error',
+        title: 'Lỗi cập nhật',
+        message: 'Không thể cập nhật trạng thái thanh toán.',
+        duration: 4000,
       });
     }
   };
@@ -544,6 +608,15 @@ export default function BookingsListPage() {
 
         <div className="flex items-center gap-2.5">
           <button
+            onClick={handleSyncCloud}
+            disabled={isSyncing}
+            className="px-3.5 py-2 rounded-xl border border-[#C2A476]/30 hover:border-[#C2A476] bg-[#C2A476]/10 text-[#C2A476] text-xs font-semibold flex items-center gap-2 transition-all shadow-xs cursor-pointer disabled:opacity-50"
+            title="Đồng bộ dữ liệu đa thiết bị giữa máy tính và điện thoại"
+          >
+            <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Đang đồng bộ...' : 'Đồng Bộ'}</span>
+          </button>
+          <button
             onClick={handleExportCSV}
             className="px-3.5 py-2 rounded-xl border border-black/10 dark:border-white/10 hover:border-[#C2A476] bg-white dark:bg-[#1E2328] text-xs font-semibold flex items-center gap-2 transition-all shadow-xs"
           >
@@ -756,6 +829,7 @@ export default function BookingsListPage() {
         isOpen={slideOverOpen}
         onClose={() => setSlideOverOpen(false)}
         onUpdateStatus={handleUpdateStatus}
+        onUpdatePaymentStatus={handleUpdatePaymentStatus}
         onOpenInvoice={(b) => {
           setInvoiceBooking(b);
           setInvoiceModalOpen(true);

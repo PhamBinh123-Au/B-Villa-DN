@@ -84,15 +84,6 @@ export const VillaCard: React.FC<VillaCardProps> = ({
 
   const photos = villa.gallery && villa.gallery.length > 0 ? villa.gallery : [villa.image];
 
-  // Preload all gallery images in browser cache for 0ms instantaneous carousel switching
-  useEffect(() => {
-    if (typeof window === "undefined" || !photos || photos.length === 0) return;
-    photos.forEach((src) => {
-      const img = new window.Image();
-      img.src = src;
-    });
-  }, [photos]);
-
   // Keyboard navigation for full-screen lightbox
   useEffect(() => {
     if (!isLightboxOpen) return;
@@ -166,6 +157,8 @@ export const VillaCard: React.FC<VillaCardProps> = ({
     bedrooms: myOverride.bedrooms ?? villa.bedrooms,
     bathrooms: myOverride.bathrooms ?? villa.bathrooms,
     maxGuests: myOverride.maxGuests ?? villa.maxGuests,
+    maxAdults: myOverride.maxAdults ?? villa.maxAdults ?? (villa.bedrooms === 2 ? 4 : 8),
+    maxChildren: myOverride.maxChildren ?? villa.maxChildren ?? (villa.bedrooms === 2 ? 1 : 2),
     area: myOverride.area ?? villa.area,
     description: myOverride.description || villa.description,
     descriptionVi: myOverride.description || villa.descriptionVi,
@@ -207,32 +200,44 @@ export const VillaCard: React.FC<VillaCardProps> = ({
           transform: `translate3d(-${currentPhotoIdx * 100}%, 0, 0)`,
         }}
       >
-        {photos.map((src, idx) => (
-          <div
-            key={idx}
-            className="relative min-w-full h-full flex-shrink-0 overflow-hidden bg-neutral-950 flex items-center justify-center"
-          >
-            {/* Ambient blurred backdrop so photos of varying proportions blend seamlessly without harsh cuts */}
+        {photos.map((src, idx) => {
+          // Render only active slide and its immediate neighbors (±1) to avoid loading 15+ images per villa card at once
+          const isNearActive =
+            Math.abs(idx - currentPhotoIdx) <= 1 ||
+            (currentPhotoIdx === 0 && idx === photos.length - 1) ||
+            (currentPhotoIdx === photos.length - 1 && idx === 0);
+
+          return (
             <div
-              className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
-              style={{ backgroundImage: `url(${src})` }}
-            />
-            <Image
-              src={src}
-              alt={`${displayName} - Photo ${idx + 1}`}
-              fill
-              unoptimized
-              priority={idx < 2}
-              loading={idx < 4 ? "eager" : "lazy"}
-              sizes={isEditorial ? "(max-width: 1024px) 100vw, 60vw" : "(max-width: 768px) 100vw, 50vw"}
-              style={{
-                objectFit: "cover",
-                objectPosition: "center",
-              }}
-              className="relative z-10 transition-transform duration-700 ease-out group-hover:scale-[1.02]"
-            />
-          </div>
-        ))}
+              key={idx}
+              className="relative min-w-full h-full flex-shrink-0 overflow-hidden bg-neutral-950 flex items-center justify-center"
+            >
+              {/* Ambient blurred backdrop: only rendered for the active slide to avoid 60+ unoptimized requests */}
+              {idx === currentPhotoIdx && (
+                <div
+                  className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
+                  style={{ backgroundImage: `url(${src})` }}
+                />
+              )}
+              {isNearActive && (
+                <Image
+                  src={src}
+                  alt={`${displayName} - Photo ${idx + 1}`}
+                  fill
+                  priority={false}
+                  loading="lazy"
+                  unoptimized
+                  sizes="100vw"
+                  style={{
+                    objectFit: "cover",
+                    objectPosition: "center",
+                  }}
+                  className="relative z-10 transition-transform duration-700 ease-out group-hover:scale-[1.02]"
+                />
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Elegant Bottom Scrim for Title Legibility */}
@@ -400,16 +405,27 @@ export const VillaCard: React.FC<VillaCardProps> = ({
             </span>
           </div>
 
-          {/* 3. Guests */}
-          <div className="group/spec flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer select-none">
+          {/* 3. Guests (Adults & Children) */}
+          <div
+            className="group/spec flex flex-col items-center justify-center py-1.5 px-1 rounded-xl bg-white/80 hover:bg-white border border-[#EAE5DC]/60 hover:border-[#C2A476] shadow-2xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 cursor-pointer select-none"
+            title={
+              language === "vi"
+                ? `Sức chứa tiêu chuẩn: ${effectiveVilla.maxAdults} Người lớn + ${effectiveVilla.maxChildren} Trẻ em`
+                : `Capacity: ${effectiveVilla.maxAdults} Adults + ${effectiveVilla.maxChildren} Children`
+            }
+          >
             <div className="w-7 h-7 rounded-lg bg-[#FAF6EE] group-hover/spec:bg-gradient-to-br group-hover/spec:from-[#C2A476] group-hover/spec:to-[#8A6B3D] border border-[#E8E0D2] flex items-center justify-center mb-1 transition-all duration-300 shadow-2xs">
               <Users className="w-3.5 h-3.5 text-[#C2A476] group-hover/spec:text-white transition-colors duration-300" />
             </div>
-            <span className="text-xs sm:text-sm font-extrabold text-neutral-800 leading-tight">
-              {effectiveVilla.maxGuests} {language === "vi" ? "Khách" : "Guests"}
+            <span className="text-[11px] sm:text-xs font-extrabold text-neutral-800 leading-tight whitespace-nowrap">
+              {effectiveVilla.maxChildren && effectiveVilla.maxChildren > 0
+                ? (language === "vi"
+                    ? `${effectiveVilla.maxAdults} Lớn • ${effectiveVilla.maxChildren} Trẻ`
+                    : `${effectiveVilla.maxAdults} Ad • ${effectiveVilla.maxChildren} Ch`)
+                : `${effectiveVilla.maxAdults} ${language === "vi" ? "Người lớn" : "Adults"}`}
             </span>
             <span className="text-[9px] text-neutral-500 font-medium mt-0.5">
-              {language === "vi" ? "Tối đa" : "Capacity"}
+              {language === "vi" ? "Sức chứa" : "Capacity"}
             </span>
           </div>
 

@@ -32,12 +32,16 @@ const pathNameMap: Record<string, string> = {
 export function Breadcrumbs() {
   const pathname = usePathname();
 
-  // If on admin root dashboard, no need for breadcrumbs
-  if (pathname === '/admin') return null;
+  // If on admin root dashboard or empty, no need for breadcrumbs
+  if (!pathname || pathname === '/admin') return null;
 
-  const segments = pathname.split('/').filter(Boolean);
+  const allSegments = pathname.split('/').filter(Boolean);
+  const adminIndex = allSegments.indexOf('admin');
+  const relevantSegments = adminIndex !== -1 ? allSegments.slice(adminIndex + 1) : allSegments;
 
-  let currentPath = '';
+  if (relevantSegments.length === 0) return null;
+
+  let currentPath = '/admin';
 
   return (
     <nav className="flex items-center space-x-1.5 text-xs text-gray-500 dark:text-gray-400 mb-4 overflow-x-auto py-1">
@@ -49,15 +53,13 @@ export function Breadcrumbs() {
         <span>Trang chủ</span>
       </Link>
 
-      {segments.map((segment, index) => {
-        if (segment === 'admin' && index === 0) return null;
-
+      {relevantSegments.map((segment, index) => {
         currentPath += `/${segment}`;
-        const isLast = index === segments.length - 1;
+        const isLast = index === relevantSegments.length - 1;
         const name = pathNameMap[segment] || segment.toUpperCase();
 
         return (
-          <React.Fragment key={segment}>
+          <React.Fragment key={segment + index}>
             <ChevronRight className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             {isLast ? (
               <span className="font-semibold text-[#14171A] dark:text-[#FAF8F5] shrink-0">

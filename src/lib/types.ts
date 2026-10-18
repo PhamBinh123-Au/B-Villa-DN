@@ -14,6 +14,8 @@ export interface Villa {
   bedrooms: number;
   bathrooms: number;
   maxGuests: number;
+  maxAdults?: number;
+  maxChildren?: number;
   area: number; // m²
   hasPool: boolean;
   amenities: string[];

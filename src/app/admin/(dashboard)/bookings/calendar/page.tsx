@@ -16,12 +16,12 @@ import {
   Move,
   ChevronDown,
 } from 'lucide-react';
-import { getStatusColor, getStatusLabel, getVillaColor } from '@/lib/mock-data';
-import { Booking, BookingStatus, VillaId, Villa } from '@/lib/types';
+import { getStatusColor, getStatusLabel, getVillaColor, getPaymentStatusLabel } from '@/lib/mock-data';
+import { Booking, BookingStatus, PaymentStatus, VillaId, Villa } from '@/lib/types';
 import { formatVND } from '@/lib/utils';
 import { BookingSlideOver } from '@/components/admin/bookings/BookingSlideOver';
 import { useToastStore } from '@/lib/store';
-import { getLiveBookings, updateBookingDatesInDb, updateBookingStatusInDb, getLiveVillas } from '@/lib/adminDataService';
+import { getLiveBookings, updateBookingDatesInDb, updateBookingStatusInDb, updateBookingPaymentStatusInDb, getLiveVillas } from '@/lib/adminDataService';
 import { bookingStore } from '@/lib/bookingStore';
 import { useIsMounted } from '@/lib/useHydrated';
 
@@ -481,17 +481,28 @@ export default function BookingsCalendarPage() {
         onClose={() => setSlideOverOpen(false)}
         onUpdateStatus={async (id, st) => {
           try {
+            const willBePaid = st === 'checked_in' || st === 'completed';
             await updateBookingStatusInDb(id, st);
             setBookingsList((prev) =>
-              prev.map((b) => (b.id === id ? { ...b, status: st } : b))
+              prev.map((b) => (b.id === id ? { 
+                ...b, 
+                status: st,
+                ...(willBePaid ? { paymentStatus: 'paid' as PaymentStatus } : {})
+              } : b))
             );
-            if (selectedBooking) {
-              setSelectedBooking((prev) => (prev ? { ...prev, status: st } : null));
+            if (selectedBooking && selectedBooking.id === id) {
+              setSelectedBooking((prev) => (prev ? { 
+                ...prev, 
+                status: st,
+                ...(willBePaid ? { paymentStatus: 'paid' as PaymentStatus } : {})
+              } : null));
             }
             addToast({
               type: 'success',
               title: 'Cập nhật trạng thái thành công',
-              message: `Đơn ${id} đã chuyển sang trạng thái mới.`,
+              message: willBePaid
+                ? `Đơn ${id} đã chuyển sang "${getStatusLabel(st)}" và tự động cập nhật "Đã Thanh Toán".`
+                : `Đơn ${id} đã chuyển sang "${getStatusLabel(st)}".`,
               duration: 4000,
             });
           } catch (err: any) {
@@ -501,6 +512,31 @@ export default function BookingsCalendarPage() {
               title: 'Lưu ý cập nhật',
               message: err?.message || 'Có xung đột phòng hoặc lỗi cập nhật.',
               duration: 5000,
+            });
+          }
+        }}
+        onUpdatePaymentStatus={async (id, pStatus) => {
+          try {
+            setBookingsList((prev) =>
+              prev.map((b) => (b.id === id ? { ...b, paymentStatus: pStatus } : b))
+            );
+            if (selectedBooking && selectedBooking.id === id) {
+              setSelectedBooking((prev) => (prev ? { ...prev, paymentStatus: pStatus } : null));
+            }
+            await updateBookingPaymentStatusInDb(id, pStatus);
+            addToast({
+              type: 'success',
+              title: 'Cập nhật thanh toán',
+              message: `Đơn ${id} đã chuyển sang "${getPaymentStatusLabel(pStatus)}".`,
+              duration: 3500,
+            });
+          } catch (err: any) {
+            console.warn('[calendar:onUpdatePaymentStatus] error:', err);
+            addToast({
+              type: 'error',
+              title: 'Lỗi cập nhật',
+              message: 'Không thể cập nhật trạng thái thanh toán.',
+              duration: 4000,
             });
           }
         }}

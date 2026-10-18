@@ -17,7 +17,8 @@ import {
   Clock,
   Sparkles,
 } from 'lucide-react';
-import { Booking } from '@/lib/types';
+import { Booking, PaymentStatus } from '@/lib/types';
+import { LuxuryPaymentBadge } from './LuxuryPaymentBadge';
 import {
   formatVND,
   formatUSD,
@@ -34,6 +35,7 @@ interface BookingSlideOverProps {
   isOpen: boolean;
   onClose: () => void;
   onUpdateStatus?: (id: string, newStatus: Booking['status']) => void;
+  onUpdatePaymentStatus?: (id: string, newPaymentStatus: PaymentStatus) => void;
   onOpenInvoice?: (booking: Booking) => void;
 }
 
@@ -42,6 +44,7 @@ export function BookingSlideOver({
   isOpen,
   onClose,
   onUpdateStatus,
+  onUpdatePaymentStatus,
   onOpenInvoice,
 }: BookingSlideOverProps) {
   if (!isOpen || !booking) return null;
@@ -96,17 +99,10 @@ export function BookingSlideOver({
 
               <div>
                 <span className="text-[11px] text-gray-500 block mb-1">Thanh toán</span>
-                <span
-                  className={`px-3 py-1 rounded-full text-xs font-bold inline-block ${
-                    booking.paymentStatus === 'paid'
-                      ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                      : booking.paymentStatus === 'deposit'
-                      ? 'bg-blue-500/15 text-blue-600 dark:text-blue-400'
-                      : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                  }`}
-                >
-                  {getPaymentStatusLabel(booking.paymentStatus)}
-                </span>
+                <LuxuryPaymentBadge
+                  status={booking.paymentStatus}
+                  onChange={onUpdatePaymentStatus ? (newStatus) => onUpdatePaymentStatus(booking.id, newStatus) : undefined}
+                />
               </div>
             </div>
 

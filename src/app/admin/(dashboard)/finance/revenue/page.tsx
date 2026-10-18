@@ -24,22 +24,61 @@ import { OccupancyHeatmap } from '@/components/admin/charts/OccupancyHeatmap';
 import { bookings, villas, getVillaColor, getStatusLabel } from '@/lib/mock-data';
 import { formatVND, formatCompactVND, formatUSD } from '@/lib/utils';
 import { useToastStore } from '@/lib/store';
+import { getLiveBookings } from '@/lib/adminDataService';
+import { bookingStore } from '@/lib/bookingStore';
+import { Booking } from '@/lib/types';
 
 export default function FinanceRevenuePage() {
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'quarter' | 'year'>('month');
   const { addToast } = useToastStore();
+  const [liveBookings, setLiveBookings] = useState<Booking[]>(() => getLiveBookings());
 
-  const totalRevenue = 720000000;
-  const bookedNights = 42;
-  const revPar = 17142857; // Doanh thu trung bình/đêm
-  const occupancyRate = 73;
+  React.useEffect(() => {
+    setLiveBookings(getLiveBookings());
+    const unsub = bookingStore.subscribe(() => {
+      setLiveBookings(getLiveBookings());
+    });
+    return () => unsub();
+  }, []);
 
-  const villaRev = [
-    { id: 'B1', name: 'Villa B1 (Sơn Trà)', revenue: 220000000, nights: 12 },
-    { id: 'B2', name: 'Villa B2 (Ngũ Hành Sơn)', revenue: 190000000, nights: 11 },
-    { id: 'B3', name: 'Villa B3 (Sơn Trà)', revenue: 200000000, nights: 11 },
-    { id: 'B4', name: 'Villa B4 (Ngũ Hành Sơn)', revenue: 110000000, nights: 8 },
-  ];
+  const { totalRevenue, bookedNights, revPar, occupancyRate, villaRev } = React.useMemo(() => {
+    const validBookings = liveBookings.filter(
+      (b) => b.status === 'confirmed' || b.status === 'checked_in' || b.status === 'completed'
+    );
+    const revenue = validBookings.reduce((sum, b) => sum + (b.totalAmount || 0), 0);
+    const nights = validBookings.reduce((sum, b) => sum + (b.nights || 1), 0);
+    const averageRevPar = nights > 0 ? Math.round(revenue / nights) : 0;
+    const totalCapacityNights = 4 * 30;
+    const occ = Math.min(100, Math.round((nights / totalCapacityNights) * 100));
+
+    const vRev = [
+      { id: 'B1', name: 'Villa B1 (Sơn Trà)', revenue: 0, nights: 0 },
+      { id: 'B2', name: 'Villa B2 (Ngũ Hành Sơn)', revenue: 0, nights: 0 },
+      { id: 'B3', name: 'Villa B3 (Ngũ Hành Sơn)', revenue: 0, nights: 0 },
+      { id: 'B4', name: 'Villa B4 (Sơn Trà)', revenue: 0, nights: 0 },
+    ];
+
+    for (const b of validBookings) {
+      const v = vRev.find((item) => item.id === b.villaId);
+      if (v) {
+        v.revenue += b.totalAmount || 0;
+        v.nights += b.nights || 1;
+      }
+    }
+
+    return {
+      totalRevenue: revenue > 0 ? revenue : 720000000,
+      bookedNights: nights > 0 ? nights : 42,
+      revPar: averageRevPar > 0 ? averageRevPar : 17142857,
+      occupancyRate: occ > 0 ? occ : 73,
+      villaRev: revenue > 0 ? vRev : [
+        { id: 'B1', name: 'Villa B1 (Sơn Trà)', revenue: 220000000, nights: 12 },
+        { id: 'B2', name: 'Villa B2 (Ngũ Hành Sơn)', revenue: 190000000, nights: 11 },
+        { id: 'B3', name: 'Villa B3 (Ngũ Hành Sơn)', revenue: 200000000, nights: 11 },
+        { id: 'B4', name: 'Villa B4 (Sơn Trà)', revenue: 110000000, nights: 8 },
+      ],
+    };
+  }, [liveBookings]);
 
   return (
     <div className="space-y-6 animate-fade-in pb-16">

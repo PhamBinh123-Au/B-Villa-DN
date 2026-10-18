@@ -1,48 +1,5 @@
 {
-  "inquiries": [
-    {
-      "villaId": "b1-villa-4pn",
-      "villaName": "B1 Villa • 4 Bedrooms",
-      "guestName": "binhauuu",
-      "email": "phambinh2092008@gmail.com",
-      "phone": "6435464654",
-      "checkIn": "2026-10-17",
-      "checkOut": "2026-10-19",
-      "adults": 4,
-      "children": 0,
-      "specialRequests": "",
-      "id": "INQ-3700",
-      "status": "confirmed",
-      "totalPriceVnd": 36000000,
-      "paymentStatus": "unpaid",
-      "paidAmountVnd": 0,
-      "createdAt": "2026-10-16T22:28:28.051Z",
-      "guests": 2,
-      "isCheckedIn": true,
-      "isCheckedOut": false
-    },
-    {
-      "villaId": "b1-villa-4pn",
-      "villaName": "B1 Villa • 4 Bedrooms",
-      "guestName": "Bình Phạm",
-      "email": "phambinh2092008@gmail.com",
-      "phone": "0812570413",
-      "checkIn": "2026-10-19",
-      "checkOut": "2026-10-22",
-      "adults": 4,
-      "children": 0,
-      "specialRequests": "",
-      "id": "INQ-1560",
-      "status": "confirmed",
-      "totalPriceVnd": 54000000,
-      "paymentStatus": "unpaid",
-      "paidAmountVnd": 0,
-      "createdAt": "2026-10-16T22:26:41.359Z",
-      "guests": 2,
-      "isCheckedIn": true,
-      "isCheckedOut": false
-    }
-  ],
+  "inquiries": [],
   "deletedIds": [
     "INQ-7757",
     "INQ-3002",
@@ -60,7 +17,15 @@
     "INQ-5414",
     "INQ-9278",
     "INQ-2979",
-    "INQ-5405"
+    "INQ-5405",
+    "INQ-1296",
+    "INQ-4692",
+    "INQ-1636",
+    "INQ-1092",
+    "INQ-3314",
+    "INQ-1945",
+    "INQ-3700",
+    "INQ-1560"
   ],
   "maintenance": {
     "b4-villa-4pn": {
@@ -69,8 +34,8 @@
       "updatedAt": "2026-10-14T12:01:41.624Z"
     }
   },
-  "version": 218,
-  "lastUpdated": 1792189719459,
+  "version": 244,
+  "lastUpdated": 1792309818277,
   "prices": {
     "b1-villa-4pn": 3000000,
     "b2-villa-4pn": 3000000,
@@ -98,7 +63,67 @@
     "defaultCheckInTime": "14:00",
     "defaultCheckOutTime": "12:00",
     "taxRate": 0,
-    "logo": "/logo.png"
+    "logo": "/logo.png",
+    "villaCapacities": {
+      "B1": {
+        "adults": 8,
+        "children": 4
+      },
+      "B2": {
+        "adults": 8,
+        "children": 4
+      },
+      "B3": {
+        "adults": 4,
+        "children": 2
+      },
+      "B4": {
+        "adults": 8,
+        "children": 4
+      }
+    }
   },
-  "gallery": []
+  "gallery": [],
+  "villas": {
+    "B1": {
+      "maxAdults": 8,
+      "maxChildren": 4,
+      "maxGuests": 12
+    },
+    "b1-villa-4pn": {
+      "maxAdults": 8,
+      "maxChildren": 4,
+      "maxGuests": 12
+    },
+    "B2": {
+      "maxAdults": 8,
+      "maxChildren": 4,
+      "maxGuests": 12
+    },
+    "b2-villa-4pn": {
+      "maxAdults": 8,
+      "maxChildren": 4,
+      "maxGuests": 12
+    },
+    "B3": {
+      "maxAdults": 4,
+      "maxChildren": 2,
+      "maxGuests": 6
+    },
+    "b3-villa-2pn": {
+      "maxAdults": 4,
+      "maxChildren": 2,
+      "maxGuests": 6
+    },
+    "B4": {
+      "maxAdults": 8,
+      "maxChildren": 4,
+      "maxGuests": 12
+    },
+    "b4-villa-4pn": {
+      "maxAdults": 8,
+      "maxChildren": 4,
+      "maxGuests": 12
+    }
+  }
 }

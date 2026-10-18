@@ -1,18 +1,17 @@
 import type { Metadata } from "next";
-import { Quicksand } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import { siteConfig } from "@/config/siteConfig";
 import { LanguageProvider } from "@/context/LanguageContext";
 import "./globals.css";
 
-const quicksand = Quicksand({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin", "vietnamese"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-quicksand",
+  variable: "--font-plus-jakarta-sans",
   display: "swap",
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://serenedanangvillas.vercel.app"),
+  metadataBase: new URL("https://b-villa-dn.vercel.app"),
   title: `${siteConfig.name} | ${siteConfig.tagline}`,
   description: siteConfig.description,
   keywords: [
@@ -29,6 +28,15 @@ export const metadata: Metadata = {
     images: ["/images/gallery/pool-oasis.jpg"],
     type: "website",
   },
+  icons: {
+    icon: [
+      { url: "/images/logo.png" },
+    ],
+    shortcut: ["/images/logo.png"],
+    apple: [
+      { url: "/images/logo.png" },
+    ],
+  },
 };
 
 export default function RootLayout({
@@ -40,12 +48,12 @@ export default function RootLayout({
     <html
       lang="vi"
       suppressHydrationWarning
-      className={quicksand.variable}
+      className={plusJakartaSans.variable}
     >
       <head />
       <body
         suppressHydrationWarning
-        className={`${quicksand.className} antialiased min-h-screen flex flex-col bg-[#FAF8F5] text-[#14171A]`}
+        className={`${plusJakartaSans.className} antialiased min-h-screen flex flex-col bg-[#FAF8F5] text-[#14171A]`}
       >
         <LanguageProvider>{children}</LanguageProvider>
       </body>

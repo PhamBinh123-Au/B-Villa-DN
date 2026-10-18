@@ -41,9 +41,9 @@ export const villas: Villa[] = [
     amenities: ['Hồ bơi riêng', 'WiFi tốc độ cao', 'Điều hòa', 'Bếp đầy đủ', 'Chỗ đỗ xe', 'BBQ', 'Máy giặt', 'Sân vườn', 'View biển'],
     highlightFeatures: ['Hồ bơi vô cực view biển', 'Phòng khách rộng 80m²', 'Sân thượng BBQ riêng', 'Cách biển 200m'],
     images: [
-      { id: 'b1-1', url: '/images/b1-1.jpg', alt: 'B1 Villa exterior', caption: 'Mặt tiền biệt thự B1', order: 0 },
-      { id: 'b1-2', url: '/images/b1-2.jpg', alt: 'B1 Pool', caption: 'Hồ bơi riêng', order: 1 },
-      { id: 'b1-3', url: '/images/b1-3.jpg', alt: 'B1 Living room', caption: 'Phòng khách', order: 2 },
+      { id: 'b1-1', url: '/images/villas/b1-villa.jpg', alt: 'B1 Villa exterior', caption: 'Mặt tiền biệt thự B1', order: 0 },
+      { id: 'b1-2', url: '/images/B1/B1.1.jpg', alt: 'B1 Pool', caption: 'Hồ bơi riêng', order: 1 },
+      { id: 'b1-3', url: '/images/B1/B1.2.jpg', alt: 'B1 Living room', caption: 'Phòng khách', order: 2 },
     ],
     coverImageIndex: 0,
     pricing: {
@@ -77,8 +77,9 @@ export const villas: Villa[] = [
     amenities: ['Hồ bơi riêng', 'WiFi tốc độ cao', 'Điều hòa', 'Bếp đầy đủ', 'Chỗ đỗ xe', 'Máy giặt', 'Sân vườn'],
     highlightFeatures: ['Gần biển Non Nước 5 phút', 'Sân vườn nhiệt đới 200m²', 'Phòng ngủ master view vườn', 'Khu BBQ ngoài trời'],
     images: [
-      { id: 'b2-1', url: '/images/b2-1.jpg', alt: 'B2 Villa exterior', caption: 'Mặt tiền biệt thự B2', order: 0 },
-      { id: 'b2-2', url: '/images/b2-2.jpg', alt: 'B2 Pool', caption: 'Hồ bơi riêng', order: 1 },
+      { id: 'b2-1', url: '/images/villas/b2-villa.jpg', alt: 'B2 Villa exterior', caption: 'Mặt tiền biệt thự B2', order: 0 },
+      { id: 'b2-2', url: '/images/B2/B2.1.jpg', alt: 'B2 Pool', caption: 'Hồ bơi riêng', order: 1 },
+      { id: 'b2-3', url: '/images/B2/B2.2.jpg', alt: 'B2 Living room', caption: 'Không gian sống B2', order: 2 },
     ],
     coverImageIndex: 0,
     pricing: {
@@ -112,7 +113,8 @@ export const villas: Villa[] = [
     amenities: ['Hồ bơi riêng', 'WiFi tốc độ cao', 'Điều hòa', 'Bếp đầy đủ', 'Chỗ đỗ xe', 'BBQ', 'Máy giặt', 'Sân vườn', 'Phòng gym'],
     highlightFeatures: ['Thiết kế Á Đông đặc trưng', 'Hồ bơi 15m', 'View núi Sơn Trà', 'Phòng gym riêng'],
     images: [
-      { id: 'b3-1', url: '/images/b3-1.jpg', alt: 'B3 Villa exterior', caption: 'Mặt tiền biệt thự B3', order: 0 },
+      { id: 'b3-1', url: '/images/villas/b3-villa.jpg', alt: 'B3 Villa exterior', caption: 'Mặt tiền biệt thự B3', order: 0 },
+      { id: 'b3-2', url: '/images/B3/B3.1.jpg', alt: 'B3 Pool', caption: 'Hồ bơi biệt thự B3', order: 1 },
     ],
     coverImageIndex: 0,
     pricing: {
@@ -146,7 +148,8 @@ export const villas: Villa[] = [
     amenities: ['Hồ bơi riêng', 'WiFi tốc độ cao', 'Điều hòa', 'Bếp nhỏ', 'Chỗ đỗ xe', 'Máy giặt'],
     highlightFeatures: ['Thiết kế ấm cúng', 'Hồ bơi nhỏ xinh', 'Cách biển 3 phút đi bộ', 'Phù hợp cặp đôi'],
     images: [
-      { id: 'b4-1', url: '/images/b4-1.jpg', alt: 'B4 Villa exterior', caption: 'Mặt tiền biệt thự B4', order: 0 },
+      { id: 'b4-1', url: '/images/villas/b4-villa.jpg', alt: 'B4 Villa exterior', caption: 'Mặt tiền biệt thự B4', order: 0 },
+      { id: 'b4-2', url: '/images/B4/B4.1.jpg', alt: 'B4 Living space', caption: 'Không gian ấm cúng B4', order: 1 },
     ],
     coverImageIndex: 0,
     pricing: {

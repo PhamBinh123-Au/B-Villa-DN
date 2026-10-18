@@ -6,7 +6,7 @@ import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Menu, X, Calendar, Phone, Headphones } from "lucide-react";
+import { Menu, X, Calendar, Phone, Headphones, Home, Compass, Sparkles } from "lucide-react";
 import { ContactModal } from "./ContactModal";
 
 interface NavbarProps {
@@ -64,21 +64,24 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
         <nav className="hidden lg:flex items-center space-x-6 xl:space-x-8 text-xs xl:text-sm font-medium tracking-wider uppercase text-neutral-200">
           <a
             href="#villas"
-            className="hover:text-[#C2A476] transition-colors duration-200"
+            className="group flex items-center gap-2 hover:text-[#C2A476] transition-colors duration-200"
           >
-            {t("nav.villas")}
+            <Home className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-[#C2A476] group-hover:scale-110 transition-transform duration-200 shrink-0" />
+            <span>{t("nav.villas")}</span>
           </a>
           <a
             href="#experience"
-            className="hover:text-[#C2A476] transition-colors duration-200"
+            className="group flex items-center gap-2 hover:text-[#C2A476] transition-colors duration-200"
           >
-            {t("nav.experience")}
+            <Compass className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-[#C2A476] group-hover:scale-110 transition-transform duration-200 shrink-0" />
+            <span>{t("nav.experience")}</span>
           </a>
           <a
             href="#amenities"
-            className="hover:text-[#C2A476] transition-colors duration-200"
+            className="group flex items-center gap-2 hover:text-[#C2A476] transition-colors duration-200"
           >
-            {t("nav.amenities")}
+            <Sparkles className="w-3.5 h-3.5 xl:w-4 xl:h-4 text-[#C2A476] group-hover:scale-110 transition-transform duration-200 shrink-0" />
+            <span>{t("nav.amenities")}</span>
           </a>
         </nav>
 
@@ -158,23 +161,26 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
             <a
               href="#villas"
               onClick={() => setMobileMenuOpen(false)}
-              className="hover:text-[#C2A476] py-1 border-b border-white/5"
+              className="hover:text-[#C2A476] py-1 border-b border-white/5 flex items-center gap-3 transition-colors"
             >
-              {t("nav.villas")}
+              <Home className="w-4 h-4 text-[#C2A476] shrink-0" />
+              <span>{t("nav.villas")}</span>
             </a>
             <a
               href="#experience"
               onClick={() => setMobileMenuOpen(false)}
-              className="hover:text-[#C2A476] py-1 border-b border-white/5"
+              className="hover:text-[#C2A476] py-1 border-b border-white/5 flex items-center gap-3 transition-colors"
             >
-              {t("nav.experience")}
+              <Compass className="w-4 h-4 text-[#C2A476] shrink-0" />
+              <span>{t("nav.experience")}</span>
             </a>
             <a
               href="#amenities"
               onClick={() => setMobileMenuOpen(false)}
-              className="hover:text-[#C2A476] py-1 border-b border-white/5"
+              className="hover:text-[#C2A476] py-1 border-b border-white/5 flex items-center gap-3 transition-colors"
             >
-              {t("nav.amenities")}
+              <Sparkles className="w-4 h-4 text-[#C2A476] shrink-0" />
+              <span>{t("nav.amenities")}</span>
             </a>
             <button
               type="button"
@@ -182,9 +188,10 @@ export const Navbar: React.FC<NavbarProps> = ({ onOpenBooking }) => {
                 setMobileMenuOpen(false);
                 setIsContactOpen(true);
               }}
-              className="text-left hover:text-[#C2A476] py-1 border-b border-white/5 uppercase cursor-pointer"
+              className="text-left hover:text-[#C2A476] py-1 border-b border-white/5 uppercase cursor-pointer flex items-center gap-3 transition-colors"
             >
-              {t("nav.contact")}
+              <Headphones className="w-4 h-4 text-[#C2A476] shrink-0" />
+              <span>{t("nav.contact")}</span>
             </button>
 
             <div className="pt-3">

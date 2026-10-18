@@ -20,17 +20,46 @@ import {
   Filter,
   ArrowRight,
   Activity,
+  RefreshCw,
 } from 'lucide-react';
 import { getLiveBookings, computeLiveDashboardStats } from '@/lib/adminDataService';
 import { bookingStore } from '@/lib/bookingStore';
 import { formatVND, formatUSD, formatCompactVND } from '@/lib/utils';
 import { useIsMounted } from '@/lib/useHydrated';
+import { useToastStore } from '@/lib/store';
 
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const { addToast } = useToastStore();
   const [liveBookings, setLiveBookings] = useState(() => getLiveBookings());
   const [stats, setStats] = useState(() => computeLiveDashboardStats(getLiveBookings()));
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      const res = await bookingStore.forceSyncCloud();
+      const updated = getLiveBookings();
+      setLiveBookings(updated);
+      setStats(computeLiveDashboardStats(updated));
+
+      addToast({
+        title: 'Đồng bộ đám mây thành công',
+        message: `Đã đồng bộ ${res.count} đơn đặt phòng giữa máy tính và điện thoại.`,
+        type: 'success',
+      });
+    } catch {
+      addToast({
+        title: 'Lỗi đồng bộ',
+        message: 'Vui lòng kiểm tra lại kết nối mạng.',
+        type: 'error',
+      });
+    } finally {
+      setTimeout(() => setIsSyncing(false), 500);
+    }
+  };
 
   useEffect(() => {
     // Initial fetch
@@ -83,6 +112,15 @@ export default function AdminDashboardPage() {
 
           {/* Quick Actions Panel */}
           <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            <button
+              onClick={handleManualSync}
+              disabled={isSyncing}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C2A476]/20 hover:bg-[#C2A476]/30 text-[#C2A476] text-xs font-bold border border-[#C2A476]/40 shadow-md hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+              title="Đồng bộ ngay dữ liệu giữa máy tính và điện thoại"
+            >
+              <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span>{isSyncing ? 'Đang Đồng Bộ...' : 'Đồng Bộ Đám Mây'}</span>
+            </button>
             <Link
               href="/admin/bookings/new"
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#C2A476] text-[#14171A] text-xs font-bold shadow-md hover:bg-[#d4ba94] hover:scale-105 active:scale-95 transition-all"
@@ -97,13 +135,6 @@ export default function AdminDashboardPage() {
               <Calendar className="w-4 h-4 text-[#C2A476]" />
               <span>Xem Lịch Hôm Nay</span>
             </Link>
-            <button
-              onClick={() => alert('Đã mở cửa sổ gửi thông báo xác nhận email hàng loạt tới khách check-in tuần này.')}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-semibold border border-white/10 hover:scale-105 active:scale-95 transition-all"
-            >
-              <Mail className="w-4 h-4 text-[#C2A476]" />
-              <span>Gửi Xác Nhận Email</span>
-            </button>
           </div>
         </div>
 
@@ -320,9 +351,7 @@ export default function AdminDashboardPage() {
                             </div>
                             <div className="text-[10px] text-gray-400">
                               {b.paymentStatus === 'paid'
-                                ? 'Đã thanh toán đủ'
-                                : b.paymentStatus === 'deposit'
-                                ? 'Đã cọc 50%'
+                                ? 'Đã thanh toán'
                                 : 'Chưa thanh toán'}
                             </div>
                           </td>

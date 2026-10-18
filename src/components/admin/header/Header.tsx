@@ -3,8 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Menu, Search, Keyboard, LogOut } from 'lucide-react';
-import { useAdminStore } from '@/lib/store';
+import { Menu, Search, Keyboard, LogOut, RefreshCw } from 'lucide-react';
+import { useAdminStore, useToastStore } from '@/lib/store';
 import { Booking } from '@/lib/types';
 import { getLiveBookings } from '@/lib/adminDataService';
 import { bookingStore } from '@/lib/bookingStore';
@@ -18,7 +18,38 @@ interface HeaderProps {
 export function Header({ onOpenSearch, onOpenShortcuts }: HeaderProps) {
   const router = useRouter();
   const { toggleMobileSidebar } = useAdminStore();
+  const { addToast } = useToastStore();
   const [liveBookings, setLiveBookings] = useState<Booking[]>([]);
+  const [isCloudSyncing, setIsCloudSyncing] = useState(false);
+
+  const handleCloudSync = async () => {
+    if (isCloudSyncing) return;
+    setIsCloudSyncing(true);
+    try {
+      const res = await bookingStore.forceSyncCloud();
+      if (res.success) {
+        addToast({
+          title: 'Đồng bộ đám mây thành công',
+          message: `Đã đồng bộ ${res.count} đơn đặt phòng và dữ liệu với máy chủ đám mây.`,
+          type: 'success',
+        });
+      } else {
+        addToast({
+          title: 'Đã cập nhật dữ liệu',
+          message: `Hệ thống đã cập nhật ${res.count} đơn đặt phòng.`,
+          type: 'info',
+        });
+      }
+    } catch {
+      addToast({
+        title: 'Lỗi đồng bộ',
+        message: 'Không thể kết nối đến máy chủ đám mây. Vui lòng kiểm tra mạng.',
+        type: 'error',
+      });
+    } finally {
+      setTimeout(() => setIsCloudSyncing(false), 600);
+    }
+  };
 
   const handleLogout = async () => {
     clearSpaSession();
@@ -80,6 +111,17 @@ export function Header({ onOpenSearch, onOpenShortcuts }: HeaderProps) {
 
       {/* Right side: Search trigger, shortcuts, notifications, dark mode, user menu */}
       <div className="flex items-center gap-2 sm:gap-3">
+        {/* Cloud Sync Button */}
+        <button
+          onClick={handleCloudSync}
+          disabled={isCloudSyncing}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#C2A476]/10 hover:bg-[#C2A476]/20 text-[#C2A476] text-xs font-semibold transition-all border border-[#C2A476]/20 hover:border-[#C2A476]/40 cursor-pointer disabled:opacity-50"
+          title="Đồng bộ dữ liệu đa thiết bị (Máy tính <-> Điện thoại <-> Đám mây)"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${isCloudSyncing ? 'animate-spin' : ''}`} />
+          <span className="hidden sm:inline">Đồng Bộ Đám Mây</span>
+        </button>
+
         {/* Search trigger button */}
         <button
           onClick={onOpenSearch}

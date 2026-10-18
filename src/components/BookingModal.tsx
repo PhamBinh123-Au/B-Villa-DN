@@ -378,7 +378,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                         src={currentVilla.image}
                         alt={currentVilla.name}
                         fill
-                        unoptimized
+                        quality={85}
                         sizes="88px"
                         className="object-cover"
                       />
@@ -437,7 +437,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                                   src={v.image}
                                   alt={v.name}
                                   fill
-                                  unoptimized
+                                  quality={85}
                                   sizes="80px"
                                   className="object-cover group-hover:scale-105 transition-transform duration-300"
                                 />
@@ -475,7 +475,9 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                 </AnimatePresence>
 
                 <p className="text-[11px] text-neutral-500 mt-1.5 italic">
-                  Max capacity: {currentVilla.maxGuests} guests • {currentVilla.bedrooms} En-suite Bedrooms
+                  {language === "vi"
+                    ? `Sức chứa tiêu chuẩn: ${currentVilla.maxAdults || (currentVilla.bedrooms === 2 ? 4 : 8)} Người lớn + ${currentVilla.maxChildren ?? (currentVilla.bedrooms === 2 ? 1 : 2)} Trẻ em • ${currentVilla.bedrooms} Phòng ngủ khép kín`
+                    : `Capacity: ${currentVilla.maxAdults || (currentVilla.bedrooms === 2 ? 4 : 8)} Adults + ${currentVilla.maxChildren ?? (currentVilla.bedrooms === 2 ? 1 : 2)} Children • ${currentVilla.bedrooms} En-suite Bedrooms`}
                 </p>
 
                 {/* Nightly Price Banner with Live USD Conversion */}
@@ -604,7 +606,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <input
                     type="number"
                     min="1"
-                    max={currentVilla.maxGuests}
+                    max={(currentVilla.maxAdults || currentVilla.maxGuests || 10) + 4}
                     value={adults}
                     onChange={(e) => setAdults(Number(e.target.value))}
                     className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"
@@ -619,7 +621,7 @@ export const BookingModal: React.FC<BookingModalProps> = ({
                   <input
                     type="number"
                     min="0"
-                    max={6}
+                    max={(currentVilla.maxChildren ?? 2) + 4}
                     value={children}
                     onChange={(e) => setChildren(Number(e.target.value))}
                     className="w-full bg-[#FAF8F5] border border-neutral-300 rounded-xl px-4 py-3 text-sm text-neutral-900 focus:outline-none focus:ring-2 focus:ring-[#C2A476]"

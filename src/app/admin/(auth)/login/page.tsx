@@ -18,7 +18,6 @@ import {
   Lock,
   Cpu,
   Fingerprint,
-  Check,
 } from 'lucide-react';
 import { adminUsers } from '@/lib/mock-data';
 import { markSpaSessionActive } from '@/lib/spaAuthSession';
@@ -27,8 +26,6 @@ import { markSpaSessionActive } from '@/lib/spaAuthSession';
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCKOUT_STORAGE_KEY = 'bvilla_security_lockout_v2';
 const PIN_LENGTH = 6;
-const DEMO_VALID_PIN = '200928';
-const DEMO_INVALID_PIN = '123456';
 
 // Exponential Backoff Lockout Duration
 const getLockoutDurationSeconds = (lockoutCount: number): number => {
@@ -63,7 +60,6 @@ export default function GlassyLoginPage() {
   // Status & Feedback
   const [errorMessage, setErrorMessage] = useState('');
   const [isMobile, setIsMobile] = useState(false);
-  const [isDemoRunning, setIsDemoRunning] = useState(false);
 
   // Detect mobile / touch devices
   useEffect(() => {
@@ -245,6 +241,9 @@ export default function GlassyLoginPage() {
             authenticatedAt: Date.now(),
           };
           sessionStorage.setItem('bvilla_admin_session', JSON.stringify(authPayload));
+          if (serverResult.data?.token) {
+            sessionStorage.setItem('bvilla_admin_token', serverResult.data.token);
+          }
           localStorage.removeItem('bvilla_auth');
         }
 
@@ -463,25 +462,6 @@ export default function GlassyLoginPage() {
     }
   };
 
-  // Trigger Demo Automation
-  const runDemoScenario = async (isCorrect: boolean) => {
-    if (isLocked || isDemoRunning || authPhase !== 'idle') return;
-    setIsDemoRunning(true);
-    setErrorMessage('');
-    const demoCode = isCorrect ? DEMO_VALID_PIN : DEMO_INVALID_PIN;
-
-    // Simulate human typing with 70ms interval
-    const tempPin = Array(PIN_LENGTH).fill('');
-    for (let i = 0; i < PIN_LENGTH; i++) {
-      tempPin[i] = demoCode[i];
-      setPin([...tempPin]);
-      setActiveIndex(i);
-      await new Promise((r) => setTimeout(r, 65));
-    }
-
-    setIsDemoRunning(false);
-    verifyPin(demoCode, true, isCorrect);
-  };
 
   return (
     <div className="min-h-screen w-full flex flex-col items-center justify-center p-4 sm:p-6 md:p-8 bg-[#08090D] text-white relative overflow-hidden select-none">
@@ -1041,38 +1021,6 @@ export default function GlassyLoginPage() {
           </div>
         </div>
 
-        {/* ========================================================
-            5. DEMO SIMULATION TOGGLE PILLS (REQUIREMENT #4)
-            ======================================================== */}
-        <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-2.5">
-          <span className="text-[10px] uppercase tracking-wider font-semibold text-neutral-400">
-            🧪 Demo hiệu ứng:
-          </span>
-
-          <div className="flex items-center gap-2">
-            {/* Demo Success Button */}
-            <button
-              type="button"
-              disabled={isLocked || isDemoRunning || authPhase !== 'idle'}
-              onClick={() => runDemoScenario(true)}
-              className="px-3 py-1.5 rounded-full bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/30 hover:border-emerald-400 text-emerald-300 text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-            >
-              <Check className="w-3 h-3 text-emerald-400" />
-              <span>Mã Đúng (Thành Công)</span>
-            </button>
-
-            {/* Demo Error Button */}
-            <button
-              type="button"
-              disabled={isLocked || isDemoRunning || authPhase !== 'idle'}
-              onClick={() => runDemoScenario(false)}
-              className="px-3 py-1.5 rounded-full bg-rose-500/10 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-400 text-rose-300 text-xs font-semibold tracking-wide transition-all shadow-sm active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-            >
-              <AlertTriangle className="w-3 h-3 text-rose-400" />
-              <span>Mã Sai (Báo Lỗi)</span>
-            </button>
-          </div>
-        </div>
       </motion.div>
     </div>
   );

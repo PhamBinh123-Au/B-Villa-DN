@@ -20,13 +20,14 @@ import {
   FileText,
   Trash2,
 } from 'lucide-react';
-import { bookings, getStatusLabel, getStatusColor, getVillaColor } from '@/lib/mock-data';
-import { Booking, BookingStatus } from '@/lib/types';
+import { bookings, getStatusLabel, getStatusColor, getVillaColor, getPaymentStatusLabel } from '@/lib/mock-data';
+import { Booking, BookingStatus, PaymentStatus } from '@/lib/types';
 import { formatVND, formatUSD } from '@/lib/utils';
 import { InvoiceModal } from '@/components/admin/bookings/InvoiceModal';
+import { LuxuryPaymentBadge } from '@/components/admin/bookings/LuxuryPaymentBadge';
 import { LuxuryConfirmDialog } from '@/components/LuxuryConfirmDialog';
 import { useToastStore } from '@/lib/store';
-import { getLiveBookings, updateBookingStatusInDb, deleteBookingInDb } from '@/lib/adminDataService';
+import { getLiveBookings, updateBookingStatusInDb, updateBookingPaymentStatusInDb, deleteBookingInDb } from '@/lib/adminDataService';
 import { bookingStore } from '@/lib/bookingStore';
 import { useIsMounted } from '@/lib/useHydrated';
 
@@ -38,19 +39,17 @@ function BookingDetailContent() {
   const [isDeleting, setIsDeleting] = useState(false);
 
   const bookingId = params.id as string;
-  const [booking, setBooking] = useState<Booking>(() => {
+  const [booking, setBooking] = useState<Booking | null>(() => {
     const list = getLiveBookings();
-    return list.find((b) => b.id === bookingId) || bookings.find((b) => b.id === bookingId) || bookings[0];
+    return list.find((b) => b.id === bookingId) || bookings.find((b) => b.id === bookingId) || null;
   });
   const [invoiceOpen, setInvoiceOpen] = useState(false);
 
   useEffect(() => {
     const loadBooking = () => {
       const list = getLiveBookings();
-      const found = list.find((b) => b.id === bookingId);
-      if (found) {
-        setBooking(found);
-      }
+      const found = list.find((b) => b.id === bookingId) || bookings.find((b) => b.id === bookingId) || null;
+      setBooking(found);
     };
     loadBooking();
     const unsub = bookingStore.subscribe(loadBooking);
@@ -58,13 +57,21 @@ function BookingDetailContent() {
   }, [bookingId]);
 
   const updateStatus = async (newStatus: BookingStatus) => {
+    if (!booking) return;
     try {
+      const willBePaid = newStatus === 'checked_in' || newStatus === 'completed';
       await updateBookingStatusInDb(booking.id, newStatus);
-      setBooking((prev) => ({ ...prev, status: newStatus }));
+      setBooking((prev) => (prev ? { 
+        ...prev, 
+        status: newStatus,
+        ...(willBePaid ? { paymentStatus: 'paid' as PaymentStatus } : {})
+      } : null));
       addToast({
         type: 'success',
         title: 'Cập nhật trạng thái',
-        message: `Đơn ${booking.id} đã chuyển sang "${getStatusLabel(newStatus)}" và đồng bộ hệ thống.`,
+        message: willBePaid
+          ? `Đơn ${booking.id} đã chuyển sang "${getStatusLabel(newStatus)}" và tự động cập nhật "Đã Thanh Toán".`
+          : `Đơn ${booking.id} đã chuyển sang "${getStatusLabel(newStatus)}" và đồng bộ hệ thống.`,
         duration: 4000,
       });
     } catch (err: any) {
@@ -77,7 +84,29 @@ function BookingDetailContent() {
     }
   };
 
+  const updatePaymentStatus = async (newPaymentStatus: PaymentStatus) => {
+    if (!booking) return;
+    try {
+      await updateBookingPaymentStatusInDb(booking.id, newPaymentStatus);
+      setBooking((prev) => (prev ? { ...prev, paymentStatus: newPaymentStatus } : null));
+      addToast({
+        type: 'success',
+        title: 'Cập nhật thanh toán',
+        message: `Đơn ${booking.id} đã chuyển sang "${getPaymentStatusLabel(newPaymentStatus)}".`,
+        duration: 3500,
+      });
+    } catch (err: any) {
+      addToast({
+        type: 'error',
+        title: 'Lỗi cập nhật thanh toán',
+        message: err?.message || 'Không thể cập nhật trạng thái thanh toán',
+        duration: 4000,
+      });
+    }
+  };
+
   const handleConfirmDeleteBooking = async () => {
+    if (!booking) return;
     setIsDeleting(true);
     try {
       await deleteBookingInDb(booking.id);
@@ -101,6 +130,29 @@ function BookingDetailContent() {
     }
   };
 
+
+  if (!booking) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center text-center p-6 animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-500 flex items-center justify-center mb-4 shadow-sm">
+          <Calendar className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-[#14171A] dark:text-[#FAF8F5] mb-2">
+          Không Tìm Thấy Đơn Đặt Phòng #{bookingId}
+        </h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-6 max-w-md">
+          Mã đơn đặt phòng này có thể đã bị xóa hoặc không tồn tại trong hệ thống cơ sở dữ liệu.
+        </p>
+        <Link
+          href="/admin/bookings"
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#C2A476] text-[#14171A] font-bold text-xs hover:bg-[#d4ba94] transition-all shadow-sm active:scale-95"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          <span>Quay lại danh sách đặt phòng</span>
+        </Link>
+      </div>
+    );
+  }
 
   const statusColor = getStatusColor(booking.status);
 
@@ -266,6 +318,14 @@ function BookingDetailContent() {
             </h3>
 
             <div className="space-y-3 text-xs">
+              <div className="flex justify-between items-center text-gray-500">
+                <span className="font-medium">Thanh toán:</span>
+                <LuxuryPaymentBadge
+                  status={booking.paymentStatus}
+                  onChange={updatePaymentStatus}
+                />
+              </div>
+
               <div className="flex justify-between text-gray-500">
                 <span>Tiền phòng ({booking.nights} đêm):</span>
                 <span className="font-semibold">{formatVND(booking.totalAmount)}</span>

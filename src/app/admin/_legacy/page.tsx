@@ -612,7 +612,7 @@ export default function AdminPage() {
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (passcodeInput.trim() === siteConfig.admin.passcode) {
+    if (siteConfig.admin?.passcode && passcodeInput.trim() === siteConfig.admin.passcode) {
       setIsAuthenticated(true);
       if (typeof window !== "undefined") {
         sessionStorage.setItem("admin_auth_status", "authenticated");

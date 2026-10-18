@@ -275,13 +275,14 @@ export async function deleteBookingInDb(id: string): Promise<void> {
 }
 
 /**
- * Check-in guest
+ * Check-in guest -> automatically marks paymentStatus as 'paid'
  */
 export async function checkInBookingInDb(id: string): Promise<void> {
   await bookingStore.updateInquiryAsync(id, {
     status: 'confirmed',
     isCheckedIn: true,
     isCheckedOut: false,
+    paymentStatus: 'paid',
   });
 }
 
@@ -293,6 +294,7 @@ export async function completeBookingInDb(id: string): Promise<void> {
     status: 'confirmed',
     isCheckedIn: true,
     isCheckedOut: true,
+    paymentStatus: 'paid',
   });
 }
 
@@ -303,6 +305,7 @@ export async function updateBookingStatusInDb(id: string, newStatus: BookingStat
   let mappedStatus: InquiryStatus = 'pending';
   let isCheckedIn = false;
   let isCheckedOut = false;
+  const updatePayload: Partial<BookingInquiry> = {};
 
   if (newStatus === 'confirmed') {
     mappedStatus = 'confirmed';
@@ -312,10 +315,13 @@ export async function updateBookingStatusInDb(id: string, newStatus: BookingStat
     mappedStatus = 'confirmed';
     isCheckedIn = true;
     isCheckedOut = false;
+    // When guest checks in, automatically switch payment status to 'paid' (Đã thanh toán)
+    updatePayload.paymentStatus = 'paid';
   } else if (newStatus === 'completed') {
     mappedStatus = 'confirmed';
     isCheckedIn = true;
     isCheckedOut = true;
+    updatePayload.paymentStatus = 'paid';
   } else if (newStatus === 'cancelled') {
     mappedStatus = 'cancelled';
   } else {
@@ -324,11 +330,18 @@ export async function updateBookingStatusInDb(id: string, newStatus: BookingStat
     isCheckedOut = false;
   }
 
-  await bookingStore.updateInquiryAsync(id, {
-    status: mappedStatus,
-    isCheckedIn,
-    isCheckedOut,
-  });
+  updatePayload.status = mappedStatus;
+  updatePayload.isCheckedIn = isCheckedIn;
+  updatePayload.isCheckedOut = isCheckedOut;
+
+  await bookingStore.updateInquiryAsync(id, updatePayload);
+}
+
+/**
+ * Update payment status directly in DB
+ */
+export async function updateBookingPaymentStatusInDb(id: string, paymentStatus: PaymentStatus): Promise<void> {
+  await bookingStore.updatePaymentStatus(id, paymentStatus);
 }
 
 /**

@@ -170,9 +170,10 @@ export const ExperienceSection: React.FC = () => {
                     src={photo.src}
                     alt={language === "vi" ? photo.titleVi : photo.titleEn}
                     fill
-                    priority={idx === 0}
+                    priority={false}
+                    loading="lazy"
                     unoptimized
-                    sizes="(max-width: 1024px) 100vw, 900px"
+                    sizes="100vw"
                     className="object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-700 ease-out"
                   />
                 </div>

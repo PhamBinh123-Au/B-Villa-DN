@@ -23,9 +23,9 @@ export const siteConfig: SiteConfig = {
     address: "60 Thanh Vinh 3, Tho Quang, Son Tra District, Da Nang, Vietnam", // Physical Address
   },
 
-  // ADMIN PORTAL PASSCODE (Used to unlock /admin dashboard)
+  // ADMIN PORTAL SETTINGS
   admin: {
-    passcode: "12345", // Change this to your preferred secret passcode
+    portalPath: "/admin",
   },
 
   // SOCIAL MEDIA CHANNELS
@@ -81,6 +81,8 @@ export const siteConfig: SiteConfig = {
       bedrooms: 4,
       bathrooms: 4,
       maxGuests: 10,
+      maxAdults: 8,
+      maxChildren: 2,
       poolType: "Private Garden Swimming Pool",
       poolTypeVi: "Hồ bơi riêng trong sân vườn – tha hồ chill",
       image: "/images/villas/b1-villa.jpg",
@@ -187,6 +189,8 @@ export const siteConfig: SiteConfig = {
       bedrooms: 4,
       bathrooms: 4,
       maxGuests: 10,
+      maxAdults: 8,
+      maxChildren: 2,
       poolType: "Private Pool in Lush Garden Courtyard",
       poolTypeVi: "Hồ bơi riêng trong khuôn viên sân vườn xanh mát",
       image: "/images/villas/b2-villa.jpg",
@@ -296,6 +300,8 @@ export const siteConfig: SiteConfig = {
       bedrooms: 2,
       bathrooms: 2,
       maxGuests: 5,
+      maxAdults: 4,
+      maxChildren: 1,
       poolType: "Private Pool 🌊",
       poolTypeVi: "Hồ bơi riêng tư 🌊",
       image: "/images/villas/b3-villa.jpg",
@@ -401,6 +407,8 @@ export const siteConfig: SiteConfig = {
       bedrooms: 4,
       bathrooms: 4,
       maxGuests: 10,
+      maxAdults: 8,
+      maxChildren: 2,
       poolType: "Private Pool within Villa Grounds",
       poolTypeVi: "Hồ bơi riêng trong khuôn viên villa",
       image: "/images/villas/b4-villa.jpg",

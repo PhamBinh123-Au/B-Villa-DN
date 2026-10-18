@@ -25,6 +25,8 @@ export async function GET(request: NextRequest) {
           checkIn: b.checkIn,
           checkOut: b.checkOut,
           status: b.status,
+          isCheckedIn: b.isCheckedIn,
+          isCheckedOut: b.isCheckedOut,
           // Hide sensitive customer info from public network requests
           guestName: "Khách Đặt",
         }));

@@ -54,8 +54,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const superAdminPin = role === 'super_admin' ? newPin : '200928';
-    const managerPin = role === 'manager' ? newPin : '000000';
+    // Dynamically retrieve existing PINs to avoid overwriting the other role's configured PIN
+    const currentSuperAdminPin =
+      Object.values(ADMIN_PINS).find((acc) => acc.role === 'super_admin' && acc.userIndex === 0)?.pin || '200928';
+    const currentManagerPin =
+      Object.values(ADMIN_PINS).find((acc) => acc.role === 'manager')?.pin || '000000';
+
+    const superAdminPin = role === 'super_admin' ? newPin : currentSuperAdminPin;
+    const managerPin = role === 'manager' ? newPin : currentManagerPin;
 
     // Generate updated config content preserving env checks
     const updatedContent = `/**

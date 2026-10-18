@@ -68,224 +68,104 @@ export function isCheckoutToday(checkOut: string): boolean {
 
 const SAMPLE_INITIAL_INQUIRIES: BookingInquiry[] = [
   {
-    id: "INQ-3001",
-    villaId: "b3-villa-2pn",
-    villaName: "B3 Villa • 2 Bedrooms",
-    guestName: "Trần Thị Hương",
-    email: "huong.tran@gmail.com",
-    phone: "0923456789",
-    checkIn: "2026-10-22",
-    checkOut: "2026-10-25",
-    adults: 2,
-    children: 1,
-    specialRequests: "Khách cần xe đưa đón sân bay Đà Nẵng lúc 14:00 và set up bàn nướng BBQ.",
-    status: "pending",
-    totalPriceVnd: 9000000,
-    paymentStatus: "unpaid",
-    paidAmountVnd: 0,
-    createdAt: "2026-10-14T08:30:00.000Z",
-    isCheckedIn: false,
-    isCheckedOut: false,
-  },
-  {
-    id: "INQ-3002",
+    id: "INQ-4692",
     villaId: "b4-villa-4pn",
     villaName: "B4 Villa • 4 Bedrooms",
-    guestName: "Nguyễn Văn Minh",
-    email: "minh.nguyen@gmail.com",
-    phone: "0987654321",
-    checkIn: "2026-10-26",
-    checkOut: "2026-10-29",
-    adults: 6,
-    children: 2,
-    specialRequests: "Đoàn gia đình có người cao tuổi, xin phòng tầng trệt và cũi em bé.",
-    status: "pending",
-    totalPriceVnd: 9000000,
-    paymentStatus: "unpaid",
-    paidAmountVnd: 0,
-    createdAt: "2026-10-14T09:15:00.000Z",
-    isCheckedIn: false,
-    isCheckedOut: false,
-  },
-  {
-    id: "INQ-4915",
-    villaId: "b2-villa-4pn",
-    villaName: "B2 Villa • 4 Bedrooms",
-    guestName: "Nguyễn Hoàng Nam",
-    email: "nam.nguyen@hoangnam.vn",
-    phone: "0912345678",
-    checkIn: "2026-10-13",
-    checkOut: "2026-10-15",
+    guestName: "Quang",
+    email: "quang.guest@gmail.com",
+    phone: "0393017666",
+    checkIn: "2026-10-22",
+    checkOut: "2026-10-24",
     adults: 4,
-    children: 1,
-    specialRequests: "Khách VIP, chuẩn bị trái cây tươi chào mừng khi check-in.",
+    children: 0,
+    specialRequests: "Yêu cầu phòng sạch sẽ, chuẩn bị dép đi trong nhà.",
     status: "confirmed",
     totalPriceVnd: 6000000,
     paymentStatus: "paid",
     paidAmountVnd: 6000000,
-    createdAt: "2026-10-12T10:00:00.000Z",
-    isCheckedIn: true,
+    createdAt: "2026-10-17T09:30:00.000Z",
+    isCheckedIn: false,
     isCheckedOut: false,
   },
   {
-    id: "INQ-8573",
+    id: "INQ-1636",
     villaId: "b1-villa-4pn",
     villaName: "B1 Villa • 4 Bedrooms",
     guestName: "Bình Phạm",
     email: "phambinh2092008@gmail.com",
-    phone: "0905111222",
-    checkIn: "2026-10-13",
-    checkOut: "2026-10-16",
+    phone: "43243242423",
+    checkIn: "2026-10-15",
+    checkOut: "2026-10-17",
     adults: 4,
     children: 0,
-    specialRequests: "Cần dọn phòng hàng ngày lúc 10:00 sáng.",
+    specialRequests: "Đang lưu trú, chuẩn bị đồ nướng BBQ buổi tối.",
     status: "confirmed",
-    totalPriceVnd: 9000000,
+    totalPriceVnd: 6000000,
     paymentStatus: "paid",
-    paidAmountVnd: 9000000,
-    createdAt: "2026-10-12T14:20:00.000Z",
+    paidAmountVnd: 6000000,
+    createdAt: "2026-10-15T08:00:00.000Z",
     isCheckedIn: true,
     isCheckedOut: false,
   },
   {
-    id: "INQ-6312",
-    villaId: "b1-villa-4pn",
-    villaName: "B1 Villa • 4 Bedrooms",
-    guestName: "Hoàng Đức Trí",
-    email: "tri.hoang@investcorp.vn",
-    phone: "0934567890",
-    checkIn: "2026-10-16",
-    checkOut: "2026-10-19",
-    adults: 4,
-    children: 2,
-    specialRequests: "Nhận phòng lúc 14:00, yêu cầu chuẩn bị thêm 2 phao bơi cho trẻ em.",
-    status: "confirmed",
-    totalPriceVnd: 9000000,
-    paymentStatus: "deposit",
-    paidAmountVnd: 4500000,
-    createdAt: "2026-10-13T11:00:00.000Z",
-    isCheckedIn: false,
-    isCheckedOut: false,
-  },
-  {
-    id: "INQ-2001",
+    id: "INQ-1092",
     villaId: "b3-villa-2pn",
     villaName: "B3 Villa • 2 Bedrooms",
-    guestName: "Vũ Thị Lan",
-    email: "lan.vu@techasia.io",
-    phone: "0945678901",
-    checkIn: "2026-10-15",
-    checkOut: "2026-10-18",
+    guestName: "Direct Offline Booking",
+    email: "offline@bvilladanang.com",
+    phone: "+84854252821",
+    checkIn: "2026-10-13",
+    checkOut: "2026-10-14",
     adults: 2,
     children: 0,
-    specialRequests: "Kỷ niệm ngày cưới, setup hoa tươi và nến thơm.",
+    specialRequests: "Khách vãng lai đặt trực tiếp tại quầy lễ tân.",
     status: "confirmed",
-    totalPriceVnd: 9000000,
+    totalPriceVnd: 3000000,
     paymentStatus: "paid",
-    paidAmountVnd: 9000000,
-    createdAt: "2026-10-13T15:00:00.000Z",
-    isCheckedIn: false,
-    isCheckedOut: false,
-  },
-  {
-    id: "INQ-2002",
-    villaId: "b4-villa-4pn",
-    villaName: "B4 Villa • 4 Bedrooms",
-    guestName: "Đặng Quốc Bảo",
-    email: "bao.dang@vietnamtravel.com",
-    phone: "0967890123",
-    checkIn: "2026-10-18",
-    checkOut: "2026-10-21",
-    adults: 5,
-    children: 1,
-    specialRequests: "Cần hỗ trợ hướng dẫn viên tiếng Anh tham quan Sơn Trà.",
-    status: "confirmed",
-    totalPriceVnd: 9000000,
-    paymentStatus: "deposit",
-    paidAmountVnd: 4500000,
-    createdAt: "2026-10-13T16:30:00.000Z",
-    isCheckedIn: false,
-    isCheckedOut: false,
-  },
-  {
-    id: "INQ-2003",
-    villaId: "b2-villa-4pn",
-    villaName: "B2 Villa • 4 Bedrooms",
-    guestName: "Lê Thị Bích Ngọc",
-    email: "ngoc.le@luxuryescape.vn",
-    phone: "0978901234",
-    checkIn: "2026-10-20",
-    checkOut: "2026-10-24",
-    adults: 6,
-    children: 2,
-    specialRequests: "Ăn sáng tại phòng, thực đơn chay cho 2 người lớn.",
-    status: "confirmed",
-    totalPriceVnd: 12000000,
-    paymentStatus: "paid",
-    paidAmountVnd: 12000000,
-    createdAt: "2026-10-14T07:00:00.000Z",
-    isCheckedIn: false,
-    isCheckedOut: false,
-  },
-  {
-    id: "INQ-2004",
-    villaId: "b1-villa-4pn",
-    villaName: "B1 Villa • 4 Bedrooms",
-    guestName: "Alexander Wright",
-    email: "alex.wright@ukglobal.co.uk",
-    phone: "+44 7700 900123",
-    checkIn: "2026-10-25",
-    checkOut: "2026-10-28",
-    adults: 4,
-    children: 0,
-    specialRequests: "Late check-in at 20:00 PM due to international flight.",
-    status: "confirmed",
-    totalPriceVnd: 9000000,
-    paymentStatus: "deposit",
-    paidAmountVnd: 4500000,
-    createdAt: "2026-10-14T08:00:00.000Z",
-    isCheckedIn: false,
-    isCheckedOut: false,
-  },
-  {
-    id: "INQ-1001",
-    villaId: "b1-villa-4pn",
-    villaName: "B1 Villa • 4 Bedrooms",
-    guestName: "Phạm Thị Mai",
-    email: "mai.pham@danangresort.vn",
-    phone: "0981234567",
-    checkIn: "2026-10-06",
-    checkOut: "2026-10-10",
-    adults: 4,
-    children: 1,
-    specialRequests: "Khách đã trả phòng hài lòng, đánh giá 5 sao.",
-    status: "confirmed",
-    totalPriceVnd: 12000000,
-    paymentStatus: "paid",
-    paidAmountVnd: 12000000,
-    createdAt: "2026-10-05T09:00:00.000Z",
+    paidAmountVnd: 3000000,
+    createdAt: "2026-10-13T07:15:00.000Z",
     isCheckedIn: true,
     isCheckedOut: true,
   },
   {
-    id: "INQ-1002",
-    villaId: "b2-villa-4pn",
-    villaName: "B2 Villa • 4 Bedrooms",
-    guestName: "Đỗ Minh Tuấn",
-    email: "tuan.do@saigonbiz.vn",
-    phone: "0918765432",
-    checkIn: "2026-10-08",
-    checkOut: "2026-10-12",
-    adults: 4,
+    id: "INQ-3314",
+    villaId: "b3-villa-2pn",
+    villaName: "B3 Villa • 2 Bedrooms",
+    guestName: "Bình Phạm",
+    email: "phambinh2092008@gmail.com",
+    phone: "13332342432",
+    checkIn: "2026-10-12",
+    checkOut: "2026-10-13",
+    adults: 2,
     children: 0,
-    specialRequests: "Đoàn công tác, xuất hóa đơn VAT công ty.",
+    specialRequests: "Khách đặt 1 đêm, hoàn tất thanh toán trước khi trả phòng.",
     status: "confirmed",
-    totalPriceVnd: 12000000,
+    totalPriceVnd: 3000000,
     paymentStatus: "paid",
-    paidAmountVnd: 12000000,
-    createdAt: "2026-10-07T11:00:00.000Z",
+    paidAmountVnd: 3000000,
+    createdAt: "2026-10-12T11:00:00.000Z",
     isCheckedIn: true,
     isCheckedOut: true,
+  },
+  {
+    id: "INQ-1945",
+    villaId: "b2-villa-4pn",
+    villaName: "B2 Villa • 4 Bedrooms",
+    guestName: "Bình Phạm",
+    email: "phambinh2092008@gmail.com",
+    phone: "3333333333",
+    checkIn: "2026-10-10",
+    checkOut: "2026-10-18",
+    adults: 4,
+    children: 0,
+    specialRequests: "Kỳ nghỉ dài 8 đêm.",
+    status: "confirmed",
+    totalPriceVnd: 24000000,
+    paymentStatus: "paid",
+    paidAmountVnd: 24000000,
+    createdAt: "2026-10-10T10:20:00.000Z",
+    isCheckedIn: false,
+    isCheckedOut: false,
   },
 ];
 
@@ -387,16 +267,25 @@ export function getMaintenanceSignature(map: Record<string, VillaMaintenanceInfo
 /**
  * Pure READ-ONLY background synchronization between client and server
  * Never resurrects deleted inquiries, never loops POST requests
- */
+  */
 async function syncWithServer(): Promise<void> {
   if (typeof window === "undefined" || isSyncing) return;
   if (typeof document !== "undefined" && document.hidden) return;
   isSyncing = true;
 
   try {
+    const headers: Record<string, string> = { "Cache-Control": "no-cache" };
+    try {
+      if (typeof window !== "undefined") {
+        const token = sessionStorage.getItem("bvilla_admin_token");
+        if (token) headers["Authorization"] = `Bearer ${token}`;
+      }
+    } catch {}
+
     const res = await fetch("/api/bookings", {
       cache: "no-store",
-      headers: { "Cache-Control": "no-cache" },
+      credentials: "include",
+      headers,
     });
 
     if (!res.ok) return;
@@ -429,7 +318,7 @@ async function syncWithServer(): Promise<void> {
     );
     const localMaintenance = bookingStore.getMaintenanceMap();
 
-    // 2. MERGE INQUIRIES SAFELY (Excluding any deleted IDs)
+    // 2. MERGE INQUIRIES SAFELY (Preserving local customer details if server item was sanitized)
     const mergedMap = new Map<string, BookingInquiry>();
 
     // Server authoritative items first
@@ -443,9 +332,52 @@ async function syncWithServer(): Promise<void> {
         mergedMap.set(localItem.id, localItem);
       } else {
         const serverItem = mergedMap.get(localItem.id)!;
-        mergedMap.set(localItem.id, { ...localItem, ...serverItem });
+        const resolvedGuestName =
+          serverItem.guestName && serverItem.guestName !== "Khách Đặt"
+            ? serverItem.guestName
+            : localItem.guestName || "Khách Đặt";
+
+        mergedMap.set(localItem.id, {
+          ...serverItem,
+          ...localItem,
+          status: serverItem.status || localItem.status,
+          guestName: resolvedGuestName,
+          phone: serverItem.phone || localItem.phone || "",
+          email: serverItem.email || localItem.email || "",
+          totalPriceVnd: serverItem.totalPriceVnd ?? localItem.totalPriceVnd,
+          paymentStatus: serverItem.paymentStatus || localItem.paymentStatus,
+          isCheckedIn: serverItem.isCheckedIn ?? localItem.isCheckedIn,
+          isCheckedOut: serverItem.isCheckedOut ?? localItem.isCheckedOut,
+        });
       }
     });
+
+    // 3. AUTO-UPLINK: If this device has local inquiries that the cloud server is missing,
+    // automatically sync them up to the cloud DB (so phone and PC stay 100% in sync)
+    const missingOnServer = localInquiries.filter(
+      (loc) => !serverInquiries.some((srv) => srv.id === loc.id) && !currentDeletedSet.has(loc.id)
+    );
+
+    if (missingOnServer.length > 0 && typeof window !== "undefined") {
+      const isDashboard = window.location.pathname.startsWith("/admin");
+      if (isDashboard) {
+        const uplinkHeaders: Record<string, string> = { "Content-Type": "application/json" };
+        try {
+          const token = sessionStorage.getItem("bvilla_admin_token");
+          if (token) uplinkHeaders["Authorization"] = `Bearer ${token}`;
+        } catch {}
+
+        fetch("/api/bookings/sync", {
+          method: "POST",
+          headers: uplinkHeaders,
+          credentials: "include",
+          body: JSON.stringify({
+            inquiries: localInquiries,
+            replaceAll: false,
+          }),
+        }).catch(() => {});
+      }
+    }
 
     const mergedInquiries = deduplicateInquiries(Array.from(mergedMap.values())).filter(
       (i) => !currentDeletedSet.has(i.id)
@@ -454,13 +386,13 @@ async function syncWithServer(): Promise<void> {
     // Sort: newest created first
     mergedInquiries.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
-    // 3. MERGE MAINTENANCE
+    // 4. MERGE MAINTENANCE
     const mergedMaintenance: Record<string, VillaMaintenanceInfo> = {
       ...localMaintenance,
       ...serverMaintenance,
     };
 
-    // 4. COMPARE SIGNATURES (Prevents flickering re-renders)
+    // 5. COMPARE SIGNATURES (Prevents flickering re-renders)
     const localSig = getInquirySignature(localInquiries);
     const mergedSig = getInquirySignature(mergedInquiries);
 
@@ -613,6 +545,41 @@ if (typeof window !== "undefined") {
 export const bookingStore = {
   syncWithServer,
   broadcast: broadcastSync,
+
+  async forceSyncCloud(): Promise<{ success: boolean; count: number; error?: string }> {
+    if (typeof window === "undefined") return { success: false, count: 0 };
+    try {
+      const localInquiries = this.getInquiries();
+      const syncHeaders: Record<string, string> = { "Content-Type": "application/json" };
+      try {
+        const token = sessionStorage.getItem("bvilla_admin_token");
+        if (token) syncHeaders["Authorization"] = `Bearer ${token}`;
+      } catch {}
+
+      const res = await fetch("/api/bookings/sync", {
+        method: "POST",
+        headers: syncHeaders,
+        credentials: "include",
+        body: JSON.stringify({
+          inquiries: localInquiries,
+          replaceAll: false,
+        }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || `Lỗi phản hồi máy chủ (${res.status})`);
+      }
+
+      const resData = await res.json();
+      await syncWithServer();
+      broadcastSync({ action: "UPDATE", timestamp: Date.now() });
+      return { success: true, count: resData.importedCount || localInquiries.length };
+    } catch (err: any) {
+      await syncWithServer();
+      return { success: false, count: this.getInquiries().length, error: err.message };
+    }
+  },
 
   getDeletedIds(): Set<string> {
     if (typeof window === "undefined") return new Set();
@@ -995,6 +962,9 @@ export const bookingStore = {
 
     if (target) {
       const merged = { ...target, ...updatedFields };
+      if (merged.paymentStatus === 'paid' && (!merged.paidAmountVnd || merged.paidAmountVnd === 0)) {
+        merged.paidAmountVnd = merged.totalPriceVnd ?? 0;
+      }
 
       // Conflict validation only applies when transitioning to 'confirmed' or changing dates on a confirmed booking
       const isBecomingConfirmed = target.status !== "confirmed" && merged.status === "confirmed";

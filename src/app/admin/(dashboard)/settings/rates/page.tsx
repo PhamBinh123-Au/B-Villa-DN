@@ -414,7 +414,7 @@ export default function RoomRatesSettingsPage() {
                         )}
                       </div>
                       <p className="text-xs text-gray-400 mt-0.5">
-                        {villa.location} • {villa.bedrooms} phòng ngủ • Tối đa {villa.maxGuests} khách
+                        {villa.location} • {villa.bedrooms} phòng ngủ • Sức chứa {villa.maxGuests} khách (Người lớn & Trẻ em)
                       </p>
                     </div>
                   </div>

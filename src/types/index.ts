@@ -14,6 +14,8 @@ export interface Villa {
   bedrooms: number;
   bathrooms: number;
   maxGuests: number;
+  maxAdults?: number;
+  maxChildren?: number;
   area?: number;
   poolType: string;
   poolTypeVi?: string;
@@ -115,7 +117,8 @@ export interface SiteConfig {
     address: string;
   };
   admin: {
-    passcode: string;
+    portalPath: string;
+    passcode?: string;
   };
   social: {
     zalo?: string;

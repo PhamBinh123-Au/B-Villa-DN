@@ -43,9 +43,9 @@ export const Hero: React.FC<HeroProps> = () => {
   const { t, language } = useLanguage();
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Automatic slide rotation
+  // Automatic slide rotation & smooth preloading
   useEffect(() => {
-    // Preload all hero slides in the background so transitions are 100% instant and flicker-free
+    // Preload all 4 hero slides in the background so transitions are 100% instant and flicker-free
     HERO_SLIDES.forEach((slide) => {
       if (typeof window !== "undefined") {
         const img = new window.Image();
@@ -55,6 +55,7 @@ export const Hero: React.FC<HeroProps> = () => {
     const timer = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % HERO_SLIDES.length);
     }, 6500);
+
     return () => clearInterval(timer);
   }, []);
 
@@ -67,6 +68,7 @@ export const Hero: React.FC<HeroProps> = () => {
       <div className="absolute inset-0 z-0 overflow-hidden" style={{ backgroundColor: "#0D0F12" }}>
         {HERO_SLIDES.map((slide, idx) => {
           const isActive = idx === currentSlide;
+
           return (
             <motion.div
               key={slide.image}

@@ -69,7 +69,7 @@ export default function NewBookingPage() {
   const [checkInDate, setCheckInDate] = useState(initialCheckIn);
   const [checkOutDate, setCheckOutDate] = useState(defaultOutStr);
   const [bookingSource, setBookingSource] = useState<BookingSource>('direct');
-  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('deposit');
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>('unpaid');
   const [specialRequests, setSpecialRequests] = useState('');
   const [staffNotes, setStaffNotes] = useState('');
 
@@ -112,7 +112,12 @@ export default function NewBookingPage() {
     e.preventDefault();
 
     if (!customerName || !customerPhone) {
-      alert('Vui lòng nhập họ tên và số điện thoại khách hàng');
+      addToast({
+        type: 'error',
+        title: 'Thiếu thông tin bắt buộc',
+        message: 'Vui lòng nhập đầy đủ họ tên và số điện thoại liên hệ của khách hàng.',
+        duration: 4000,
+      });
       return;
     }
 
@@ -143,7 +148,12 @@ export default function NewBookingPage() {
         duration: 5000,
       });
     } catch (err: any) {
-      alert('Lỗi tạo đơn: ' + err.message);
+      addToast({
+        type: 'error',
+        title: 'Không thể tạo đơn',
+        message: err.message || 'Lỗi trùng lịch hoặc lỗi hệ thống khi lưu đơn.',
+        duration: 5000,
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -213,7 +223,7 @@ export default function NewBookingPage() {
                       {villa.name}
                     </p>
                     <div className="flex items-center gap-2 text-[11px] text-gray-400">
-                      <span>{villa.bedrooms} PN</span> • <span>{villa.bathrooms} WC</span> • <span>Tối đa {villa.maxGuests} khách</span>
+                      <span>{villa.bedrooms} PN</span> • <span>{villa.bathrooms} WC</span> • <span>Sức chứa: {villa.maxAdults || (villa.bedrooms === 2 ? 4 : 8)} Lớn + {villa.maxChildren ?? (villa.bedrooms === 2 ? 1 : 2)} Trẻ</span>
                     </div>
                   </div>
                 );
@@ -357,15 +367,32 @@ export default function NewBookingPage() {
                   <CreditCard className="w-3.5 h-3.5 text-[#C2A476]" />
                   <span>Tình Trạng Thanh Toán</span>
                 </label>
-                <select
-                  value={paymentStatus}
-                  onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#FAF8F5] dark:bg-[#14171A] border border-black/10 dark:border-white/10 focus:outline-none focus:border-[#C2A476] font-semibold text-xs text-[#14171A] dark:text-[#FAF8F5] shadow-xs"
-                >
-                  <option value="unpaid">Chưa Thanh Toán</option>
-                  <option value="deposit">Đã Đặt Cọc (50%)</option>
-                  <option value="paid">Đã Thanh Toán Toàn Bộ (100%)</option>
-                </select>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentStatus('unpaid')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      paymentStatus === 'unpaid'
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-600 dark:text-amber-400 shadow-xs'
+                        : 'bg-black/5 dark:bg-white/5 border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <span>Chưa Thanh Toán</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentStatus('paid')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                      paymentStatus === 'paid'
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 shadow-xs'
+                        : 'bg-black/5 dark:bg-white/5 border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300'
+                    }`}
+                  >
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <span>Đã Thanh Toán</span>
+                  </button>
+                </div>
               </div>
             </div>
 

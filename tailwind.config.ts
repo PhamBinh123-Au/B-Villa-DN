@@ -34,9 +34,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-quicksand)", "Quicksand", "system-ui", "-apple-system", "sans-serif"],
-        serif: ["var(--font-quicksand)", "Quicksand", "sans-serif"],
-        heading: ["var(--font-quicksand)", "Quicksand", "sans-serif"],
+        sans: ["var(--font-plus-jakarta-sans)", "var(--font-sans)", "Plus Jakarta Sans", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "sans-serif"],
+        serif: ["var(--font-plus-jakarta-sans)", "var(--font-sans)", "Plus Jakarta Sans", "sans-serif"],
+        heading: ["var(--font-plus-jakarta-sans)", "var(--font-sans)", "Plus Jakarta Sans", "sans-serif"],
       },
       animation: {
         "fade-in": "fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",

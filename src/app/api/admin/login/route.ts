@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({
       success: true,
       message: 'Đăng nhập thành công',
+      token,
       user: {
         role: matchedAccount.role,
         label: matchedAccount.label,
