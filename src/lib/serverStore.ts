@@ -3,10 +3,10 @@ import path from "path";
 import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo, PaymentStatus } from "@/types";
 
 export const DEFAULT_VILLA_PRICES: Record<string, number> = {
-  "b1-villa-4pn": 18000000,
-  "b2-villa-4pn": 19500000,
-  "b3-villa-2pn": 9500000,
-  "b4-villa-4pn": 17000000,
+  "b1-villa-4pn": 3000000,
+  "b2-villa-4pn": 3000000,
+  "b3-villa-2pn": 3000000,
+  "b4-villa-4pn": 3000000,
 };
 
 export const DEFAULT_USD_RATE = 25400;

@@ -57,7 +57,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   const [lightboxTab, setLightboxTab] = useState<"gallery" | "details">("gallery");
   const [mounted, setMounted] = useState(false);
-  const [currentPrice, setCurrentPrice] = useState<number>(() => DEFAULT_VILLA_PRICES[villa.id] || 15000000);
+  const [currentPrice, setCurrentPrice] = useState<number>(() => DEFAULT_VILLA_PRICES[villa.id] || 3000000);
   const [usdRate, setUsdRate] = useState<number>(DEFAULT_USD_RATE);
   const [isUnderMaintenance, setIsUnderMaintenance] = useState(false);
   const [maintenanceInfo, setMaintenanceInfo] = useState<VillaMaintenanceInfo | undefined>(undefined);

@@ -27,6 +27,16 @@ export const LuxuryVillaSelector: React.FC<LuxuryVillaSelectorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const [, setPriceVersion] = useState(0);
+
+  useEffect(() => {
+    const unsub = bookingStore.subscribe((payload) => {
+      if (payload.action === "PRICE_UPDATE" || payload.action === "UPDATE" || payload.action === "MAINTENANCE_UPDATE") {
+        setPriceVersion((v) => v + 1);
+      }
+    });
+    return () => unsub();
+  }, []);
 
   // Find active villa
   const currentVilla: Villa =

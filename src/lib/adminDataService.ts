@@ -558,20 +558,36 @@ export function getLiveSettings(): typeof defaultBusinessSettings {
   return defaultBusinessSettings;
 }
 
+function getAdminAuthHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extraHeaders };
+  if (typeof window !== 'undefined') {
+    try {
+      const token = sessionStorage.getItem('bvilla_admin_token');
+      if (token) headers['Authorization'] = `Bearer ${token}`;
+    } catch {}
+  }
+  return headers;
+}
+
+async function postAdminAppData(payload: Record<string, any>): Promise<void> {
+  try {
+    await fetch('/api/app-data', {
+      method: 'POST',
+      headers: getAdminAuthHeaders(),
+      credentials: 'include',
+      body: JSON.stringify(payload),
+    });
+  } catch (err) {
+    console.warn('Failed to sync app data with server:', err);
+  }
+}
+
 export async function updateSettingsInDb(newSettings: typeof defaultBusinessSettings): Promise<void> {
   if (typeof window !== 'undefined') {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(newSettings));
     bookingStore.broadcast({ action: 'SETTINGS_UPDATE', data: newSettings, timestamp: Date.now() });
   }
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ settings: newSettings }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync settings with server:', err);
-  }
+  await postAdminAppData({ settings: newSettings });
 }
 
 // ==================== 2. PRICING RULES & SURCHARGES ====================
@@ -589,15 +605,7 @@ export async function updatePricingRulesInDb(rules: PricingRule[]): Promise<void
     localStorage.setItem(STORAGE_KEYS.PRICING_RULES, JSON.stringify(rules));
     bookingStore.broadcast({ action: 'APP_DATA_UPDATE', key: 'pricingRules', data: rules, timestamp: Date.now() });
   }
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pricingRules: rules }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync pricing rules with server:', err);
-  }
+  await postAdminAppData({ pricingRules: rules });
 }
 
 // ==================== 3. VILLA AMENITIES ====================
@@ -631,15 +639,7 @@ export async function updateAmenitiesInDb(amenities: typeof DEFAULT_AMENITIES): 
     localStorage.setItem(STORAGE_KEYS.AMENITIES, JSON.stringify(amenities));
     bookingStore.broadcast({ action: 'APP_DATA_UPDATE', key: 'amenities', data: amenities, timestamp: Date.now() });
   }
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ amenities }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync amenities with server:', err);
-  }
+  await postAdminAppData({ amenities });
 }
 
 // ==================== 4. VILLA GALLERY ====================
@@ -657,15 +657,7 @@ export async function updateGalleryInDb(gallery: typeof DEFAULT_GALLERY): Promis
     localStorage.setItem(STORAGE_KEYS.GALLERY, JSON.stringify(gallery));
     bookingStore.broadcast({ action: 'APP_DATA_UPDATE', key: 'gallery', data: gallery, timestamp: Date.now() });
   }
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gallery }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync gallery with server:', err);
-  }
+  await postAdminAppData({ gallery });
 }
 
 // ==================== 5. CUSTOMER REVIEWS ====================
@@ -683,15 +675,7 @@ export async function updateReviewsInDb(reviews: Review[]): Promise<void> {
     localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews));
     bookingStore.broadcast({ action: 'APP_DATA_UPDATE', key: 'reviews', data: reviews, timestamp: Date.now() });
   }
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reviews }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync reviews with server:', err);
-  }
+  await postAdminAppData({ reviews });
 }
 
 // ==================== 6. ADMIN ACCOUNTS ====================
@@ -709,15 +693,7 @@ export async function updateAdminUsersInDb(users: AdminUser[]): Promise<void> {
     localStorage.setItem(STORAGE_KEYS.ADMIN_USERS, JSON.stringify(users));
     bookingStore.broadcast({ action: 'APP_DATA_UPDATE', key: 'adminUsers', data: users, timestamp: Date.now() });
   }
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ adminUsers: users }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync admin users with server:', err);
-  }
+  await postAdminAppData({ adminUsers: users });
 }
 
 // ==================== 7. CUSTOMERS CRM ====================
@@ -764,15 +740,7 @@ export async function updateCustomersInDb(customers: Customer[]): Promise<void> 
     localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(customers));
     bookingStore.broadcast({ action: 'APP_DATA_UPDATE', key: 'customers', data: customers, timestamp: Date.now() });
   }
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ customers }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync customers with server:', err);
-  }
+  await postAdminAppData({ customers });
 }
 
 // ==================== 8. VILLA OVERRIDES ====================
@@ -803,14 +771,6 @@ export async function updateVillaOverrideInDb(villaId: string, partialVilla: Par
     await updateVillaRatesInDb({ [normId as VillaId]: partialVilla.pricing.weekdayPrice });
   }
 
-  try {
-    await fetch('/api/app-data', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ villas: currentOverrides }),
-    });
-  } catch (err) {
-    console.warn('Failed to sync villa overrides with server:', err);
-  }
+  await postAdminAppData({ villas: currentOverrides });
 }
 

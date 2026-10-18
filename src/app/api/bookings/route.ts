@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
       {
         inquiries: sanitizedInquiries,
         maintenance: data.maintenance,
+        prices: data.prices || {},
+        usdRate: data.usdRate || 25400,
         version: data.version,
         isCloudStorage: serverStore.isCloudStorage(),
         storageType: serverStore.getStorageType(),

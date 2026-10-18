@@ -9,10 +9,10 @@ export const SYNC_CHANNEL_NAME = "danang_villa_realtime_bookings";
 export const LOCAL_EVENT_NAME = "danang_realtime_booking_event";
 
 export const DEFAULT_VILLA_PRICES: Record<string, number> = {
-  "b1-villa-4pn": 18000000,
-  "b2-villa-4pn": 19500000,
-  "b3-villa-2pn": 9500000,
-  "b4-villa-4pn": 17000000,
+  "b1-villa-4pn": 3000000,
+  "b2-villa-4pn": 3000000,
+  "b3-villa-2pn": 3000000,
+  "b4-villa-4pn": 3000000,
 };
 export const DEFAULT_USD_RATE = 25400;
 
@@ -264,6 +264,17 @@ export function getMaintenanceSignature(map: Record<string, VillaMaintenanceInfo
     .join("|");
 }
 
+function getAdminAuthHeaders(extraHeaders: Record<string, string> = {}): Record<string, string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json", ...extraHeaders };
+  if (typeof window !== "undefined") {
+    try {
+      const token = sessionStorage.getItem("bvilla_admin_token");
+      if (token) headers["Authorization"] = `Bearer ${token}`;
+    } catch {}
+  }
+  return headers;
+}
+
 /**
  * Pure READ-ONLY background synchronization between client and server
  * Never resurrects deleted inquiries, never loops POST requests
@@ -274,13 +285,7 @@ async function syncWithServer(): Promise<void> {
   isSyncing = true;
 
   try {
-    const headers: Record<string, string> = { "Cache-Control": "no-cache" };
-    try {
-      if (typeof window !== "undefined") {
-        const token = sessionStorage.getItem("bvilla_admin_token");
-        if (token) headers["Authorization"] = `Bearer ${token}`;
-      }
-    } catch {}
+    const headers = getAdminAuthHeaders({ "Cache-Control": "no-cache" });
 
     const res = await fetch("/api/bookings", {
       cache: "no-store",
@@ -441,12 +446,9 @@ async function syncWithServer(): Promise<void> {
       }
     }
 
+    const isFirstSync = !initialSyncDone;
     if (!initialSyncDone) {
       initialSyncDone = true;
-      if (inquiriesChanged || maintenanceChanged || pricesChanged) {
-        broadcastSync({ action: "UPDATE", timestamp: Date.now() });
-      }
-      return;
     }
 
     if (pricesChanged) {
@@ -458,14 +460,14 @@ async function syncWithServer(): Promise<void> {
       });
     }
 
-    // Broadcast only on real changes
-    if (newlyArrivedRemote.length > 0) {
+    // Broadcast only on real changes (suppress ADD chime on first load)
+    if (!isFirstSync && newlyArrivedRemote.length > 0) {
       broadcastSync({
         action: "ADD",
         inquiry: newlyArrivedRemote[0],
         timestamp: Date.now(),
       });
-    } else if (inquiriesChanged) {
+    } else if (inquiriesChanged || (isFirstSync && pricesChanged)) {
       broadcastSync({
         action: "UPDATE",
         timestamp: Date.now(),
@@ -511,8 +513,54 @@ async function syncWithServer(): Promise<void> {
         syncField("customers", "bvilla_customers_v1");
         syncField("villas", "bvilla_villa_overrides_v1");
 
+        // Sync prices & USD rate from appData
+        if (appData.prices && typeof appData.prices === "object") {
+          const currentStored = localStorage.getItem(PRICES_STORAGE_KEY);
+          const currentParsed = currentStored ? JSON.parse(currentStored) : {};
+          if (JSON.stringify(currentParsed) !== JSON.stringify(appData.prices) || !currentStored) {
+            localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify(appData.prices));
+            if (appData.usdRate) {
+              localStorage.setItem(USD_RATE_STORAGE_KEY, String(appData.usdRate));
+            }
+            broadcastSync({
+              action: "PRICE_UPDATE",
+              prices: appData.prices,
+              usdRate: appData.usdRate || DEFAULT_USD_RATE,
+              timestamp: Date.now(),
+            });
+          }
+        }
+
         if (appDataChanged) {
           broadcastSync({ action: "APP_DATA_UPDATE", timestamp: Date.now() });
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    // Direct dedicated /api/prices fetch -> guarantees prices on all client devices and friends' computers
+    try {
+      const pricesRes = await fetch("/api/prices", { cache: "no-store" });
+      if (pricesRes.ok) {
+        const pricesJson = await pricesRes.json();
+        if (pricesJson && pricesJson.prices && typeof pricesJson.prices === "object") {
+          const currentStored = localStorage.getItem(PRICES_STORAGE_KEY);
+          const currentParsed = currentStored ? JSON.parse(currentStored) : {};
+          const isDifferent = JSON.stringify(currentParsed) !== JSON.stringify(pricesJson.prices);
+
+          if (isDifferent || !currentStored) {
+            localStorage.setItem(PRICES_STORAGE_KEY, JSON.stringify(pricesJson.prices));
+            if (pricesJson.usdRate) {
+              localStorage.setItem(USD_RATE_STORAGE_KEY, String(pricesJson.usdRate));
+            }
+            broadcastSync({
+              action: "PRICE_UPDATE",
+              prices: pricesJson.prices,
+              usdRate: pricesJson.usdRate || DEFAULT_USD_RATE,
+              timestamp: Date.now(),
+            });
+          }
         }
       }
     } catch {
@@ -529,7 +577,7 @@ async function syncWithServer(): Promise<void> {
 if (typeof window !== "undefined") {
   setTimeout(() => {
     syncWithServer();
-  }, 100);
+  }, 0);
 
   // Poll smoothly every 10s to keep CPU and UI interaction thread completely free
   setInterval(() => {
@@ -1372,10 +1420,10 @@ export const bookingStore = {
     }
 
     // Mirror short codes and full slugs so lookup by either "B1" or "b1-villa-4pn" always succeeds
-    const b1Price = prices["b1-villa-4pn"] || prices["B1"] || prices["b1"] || DEFAULT_VILLA_PRICES["b1-villa-4pn"] || 18000000;
-    const b2Price = prices["b2-villa-4pn"] || prices["B2"] || prices["b2"] || DEFAULT_VILLA_PRICES["b2-villa-4pn"] || 19500000;
-    const b3Price = prices["b3-villa-2pn"] || prices["B3"] || prices["b3"] || DEFAULT_VILLA_PRICES["b3-villa-2pn"] || 9500000;
-    const b4Price = prices["b4-villa-4pn"] || prices["B4"] || prices["b4"] || DEFAULT_VILLA_PRICES["b4-villa-4pn"] || 17000000;
+    const b1Price = prices["b1-villa-4pn"] || prices["B1"] || prices["b1"] || DEFAULT_VILLA_PRICES["b1-villa-4pn"] || 3000000;
+    const b2Price = prices["b2-villa-4pn"] || prices["B2"] || prices["b2"] || DEFAULT_VILLA_PRICES["b2-villa-4pn"] || 3000000;
+    const b3Price = prices["b3-villa-2pn"] || prices["B3"] || prices["b3"] || DEFAULT_VILLA_PRICES["b3-villa-2pn"] || 3000000;
+    const b4Price = prices["b4-villa-4pn"] || prices["B4"] || prices["b4"] || DEFAULT_VILLA_PRICES["b4-villa-4pn"] || 3000000;
 
     prices["b1-villa-4pn"] = b1Price;
     prices["B1"] = b1Price;
@@ -1398,18 +1446,18 @@ export const bookingStore = {
 
   getVillaPrice(villaId: string): number {
     const prices = this.getAllVillaPrices();
-    if (!villaId) return 18000000;
+    if (!villaId) return 3000000;
 
     // Direct match
     if (typeof prices[villaId] === "number") return prices[villaId];
 
     const lower = villaId.toLowerCase().trim();
-    if (lower.includes("b1")) return prices["B1"] || 18000000;
-    if (lower.includes("b2")) return prices["B2"] || 19500000;
-    if (lower.includes("b3")) return prices["B3"] || 9500000;
-    if (lower.includes("b4")) return prices["B4"] || 17000000;
+    if (lower.includes("b1")) return prices["B1"] || 3000000;
+    if (lower.includes("b2")) return prices["B2"] || 3000000;
+    if (lower.includes("b3")) return prices["B3"] || 3000000;
+    if (lower.includes("b4")) return prices["B4"] || 3000000;
 
-    return prices[villaId] || DEFAULT_VILLA_PRICES[villaId] || 15000000;
+    return prices[villaId] || DEFAULT_VILLA_PRICES[villaId] || 3000000;
   },
 
   getUsdRate(): number {
@@ -1440,7 +1488,8 @@ export const bookingStore = {
     try {
       await fetch("/api/prices", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminAuthHeaders(),
+        credentials: "include",
         body: JSON.stringify({ villaId, priceVnd }),
       });
     } catch (err) {
@@ -1469,7 +1518,8 @@ export const bookingStore = {
     try {
       await fetch("/api/prices", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminAuthHeaders(),
+        credentials: "include",
         body: JSON.stringify({ prices: updated, usdRate: finalRate }),
       });
     } catch (err) {
@@ -1489,7 +1539,8 @@ export const bookingStore = {
     try {
       await fetch("/api/prices", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getAdminAuthHeaders(),
+        credentials: "include",
         body: JSON.stringify({ usdRate: rate }),
       });
     } catch (err) {
