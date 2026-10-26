@@ -37,6 +37,20 @@ module.exports = {
         serif: ["var(--font-plus-jakarta-sans)", "var(--font-sans)", "Plus Jakarta Sans", "sans-serif"],
         heading: ["var(--font-plus-jakarta-sans)", "var(--font-sans)", "Plus Jakarta Sans", "sans-serif"],
       },
+      animation: {
+        "fade-in": "fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "fade-up": "fadeUp 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+      },
+      keyframes: {
+        fadeIn: {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        fadeUp: {
+          "0%": { opacity: "0", transform: "translateY(24px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+      },
     },
   },
   plugins: [],

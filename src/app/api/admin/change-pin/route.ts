@@ -171,8 +171,8 @@ export function verifyAdminPin(enteredPin: string): AdminPinAccount | null {
       message: `Đổi mã PIN ${role === 'super_admin' ? 'Super Admin' : 'Quản Lý'} thành công! Mã PIN mới: ${newPin}.`,
       newPin,
     });
-  } catch (error: any) {
-    console.error('Lỗi khi đổi mã PIN:', error);
+  } catch {
+    // Keep internal error details safe (Checklist Item #17 & #18)
     return NextResponse.json(
       { success: false, message: 'Lỗi hệ thống khi lưu mã PIN mới. Vui lòng thử lại.' },
       { status: 500 }

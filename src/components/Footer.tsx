@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
-import { Phone, Mail, MapPin, MessageCircle, ArrowUp, Code2, ShieldCheck } from "lucide-react";
+import { Phone, Mail, MapPin, MessageCircle, ArrowUp } from "lucide-react";
 import { getLiveSettings } from "@/lib/adminDataService";
 import { businessSettings as defaultBusinessSettings } from "@/lib/mock-data";
 import { bookingStore } from "@/lib/bookingStore";

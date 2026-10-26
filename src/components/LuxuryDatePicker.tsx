@@ -8,7 +8,6 @@ import {
   ChevronRight,
   ChevronDown,
   X,
-  Sparkles,
   AlertCircle,
   Clock,
   Wrench,

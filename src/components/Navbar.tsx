@@ -6,7 +6,7 @@ import Image from "next/image";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
 import { LanguageSwitcher } from "./LanguageSwitcher";
-import { Menu, X, Calendar, Phone, Headphones, Home, Compass, Sparkles } from "lucide-react";
+import { Menu, X, Calendar, Headphones, Home, Compass, Sparkles } from "lucide-react";
 import { ContactModal } from "./ContactModal";
 
 interface NavbarProps {

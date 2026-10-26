@@ -20,7 +20,6 @@ import {
 } from "./LuxuryConfirmDialog";
 import {
   X,
-  Calendar,
   Users,
   Mail,
   Phone,
@@ -30,9 +29,7 @@ import {
   MessageCircle,
   ChevronDown,
   Check,
-  Home,
   AlertCircle,
-  Clock,
   Wrench,
   Tag,
 } from "lucide-react";
@@ -224,7 +221,6 @@ export const BookingModal: React.FC<BookingModalProps> = ({
 
       setSubmittedInquiryId(newInquiry.id);
     } catch (err: any) {
-      console.error(err);
       showModalAlert(
         "Submission Failed",
         err.message || "An error occurred while saving your inquiry. Please try again.",

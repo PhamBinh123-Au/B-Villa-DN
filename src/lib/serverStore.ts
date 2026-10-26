@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo, PaymentStatus } from "@/types";
+import { BookingInquiry, CleaningStatus, InquiryStatus, VillaMaintenanceInfo } from "@/types";
 
 export const DEFAULT_VILLA_PRICES: Record<string, number> = {
   "b1-villa-4pn": 3000000,

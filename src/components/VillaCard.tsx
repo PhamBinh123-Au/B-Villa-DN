@@ -25,7 +25,6 @@ import {
   ChevronLeft,
   Camera,
   Wrench,
-  Maximize2,
   X,
   Compass,
   CheckCircle2,
@@ -35,7 +34,6 @@ import {
   MessageCircle,
   Calendar,
   Eye,
-  Info,
 } from "lucide-react";
 
 interface VillaCardProps {
@@ -231,7 +229,6 @@ export const VillaCard: React.FC<VillaCardProps> = ({
   const displaySpaceDetails = language === "vi" && effectiveVilla.spaceDetailsVi ? effectiveVilla.spaceDetailsVi : (effectiveVilla.spaceDetails || []);
   const displayFurniture = language === "vi" && effectiveVilla.furnitureAmenitiesVi ? effectiveVilla.furnitureAmenitiesVi : (effectiveVilla.furnitureAmenities || effectiveVilla.amenities);
   const displaySuitableFor = language === "vi" ? (effectiveVilla.suitableForVi || effectiveVilla.suitableFor) : (effectiveVilla.suitableFor || effectiveVilla.suitableForVi);
-  const displayFullTitle = language === "vi" ? (effectiveVilla.fullTitleVi || effectiveVilla.fullTitle) : (effectiveVilla.fullTitle || effectiveVilla.fullTitleVi);
   const displayPoolType = language === "vi" ? (effectiveVilla.poolTypeVi || effectiveVilla.poolType) : effectiveVilla.poolType;
   const mapLink =
     effectiveVilla.mapUrl ||

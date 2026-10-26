@@ -14,11 +14,9 @@ import {
   MessageCircle,
   ExternalLink,
   Clock,
-  Instagram,
   Facebook,
   User,
   Sparkles,
-  Headphones,
 } from "lucide-react";
 
 interface ContactModalProps {

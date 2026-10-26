@@ -1,5 +1,27 @@
 {
-  "inquiries": [],
+  "inquiries": [
+    {
+      "villaId": "b1-villa-4pn",
+      "villaName": "B1 Villa • 4 Bedrooms",
+      "guestName": "fdfsdf",
+      "email": "bssdfsdfdsfs@gmail.com",
+      "phone": "234424242",
+      "checkIn": "2026-10-26",
+      "checkOut": "2026-10-28",
+      "adults": 2,
+      "children": 0,
+      "specialRequests": "",
+      "id": "INQ-6185",
+      "status": "confirmed",
+      "totalPriceVnd": 6000000,
+      "paymentStatus": "paid",
+      "paidAmountVnd": 6000000,
+      "createdAt": "2026-10-26T11:34:32.136Z",
+      "guests": 2,
+      "isCheckedIn": true,
+      "isCheckedOut": false
+    }
+  ],
   "deletedIds": [
     "INQ-7757",
     "INQ-3002",
@@ -34,8 +56,8 @@
       "updatedAt": "2026-10-14T12:01:41.624Z"
     }
   },
-  "version": 267,
-  "lastUpdated": 1793009969274,
+  "version": 285,
+  "lastUpdated": 1793014488281,
   "prices": {
     "b1-villa-4pn": 3000000,
     "b2-villa-4pn": 3000000,

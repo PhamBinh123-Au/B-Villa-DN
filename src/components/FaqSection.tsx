@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useLanguage } from "@/context/LanguageContext";
-import { HelpCircle, ChevronDown, Clock, Waves, Utensils, Compass, ShieldCheck, Terminal, MapPin, Sparkles } from "lucide-react";
+import { HelpCircle, ChevronDown, Clock, Waves, Utensils, Compass, ShieldCheck, MapPin, Sparkles } from "lucide-react";
 import Link from "next/link";
 
 interface FaqItem {

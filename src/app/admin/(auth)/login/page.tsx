@@ -15,7 +15,6 @@ import {
   Sparkles,
   RotateCcw,
   AlertTriangle,
-  Lock,
   Cpu,
   Fingerprint,
 } from 'lucide-react';

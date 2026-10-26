@@ -30,37 +30,6 @@ interface AmenityItem {
   descEn: string;
 }
 
-const FALLBACK_AMENITIES: AmenityItem[] = [
-  {
-    icon: "Waves",
-    titleVi: "Hồ Bơi Riêng Biệt Lập",
-    titleEn: "Exclusive Private Pool",
-    descVi: "Mỗi biệt thự đều sở hữu hồ bơi riêng làn nước trong xanh, từ hồ bơi sân vườn đón nắng đến hồ giếng trời tự nhiên.",
-    descEn: "Each villa is equipped with its own crystal-clear private pool, from sunlit garden lap pools to indoor skylight atriums.",
-  },
-  {
-    icon: "Wifi",
-    titleVi: "Wi-Fi Tốc Độ Cao Liền Mạch",
-    titleEn: "High-Speed Seamless Wi-Fi",
-    descVi: "Mạng internet không dây chuẩn doanh nghiệp phủ sóng mạnh mẽ khắp phòng ngủ, sân vườn và khu vực hồ bơi.",
-    descEn: "Enterprise-grade high-speed wireless network coverage across every bedroom, terrace, and living space.",
-  },
-  {
-    icon: "Sparkles",
-    titleVi: "Dọn Phòng Chuyên Nghiệp Hàng Ngày",
-    titleEn: "Daily Housekeeping",
-    descVi: "Dịch vụ phòng tận tâm giữ không gian luôn thơm mát, thay khăn ga cao cấp và bổ sung tiện nghi tắm chuẩn spa.",
-    descEn: "Professional housekeeping service maintaining impeccable cleanliness, fresh linen, and luxury bath amenities.",
-  },
-  {
-    icon: "UtensilsCrossed",
-    titleVi: "Bếp Nấu Cao Cấp Đầy Đủ Tiện Nghi",
-    titleEn: "Fully Equipped Gourmet Kitchen",
-    descVi: "Được trang bị đầy đủ lò vi sóng, tủ lạnh lớn, dụng cụ bếp nấu hiện đại và bếp nướng BBQ cho các bữa tiệc sum vầy.",
-    descEn: "Complete with high-end appliances, microwave, refrigerator, cookware, and barbecue setup for private feasts.",
-  },
-];
-
 const iconMap: Record<string, React.ReactNode> = {
   Waves: <Waves className="w-6 h-6 text-[#C2A476]" />,
   Wifi: <Wifi className="w-6 h-6 text-[#C2A476]" />,

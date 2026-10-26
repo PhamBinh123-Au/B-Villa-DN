@@ -4,7 +4,14 @@ import crypto from 'crypto';
 export const ADMIN_COOKIE_NAME = 'bvilla_admin_session';
 
 // Secret used for token hashing / verification
-const SESSION_SECRET = process.env.ADMIN_SESSION_SECRET || 'bvilla_secure_session_key_secret_2026';
+// Prioritizes ADMIN_SESSION_SECRET environment variable (Checklist Item #1)
+const SESSION_SECRET = (function getSessionSecret(): string {
+  const envSecret = process.env.ADMIN_SESSION_SECRET;
+  if (envSecret && envSecret.trim().length > 0) {
+    return envSecret.trim();
+  }
+  return 'bvilla_secure_session_key_secret_2026';
+})();
 
 /**
  * Generate a cryptographically secure session token
