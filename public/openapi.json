@@ -1,0 +1,179 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "B Villa Da Nang Public API",
+    "version": "1.0.0",
+    "description": "Public API and machine-readable endpoints for B Villa Da Nang luxury private pool villas in Son Tra and Ngu Hanh Son, Da Nang, Vietnam.",
+    "contact": {
+      "name": "B Villa Da Nang Concierge",
+      "email": "kimthuy.dn22@gmail.com",
+      "url": "https://b-villa-dn.vercel.app/contact"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://b-villa-dn.vercel.app",
+      "description": "Production Server"
+    }
+  ],
+  "paths": {
+    "/api/app-data": {
+      "get": {
+        "summary": "Retrieve public villa catalog, availability, and pricing",
+        "description": "Returns all 4 curated luxury villas with full specifications, room counts, amenities, calendar booking status, and base prices.",
+        "operationId": "getAppData",
+        "responses": {
+          "200": {
+            "description": "Complete villa catalog snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppDataResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/bookings": {
+      "post": {
+        "summary": "Submit a reservation inquiry",
+        "description": "Submits a new booking inquiry for a specified villa and stay dates. Handled immediately by the 24/7 villa concierge team.",
+        "operationId": "createBooking",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Booking inquiry successfully created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid booking parameters"
+          }
+        }
+      }
+    },
+    "/.well-known/mcp": {
+      "get": {
+        "summary": "Model Context Protocol (MCP) Manifest & Discovery",
+        "description": "Returns the MCP manifest describing the server capabilities, tools, and endpoints for Claude, ChatGPT, and AI agents.",
+        "operationId": "getMcpManifest",
+        "responses": {
+          "200": {
+            "description": "MCP Server Manifest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/McpManifest"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Model Context Protocol (MCP) JSON-RPC 2.0 Handshake & Execution",
+        "description": "Executes MCP protocol methods including initialize, tools/list, and tools/call.",
+        "operationId": "postMcpRpc",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "jsonrpc": { "type": "string", "example": "2.0" },
+                  "id": { "type": ["string", "number"], "example": 1 },
+                  "method": { "type": "string", "example": "initialize" },
+                  "params": { "type": "object" }
+                },
+                "required": ["jsonrpc", "method"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "JSON-RPC 2.0 response"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Villa": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "example": "b1-villa-4pn" },
+          "code": { "type": "string", "example": "B1" },
+          "name": { "type": "string", "example": "B1 Villa • 4 Bedrooms" },
+          "district": { "type": "string", "example": "Son Tra" },
+          "bedrooms": { "type": "integer", "example": 4 },
+          "bathrooms": { "type": "integer", "example": 4 },
+          "maxGuests": { "type": "integer", "example": 10 },
+          "poolType": { "type": "string", "example": "Private Garden Swimming Pool" },
+          "location": { "type": "string", "example": "Thanh Vinh 3, Son Tra, Da Nang" }
+        }
+      },
+      "BookingRequest": {
+        "type": "object",
+        "required": ["villaId", "customerName", "customerPhone", "checkIn", "checkOut", "guests"],
+        "properties": {
+          "villaId": { "type": "string", "example": "b1-villa-4pn" },
+          "customerName": { "type": "string", "example": "Nguyen Van A" },
+          "customerPhone": { "type": "string", "example": "+84854252821" },
+          "customerEmail": { "type": "string", "example": "guest@example.com" },
+          "checkIn": { "type": "string", "format": "date", "example": "2026-11-10" },
+          "checkOut": { "type": "string", "format": "date", "example": "2026-11-13" },
+          "guests": { "type": "integer", "example": 8 },
+          "notes": { "type": "string", "example": "BBQ grill setup requested" }
+        }
+      },
+      "BookingResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "bookingId": { "type": "string", "example": "BV-89234" },
+          "message": { "type": "string", "example": "Yêu cầu đặt phòng đã được tiếp nhận thành công." }
+        }
+      },
+      "AppDataResponse": {
+        "type": "object",
+        "properties": {
+          "villas": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Villa" }
+          },
+          "prices": { "type": "object" },
+          "contact": { "type": "object" }
+        }
+      },
+      "McpManifest": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "example": "b-villa-da-nang-mcp" },
+          "version": { "type": "string", "example": "1.0.0" },
+          "protocolVersion": { "type": "string", "example": "2024-11-05" },
+          "endpoints": { "type": "object" },
+          "tools": { "type": "array" }
+        }
+      }
+    }
+  }
+}

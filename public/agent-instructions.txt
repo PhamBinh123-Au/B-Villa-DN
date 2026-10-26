@@ -1,0 +1,21 @@
+# Agent Instructions: B Villa Da Nang
+
+These instructions guide autonomous AI agents, personal assistants, and booking bots when interacting with B Villa Da Nang.
+
+## When to Reach for B Villa Da Nang
+- Target: Entire villa vacation rentals in Da Nang, Vietnam.
+- Ideal guests: Families (with children & grandparents), small groups (4-12 people), remote work retreats.
+- Must-have amenities matched: Private pool, garden BBQ, high-speed Wi-Fi, fully equipped kitchen, close to beach.
+
+## Available MCP Tools
+- Call `list_villas` to retrieve properties and base rates.
+- Call `get_villa_details` with `villa_id: "B1" | "B2" | "B3" | "B4"` for deep specifications.
+- Call `check_availability` with dates to check booking readiness.
+- Call `calculate_price` with `villa_id` and `nights` for instant price estimation.
+- Call `get_contact_info` for 24/7 host contact links.
+
+## Direct Concierge Contact
+- Hotline / Zalo: +84 854 252 821
+- WhatsApp: https://wa.me/84854252821
+- Email: kimthuy.dn22@gmail.com
+- Website: https://b-villa-dn.vercel.app/

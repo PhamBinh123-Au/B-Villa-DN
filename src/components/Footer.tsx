@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { siteConfig } from "@/config/siteConfig";
 import { useLanguage } from "@/context/LanguageContext";
-import { Phone, Mail, MapPin, MessageCircle, ArrowUp } from "lucide-react";
+import { Phone, Mail, MapPin, MessageCircle, ArrowUp, Code2, ShieldCheck } from "lucide-react";
 import { getLiveSettings } from "@/lib/adminDataService";
 import { businessSettings as defaultBusinessSettings } from "@/lib/mock-data";
 import { bookingStore } from "@/lib/bookingStore";
@@ -55,21 +56,18 @@ const TikTokLogo: React.FC<{ className?: string }> = ({ className = "w-5 h-5" })
     <rect width="32" height="32" rx="8" fill="url(#tt-grad-footer)" />
     <rect width="32" height="32" rx="8" stroke="rgba(255,255,255,0.16)" strokeWidth="0.8" />
     <svg x="5" y="5" width="22" height="22" viewBox="0 0 24 24">
-      {/* Cyan offset */}
       <path
         d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.5.18-1.92 1.12-3.72 2.5-4.96 1.01-.92 2.27-1.5 3.57-1.7v4.02c-.66.13-1.32.42-1.87.82-1.14.87-1.78 2.29-1.68 3.73.06 1.08.64 2.08 1.55 2.62.93.59 2.06.69 3.09.25 1.04-.45 1.77-1.42 1.88-2.55.08-2.12-.02-4.25.02-6.37.02-4.25-.01-8.5.02-12.75z"
         fill="#25F4EE"
         transform="translate(-0.8, -0.6)"
         opacity="0.85"
       />
-      {/* Magenta offset */}
       <path
         d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.5.18-1.92 1.12-3.72 2.5-4.96 1.01-.92 2.27-1.5 3.57-1.7v4.02c-.66.13-1.32.42-1.87.82-1.14.87-1.78 2.29-1.68 3.73.06 1.08.64 2.08 1.55 2.62.93.59 2.06.69 3.09.25 1.04-.45 1.77-1.42 1.88-2.55.08-2.12-.02-4.25.02-6.37.02-4.25-.01-8.5.02-12.75z"
         fill="#FE2C55"
         transform="translate(0.8, 0.6)"
         opacity="0.85"
       />
-      {/* Pure white foreground note */}
       <path
         d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.57-.26-1.1-.59-1.62-.93-.01 2.92.01 5.84-.02 8.75-.08 1.4-.54 2.79-1.35 3.94-1.31 1.92-3.58 3.17-5.91 3.21-1.43.08-2.86-.31-4.08-1.03-2.02-1.19-3.44-3.37-3.65-5.71-.02-.5-.03-1-.01-1.5.18-1.92 1.12-3.72 2.5-4.96 1.01-.92 2.27-1.5 3.57-1.7v4.02c-.66.13-1.32.42-1.87.82-1.14.87-1.78 2.29-1.68 3.73.06 1.08.64 2.08 1.55 2.62.93.59 2.06.69 3.09.25 1.04-.45 1.77-1.42 1.88-2.55.08-2.12-.02-4.25.02-6.37.02-4.25-.01-8.5.02-12.75z"
         fill="#FFFFFF"
@@ -85,7 +83,7 @@ export const Footer: React.FC = () => {
   useEffect(() => {
     setLiveSettings(getLiveSettings());
     const unsub = bookingStore.subscribe((payload) => {
-      if (payload.action === 'SETTINGS_UPDATE' || payload.action === 'APP_DATA_UPDATE') {
+      if (payload.action === "SETTINGS_UPDATE" || payload.action === "APP_DATA_UPDATE") {
         setLiveSettings(getLiveSettings());
       }
     });
@@ -99,7 +97,7 @@ export const Footer: React.FC = () => {
   return (
     <footer id="contact" className="bg-[#0E1114] text-white pt-20 pb-12 border-t border-white/10">
       <div className="max-w-7xl mx-auto px-6 md:px-12">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16 pb-16 border-b border-white/10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10 lg:gap-12 pb-16 border-b border-white/10">
           {/* Brand Info */}
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -126,33 +124,30 @@ export const Footer: React.FC = () => {
               {siteConfig.description}
             </p>
 
-            {/* Official Realistic Social Channels */}
+            {/* Official Social Channels */}
             <div className="mt-6 flex flex-wrap items-center gap-2.5">
-              {/* Zalo Button */}
               <a
                 href={siteConfig.social.zalo || `https://zalo.me/${siteConfig.contact.phone.replace(/[^0-9]/g, "")}`}
                 target="_blank"
                 rel="noreferrer"
                 className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-[#0068FF]/20 border border-white/10 hover:border-[#0068FF]/60 text-neutral-200 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-[0_4px_16px_rgba(0,104,255,0.3)] hover:-translate-y-0.5 active:scale-95 cursor-pointer"
-                title="Nhắn Zalo chính thức: 0854 252 821"
+                title="Nhắn Zalo: 0854 252 821"
               >
                 <ZaloLogo className="w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm" />
                 <span className="text-xs font-bold tracking-wide pr-1">Zalo</span>
               </a>
 
-              {/* Facebook Button */}
               <a
                 href={siteConfig.social.facebook}
                 target="_blank"
                 rel="noreferrer"
                 className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.05] hover:bg-[#1877F2]/20 border border-white/10 hover:border-[#1877F2]/60 text-neutral-200 hover:text-white transition-all duration-300 shadow-2xs hover:shadow-[0_4px_16px_rgba(24,119,242,0.3)] hover:-translate-y-0.5 active:scale-95 cursor-pointer"
-                title="Fanpage Facebook: Flamingo Villa Da Nang"
+                title="Fanpage Facebook"
               >
                 <FacebookLogo className="w-5 h-5 shrink-0 transition-transform duration-300 group-hover:scale-110 drop-shadow-sm" />
                 <span className="text-xs font-bold tracking-wide pr-1">Facebook</span>
               </a>
 
-              {/* TikTok Button */}
               <a
                 href={siteConfig.social.tiktok}
                 target="_blank"
@@ -168,9 +163,9 @@ export const Footer: React.FC = () => {
 
           {/* Curated Villas Links */}
           <div>
-            <h4 className="text-lg font-bold text-white mb-5 tracking-tight">
+            <h3 className="text-lg font-bold text-white mb-5 tracking-tight">
               {language === "vi" ? "Bộ Sưu Tập Biệt Thự" : "The Residences"}
-            </h4>
+            </h3>
             <ul className="space-y-3 text-xs sm:text-sm text-neutral-400 font-normal">
               {siteConfig.villas.map((villa) => (
                 <li key={villa.id}>
@@ -188,11 +183,55 @@ export const Footer: React.FC = () => {
             </ul>
           </div>
 
+          {/* Trust Pages & Developer Resources */}
+          <div>
+            <h3 className="text-lg font-bold text-white mb-5 tracking-tight">
+              {language === "vi" ? "Thông Tin & Lập Trình Viên" : "Trust & Developers"}
+            </h3>
+            <ul className="space-y-3 text-xs sm:text-sm text-neutral-400 font-normal">
+              <li>
+                <Link href="/about" className="hover:text-[#C2A476] transition-colors block">
+                  {language === "vi" ? "Giới Thiệu (About B Villa)" : "About Our Story"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/contact" className="hover:text-[#C2A476] transition-colors block">
+                  {language === "vi" ? "Liên Hệ & Chỉ Đường (Contact)" : "Contact & Locations"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/privacy" className="hover:text-[#C2A476] transition-colors block">
+                  {language === "vi" ? "Chính Sách Bảo Mật (Privacy)" : "Privacy Policy"}
+                </Link>
+              </li>
+              <li>
+                <Link href="/docs" className="hover:text-[#C2A476] transition-colors block">
+                  {language === "vi" ? "Cổng Nhà Phát Triển (Docs)" : "Developer Portal & API"}
+                </Link>
+              </li>
+              <li>
+                <a href="/llms.txt" target="_blank" className="hover:text-[#C2A476] transition-colors block">
+                  {language === "vi" ? "Chỉ Dẫn Trợ Lý AI (llms.txt)" : "Agent Guidance (llms.txt)"}
+                </a>
+              </li>
+              <li>
+                <a href="/openapi.json" target="_blank" className="hover:text-[#C2A476] transition-colors block">
+                  OpenAPI 3.1 Specification
+                </a>
+              </li>
+              <li>
+                <a href="/.well-known/mcp" target="_blank" className="hover:text-[#C2A476] transition-colors block">
+                  MCP Server (Streamable HTTP)
+                </a>
+              </li>
+            </ul>
+          </div>
+
           {/* Direct Concierge Contact */}
           <div>
-            <h4 className="text-lg font-bold text-white mb-5 tracking-tight">
+            <h3 className="text-lg font-bold text-white mb-5 tracking-tight">
               {t("footer.direct_concierge", "Private Concierge")}
-            </h4>
+            </h3>
             <ul className="space-y-4 text-xs sm:text-sm text-neutral-400 font-light">
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-[#C2A476] flex-shrink-0 mt-0.5" />
@@ -235,10 +274,14 @@ export const Footer: React.FC = () => {
         {/* Bottom Bar */}
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500">
           <p>© {new Date().getFullYear()} {siteConfig.name}. {t("footer.rights", "All rights reserved.")}</p>
-          <div className="flex items-center gap-6 mt-4 sm:mt-0">
+          <div className="flex flex-wrap items-center gap-5 mt-4 sm:mt-0">
+            <Link href="/about" className="hover:text-white transition-colors">Về Chúng Tôi</Link>
+            <Link href="/contact" className="hover:text-white transition-colors">Liên Hệ</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">Bảo Mật</Link>
+            <Link href="/docs" className="hover:text-white transition-colors">Tài Liệu API</Link>
             <button
               onClick={scrollToTop}
-              className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-2"
             >
               <span>{language === "vi" ? "Về đầu trang" : "Back to top"}</span>
               <ArrowUp className="w-3.5 h-3.5" />

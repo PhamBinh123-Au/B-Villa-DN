@@ -1,5 +1,13 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import {
+  HOMEPAGE_MARKDOWN,
+  ABOUT_MARKDOWN,
+  CONTACT_MARKDOWN,
+  PRIVACY_MARKDOWN,
+  DOCS_MARKDOWN,
+  NOT_FOUND_MARKDOWN,
+} from '@/lib/agentMarkdown';
 
 const ADMIN_COOKIE_NAME = 'bvilla_admin_session';
 
@@ -20,6 +28,41 @@ function isValidTokenFormat(token?: string): boolean {
   return parts.length === 2 && parts[0].length >= 8 && /^[a-fA-F0-9]{64}$/.test(parts[1]);
 }
 
+function wantsMarkdown(request: NextRequest): boolean {
+  const accept = request.headers.get('accept') || '';
+  return accept.toLowerCase().includes('text/markdown');
+}
+
+function isKnownRoute(pathname: string): boolean {
+  if (
+    pathname === '/' ||
+    pathname === '/about' ||
+    pathname === '/contact' ||
+    pathname === '/privacy' ||
+    pathname === '/docs' ||
+    pathname === '/docs/api' ||
+    pathname === '/openapi.json' ||
+    pathname === '/llms.txt' ||
+    pathname === '/llms-full.txt' ||
+    pathname === '/agent-instructions.txt' ||
+    pathname === '/robots.txt' ||
+    pathname === '/sitemap.xml' ||
+    pathname === '/favicon.ico'
+  ) {
+    return true;
+  }
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/.well-known') ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/images')
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method;
@@ -27,6 +70,77 @@ export function middleware(request: NextRequest) {
   const authHeader = request.headers.get('authorization');
   const rawToken = sessionCookie || (authHeader?.startsWith('Bearer ') ? authHeader.substring(7).trim() : '');
   const isAuthenticated = isValidTokenFormat(rawToken);
+
+  // ---------------------------------------------------------------------------
+  // A. Agent Content Negotiation (Accept: text/markdown) & Agent-Friendly 404s
+  // ---------------------------------------------------------------------------
+  if (wantsMarkdown(request)) {
+    // 1. Homepage Markdown Negotiation
+    if (pathname === '/') {
+      return new NextResponse(HOMEPAGE_MARKDOWN, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Vary': 'Accept',
+          'Cache-Control': 'public, max-age=3600, stale-while-revalidate=86400',
+        },
+      });
+    }
+
+    // 2. Trust Anchor Pages Markdown Negotiation
+    if (pathname === '/about') {
+      return new NextResponse(ABOUT_MARKDOWN, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Vary': 'Accept',
+        },
+      });
+    }
+    if (pathname === '/contact') {
+      return new NextResponse(CONTACT_MARKDOWN, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Vary': 'Accept',
+        },
+      });
+    }
+    if (pathname === '/privacy') {
+      return new NextResponse(PRIVACY_MARKDOWN, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Vary': 'Accept',
+        },
+      });
+    }
+    if (pathname === '/docs' || pathname === '/docs/api') {
+      return new NextResponse(DOCS_MARKDOWN, {
+        status: 200,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Vary': 'Accept',
+        },
+      });
+    }
+
+    // 3. Agent-friendly 404 for nonexistent paths requesting text/markdown
+    if (!isKnownRoute(pathname)) {
+      return new NextResponse(NOT_FOUND_MARKDOWN, {
+        status: 404,
+        headers: {
+          'Content-Type': 'text/markdown; charset=utf-8',
+          'Vary': 'Accept',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+        },
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // B. API Protections, CORS, and Limits
+  // ---------------------------------------------------------------------------
 
   // 1. Payload Body Size Limit for all API mutations (Checklist #12)
   if (pathname.startsWith('/api/') && (method === 'POST' || method === 'PUT' || method === 'DELETE')) {
@@ -106,7 +220,9 @@ export function middleware(request: NextRequest) {
     }
   }
 
-  // 7. Attach Comprehensive Security Headers (Checklist #19)
+  // ---------------------------------------------------------------------------
+  // C. Pass-through with Comprehensive Security & Vary Headers
+  // ---------------------------------------------------------------------------
   const response = NextResponse.next();
   response.headers.set('X-Content-Type-Options', 'nosniff');
   response.headers.set('X-Frame-Options', 'DENY');
@@ -115,18 +231,28 @@ export function middleware(request: NextRequest) {
   response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   response.headers.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload');
 
+  // Ensure Vary header includes Accept for content negotiation across all pages
+  const existingVary = response.headers.get('Vary');
+  if (existingVary) {
+    if (!existingVary.includes('Accept')) {
+      response.headers.set('Vary', `${existingVary}, Accept`);
+    }
+  } else {
+    response.headers.set('Vary', 'Accept');
+  }
+
   return response;
 }
 
 export const config = {
   matcher: [
-    '/admin',
-    '/admin/:path*',
-    '/api/admin/:path*',
-    '/api/bookings',
-    '/api/bookings/:path*',
-    '/api/prices',
-    '/api/maintenance',
-    '/api/app-data',
+    /*
+     * Match all request paths except:
+     * - _next/static (static chunks)
+     * - _next/image (image optimization)
+     * - images/ (public assets)
+     * - favicon.ico (favicon)
+     */
+    '/((?!_next/static|_next/image|images/|favicon.ico).*)',
   ],
 };

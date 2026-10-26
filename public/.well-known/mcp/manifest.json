@@ -1,0 +1,38 @@
+{
+  "name": "b-villa-da-nang-mcp",
+  "version": "1.0.0",
+  "protocolVersion": "2024-11-05",
+  "description": "Model Context Protocol (MCP) server for B Villa Da Nang. Provides live tools to explore luxury villas, check availability, calculate rates, and query concierge details.",
+  "endpoints": {
+    "streamableHttp": "https://b-villa-dn.vercel.app/.well-known/mcp",
+    "sse": "https://b-villa-dn.vercel.app/api/mcp",
+    "docs": "https://b-villa-dn.vercel.app/docs"
+  },
+  "capabilities": {
+    "tools": {
+      "listChanged": false
+    }
+  },
+  "tools": [
+    {
+      "name": "list_villas",
+      "description": "List all available luxury private pool villas at B Villa Da Nang with capacity, location, bedrooms, bathrooms, and starting rates."
+    },
+    {
+      "name": "get_villa_details",
+      "description": "Retrieve deep architectural details, bedroom configuration, pool specifications, address, and amenities for a specific villa."
+    },
+    {
+      "name": "check_availability",
+      "description": "Check reservation availability for specified stay dates and villa selection."
+    },
+    {
+      "name": "calculate_price",
+      "description": "Calculate the estimated total price in VND and USD for a stay based on villa, duration, and guests."
+    },
+    {
+      "name": "get_contact_info",
+      "description": "Get direct 24/7 concierge contact information, Hotline, WhatsApp link, Zalo link, and physical addresses."
+    }
+  ]
+}

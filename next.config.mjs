@@ -15,6 +15,10 @@ const nextConfig = {
         source: '/:path*',
         headers: [
           {
+            key: 'Vary',
+            value: 'Accept',
+          },
+          {
             key: 'X-Content-Type-Options',
             value: 'nosniff',
           },

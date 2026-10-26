@@ -6,6 +6,7 @@ import { Hero } from "@/components/Hero";
 import { VillasSection } from "@/components/VillasSection";
 import { ExperienceSection } from "@/components/ExperienceSection";
 import { AmenitiesSection } from "@/components/AmenitiesSection";
+import { FaqSection } from "@/components/FaqSection";
 import { Footer } from "@/components/Footer";
 import { BookingModal } from "@/components/BookingModal";
 import { Villa } from "@/types";
@@ -63,6 +64,9 @@ export default function HomePage() {
 
         {/* Signature Amenities (4 Curated Essentials) */}
         <AmenitiesSection />
+
+        {/* Essential Guide & Frequently Asked Questions (Raw HTML & Sequential Headings) */}
+        <FaqSection />
 
         {/* Footer */}
         <Footer />
