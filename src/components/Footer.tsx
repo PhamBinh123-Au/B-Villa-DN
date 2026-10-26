@@ -183,10 +183,10 @@ export const Footer: React.FC = () => {
             </ul>
           </div>
 
-          {/* Trust Pages & Developer Resources */}
+          {/* Trust Pages & Guidelines */}
           <div>
             <h3 className="text-lg font-bold text-white mb-5 tracking-tight">
-              {language === "vi" ? "Thông Tin & Lập Trình Viên" : "Trust & Developers"}
+              {language === "vi" ? "Thông Tin & Quy Định" : "Information & Trust"}
             </h3>
             <ul className="space-y-3 text-xs sm:text-sm text-neutral-400 font-normal">
               <li>
@@ -205,23 +205,8 @@ export const Footer: React.FC = () => {
                 </Link>
               </li>
               <li>
-                <Link href="/docs" className="hover:text-[#C2A476] transition-colors block">
-                  {language === "vi" ? "Cổng Nhà Phát Triển (Docs)" : "Developer Portal & API"}
-                </Link>
-              </li>
-              <li>
-                <a href="/llms.txt" target="_blank" className="hover:text-[#C2A476] transition-colors block">
-                  {language === "vi" ? "Chỉ Dẫn Trợ Lý AI (llms.txt)" : "Agent Guidance (llms.txt)"}
-                </a>
-              </li>
-              <li>
-                <a href="/openapi.json" target="_blank" className="hover:text-[#C2A476] transition-colors block">
-                  OpenAPI 3.1 Specification
-                </a>
-              </li>
-              <li>
-                <a href="/.well-known/mcp" target="_blank" className="hover:text-[#C2A476] transition-colors block">
-                  MCP Server (Streamable HTTP)
+                <a href="#faq" className="hover:text-[#C2A476] transition-colors block">
+                  {language === "vi" ? "Câu Hỏi Thường Gặp (FAQs)" : "Guest FAQs & Rules"}
                 </a>
               </li>
             </ul>
@@ -278,7 +263,6 @@ export const Footer: React.FC = () => {
             <Link href="/about" className="hover:text-white transition-colors">Về Chúng Tôi</Link>
             <Link href="/contact" className="hover:text-white transition-colors">Liên Hệ</Link>
             <Link href="/privacy" className="hover:text-white transition-colors">Bảo Mật</Link>
-            <Link href="/docs" className="hover:text-white transition-colors">Tài Liệu API</Link>
             <button
               onClick={scrollToTop}
               className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-2"

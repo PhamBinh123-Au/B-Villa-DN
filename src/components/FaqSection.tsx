@@ -64,9 +64,9 @@ const FAQS: FaqItem[] = [
     questionVi: "Dịch vụ dọn dẹp buồng phòng và hỗ trợ quản gia tại chỗ hoạt động ra sao?",
     questionEn: "How does housekeeping and on-site concierge assistance work?",
     answerVi:
-      "Giá thuê biệt thự nguyên căn đã bao gồm dịch vụ dọn phòng hàng ngày (housekeeping) tinh tươm, thay mới khăn tắm cao cấp, bổ sung nước suối tinh khiết và tiện nghi phòng tắm chuẩn resort. Đội ngũ quản gia túc trực hỗ trợ 24/7 qua điện thoại và có mặt nhanh chóng để hỗ trợ mọi phát sinh về kỹ thuật, hướng dẫn đường đi, đặt xe đưa đón sân bay quốc tế Đà Nẵng và thuê xe máy tự lái.",
+      "Giá thuê biệt thự nguyên căn đã bao gồm dịch vụ dọn phòng hàng ngày (housekeeping) tinh tươm, thay mới khăn tắm cao cấp, bổ sung nước suối tinh khiết và tiện nghi phòng tắm chuẩn resort. Đội ngũ quản gia túc trực hỗ trợ 24/7 qua điện thoại và có mặt nhanh chóng để hỗ trợ mọi phát sinh về kỹ thuật, hướng dẫn đường đi, hỗ trợ phương tiện di chuyển và thuê xe máy tự lái.",
     answerEn:
-      "Daily professional housekeeping is included in the nightly rental rate, featuring fresh towels, complimentary bottled water, and luxury spa bath amenities. Our dedicated concierge team remains on call 24/7 to assist with airport transportation, motorbike rentals, grocery delivery, and restaurant reservations.",
+      "Daily professional housekeeping is included in the nightly rental rate, featuring fresh towels, complimentary bottled water, and luxury spa bath amenities. Our dedicated concierge team remains on call 24/7 to assist with transportation arrangements, motorbike rentals, grocery delivery, and restaurant reservations.",
   },
   {
     icon: <MapPin className="w-5 h-5 text-[#C2A476]" />,
@@ -78,13 +78,13 @@ const FAQS: FaqItem[] = [
       "To confirm your reservation, a standard 50% deposit is required via bank transfer or secure VietQR. The remaining balance is payable upon check-in. Free date rescheduling is accommodated when requested at least 7 days prior to your scheduled arrival.",
   },
   {
-    icon: <Terminal className="w-5 h-5 text-[#C2A476]" />,
-    questionVi: "Các trợ lý AI và nhà phát triển phần mềm có thể kết nối với B Villa Da Nang bằng cách nào?",
-    questionEn: "How can AI agents and developers programmatically integrate with B Villa Da Nang?",
+    icon: <ShieldCheck className="w-5 h-5 text-[#C2A476]" />,
+    questionVi: "Biệt thự có chỗ đỗ xe ô tô an toàn và bảo đảm an ninh không?",
+    questionEn: "Is there secure on-site vehicle parking and 24/7 security?",
     answerVi:
-      "B Villa Da Nang hỗ trợ tiêu chuẩn Model Context Protocol (MCP) tại endpoint /.well-known/mcp, cho phép các mô hình AI như Claude, ChatGPT và LangChain gọi trực tiếp các công cụ kiểm tra phòng trống (check_availability), tính giá (calculate_price) và lấy thông tin villa (list_villas). Ngoài ra, chúng tôi cung cấp đặc tả OpenAPI 3.1 tại /openapi.json, file hướng dẫn llms.txt và cơ chế thương lượng nội dung Markdown (Accept: text/markdown) trên toàn bộ trang web.",
+      "Tất cả các biệt thự B Villa Da Nang đều có chỗ đỗ xe ô tô an toàn, rộng rãi ngay trước cổng hoặc trong khuôn viên (phù hợp cho các dòng xe từ 4 đến 16 chỗ). Khu vực dân cư cao cấp, yên bình với hệ thống camera giám sát ngoại vi và bảo vệ tuần tra thường xuyên, mang đến sự an tâm tuyệt đối cho quý khách và tài sản trong suốt kỳ nghỉ.",
     answerEn:
-      "We support the Model Context Protocol (MCP) at /.well-known/mcp, enabling Claude, ChatGPT, and automated agents to call live tools for villa discovery, availability, and pricing. We also provide OpenAPI 3.1 specifications at /openapi.json, standardized llms.txt guidance, and full Markdown content negotiation (Accept: text/markdown) across the platform.",
+      "All B Villa Da Nang properties provide safe and spacious parking directly on-site or adjacent to the private gated entrance (fitting 4 to 16-seater vehicles). Our upscale residential neighborhoods enjoy 24/7 exterior security cameras and quiet surroundings, guaranteeing complete peace of mind throughout your stay.",
   },
 ];
 
@@ -161,12 +161,12 @@ export const FaqSection: React.FC = () => {
           </div>
           <div>
             <h4 className="font-bold text-neutral-900 mb-1">Dịch Vụ Đặc Quyền</h4>
-            <p>Quản gia 24/7, xe đưa đón sân bay, nướng BBQ sân vườn riêng và hồ bơi tuần hoàn nước sạch.</p>
+            <p>Quản gia 24/7, nướng BBQ sân vườn riêng và hồ bơi tuần hoàn nước sạch.</p>
           </div>
         </div>
       </div>
 
-      {/* Quick Agent & Contact Links Bar */}
+      {/* Quick Concierge Contact Bar */}
       <div className="mt-8 p-6 sm:p-8 rounded-3xl bg-[#FAF6EE] border border-[#EAE5DC] flex flex-col sm:flex-row items-center justify-between gap-4 text-center sm:text-left">
         <div>
           <span className="text-xs uppercase tracking-wider text-[#C2A476] font-bold block mb-1">
@@ -174,8 +174,8 @@ export const FaqSection: React.FC = () => {
           </span>
           <p className="text-sm font-semibold text-neutral-900">
             {language === "vi"
-              ? "Liên hệ trực tiếp quản gia qua Hotline / Zalo: 0854 252 821 hoặc tra cứu tài liệu nhà phát triển."
-              : "Contact our dedicated concierge at +84 854 252 821 or explore developer specifications."}
+              ? "Liên hệ trực tiếp quản gia qua Hotline / Zalo: 0854 252 821 để được tư vấn chu đáo 24/7."
+              : "Contact our dedicated concierge at +84 854 252 821 for 24/7 personal assistance."}
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
@@ -185,12 +185,14 @@ export const FaqSection: React.FC = () => {
           >
             {language === "vi" ? "Liên Hệ Ngay" : "Contact Host"}
           </Link>
-          <Link
-            href="/docs"
+          <a
+            href="https://zalo.me/0854252821"
+            target="_blank"
+            rel="noreferrer"
             className="px-5 py-2.5 rounded-full bg-white hover:bg-neutral-100 border border-[#EAE5DC] text-neutral-800 text-xs font-bold uppercase tracking-wider transition-colors shadow-2xs"
           >
-            {language === "vi" ? "Tài Liệu API" : "API Docs"}
-          </Link>
+            {language === "vi" ? "Nhắn Zalo" : "Chat Zalo"}
+          </a>
         </div>
       </div>
     </section>

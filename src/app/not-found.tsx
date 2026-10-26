@@ -36,25 +36,14 @@ export default function NotFound() {
           </Link>
         </div>
 
-        <div className="pt-6 border-t border-[#EAE5DC] text-xs text-neutral-500 text-left">
-          <p className="font-semibold text-neutral-700 mb-2">Dành cho Trợ lý AI & Nhà phát triển (AI Agents & Developers):</p>
-          <ul className="space-y-1.5 list-disc list-inside">
-            <li>
-              <Link href="/llms.txt" className="text-[#C2A476] hover:underline font-medium">
-                llms.txt (Agent Instructions &amp; Directory)
-              </Link>
-            </li>
-            <li>
-              <Link href="/sitemap.xml" className="text-[#C2A476] hover:underline font-medium">
-                sitemap.xml (Site Index)
-              </Link>
-            </li>
-            <li>
-              <Link href="/docs" className="text-[#C2A476] hover:underline font-medium">
-                /docs (API &amp; MCP Documentation)
-              </Link>
-            </li>
-          </ul>
+        <div className="pt-6 border-t border-[#EAE5DC] text-xs text-neutral-500 text-center">
+          <p className="mb-2">Gợi ý khám phá:</p>
+          <div className="flex flex-wrap items-center justify-center gap-4 text-[#C2A476]">
+            <Link href="/about" className="hover:underline font-medium">Giới Thiệu</Link>
+            <Link href="/privacy" className="hover:underline font-medium">Bảo Mật</Link>
+            <Link href="/contact" className="hover:underline font-medium">Liên Hệ</Link>
+            <Link href="/sitemap.xml" className="hover:underline font-medium">Sitemap</Link>
+          </div>
         </div>
       </div>
     </div>

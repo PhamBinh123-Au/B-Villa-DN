@@ -146,7 +146,6 @@ export default function AboutPage() {
             <Link href="/" className="hover:text-[#C2A476]">Trang Chủ</Link>
             <Link href="/contact" className="hover:text-[#C2A476]">Liên Hệ</Link>
             <Link href="/privacy" className="hover:text-[#C2A476]">Chính Sách Bảo Mật</Link>
-            <Link href="/docs" className="hover:text-[#C2A476]">API &amp; Docs</Link>
           </div>
         </div>
       </footer>

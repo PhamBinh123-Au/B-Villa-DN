@@ -158,7 +158,6 @@ export default function PrivacyPage() {
             <Link href="/" className="hover:text-[#C2A476]">Trang Chủ</Link>
             <Link href="/about" className="hover:text-[#C2A476]">Giới Thiệu</Link>
             <Link href="/contact" className="hover:text-[#C2A476]">Liên Hệ</Link>
-            <Link href="/docs" className="hover:text-[#C2A476]">API &amp; Docs</Link>
           </div>
         </div>
       </footer>

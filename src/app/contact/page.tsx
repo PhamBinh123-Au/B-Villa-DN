@@ -202,21 +202,21 @@ export default function ContactPage() {
           </div>
         </section>
 
-        {/* Section 3: AI Agents notice */}
+        {/* Section 3: Partners & Tech Integrations */}
         <section className="p-8 rounded-3xl bg-white border border-[#EAE5DC] shadow-xs">
           <h2 className="text-xl sm:text-2xl font-bold text-neutral-900 mb-3 tracking-tight">
-            Dành Cho Trợ Lý AI &amp; Hệ Thống Tự Động (AI Agents &amp; Automated Systems)
+            Kênh Hợp Tác Doanh Nghiệp &amp; Đối Tác Lữ Hành (Partners &amp; Corporate Inquiries)
           </h2>
           <p className="text-xs sm:text-sm text-neutral-600 leading-relaxed mb-4">
-            Hệ thống B Villa Da Nang hỗ trợ kết nối trực tiếp thông qua Model Context Protocol (MCP) và các API mở. Các trợ lý trí tuệ nhân tạo có thể tra cứu tình trạng phòng trống, xem biểu giá và tạo yêu cầu đặt phòng chính thức bằng các công cụ MCP hoặc REST endpoint.
+            B Villa Da Nang chào đón sự hợp tác cùng các đơn vị lữ hành, đại lý du lịch và đối tác doanh nghiệp. Chúng tôi cung cấp chính sách giá đoàn ưu đãi, hóa đơn VAT đầy đủ và hỗ trợ kết nối dữ liệu buồng phòng chuẩn mực cho các đối tác công nghệ du lịch.
           </p>
           <div className="flex flex-wrap items-center gap-4 text-xs font-semibold text-neutral-700">
-            <Link href="/docs" className="text-[#C2A476] hover:underline font-bold">
-              → Xem Tài Liệu Kỹ Thuật (Developer Portal &amp; Docs)
-            </Link>
-            <Link href="/llms.txt" className="text-[#C2A476] hover:underline font-bold">
-              → Hướng Dẫn llms.txt
-            </Link>
+            <a href={`mailto:${siteConfig.contact.email}`} className="text-[#C2A476] hover:underline font-bold">
+              → Gửi Email Hợp Tác: {siteConfig.contact.email}
+            </a>
+            <a href={`tel:${siteConfig.contact.phone.replace(/\s+/g, "")}`} className="text-[#C2A476] hover:underline font-bold">
+              → Hotline Hỗ Trợ: {siteConfig.contact.phone}
+            </a>
           </div>
         </section>
       </main>
@@ -229,7 +229,6 @@ export default function ContactPage() {
             <Link href="/" className="hover:text-[#C2A476]">Trang Chủ</Link>
             <Link href="/about" className="hover:text-[#C2A476]">Giới Thiệu</Link>
             <Link href="/privacy" className="hover:text-[#C2A476]">Chính Sách Bảo Mật</Link>
-            <Link href="/docs" className="hover:text-[#C2A476]">API &amp; Docs</Link>
           </div>
         </div>
       </footer>
