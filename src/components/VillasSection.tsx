@@ -39,7 +39,7 @@ export const VillasSection: React.FC<VillasSectionProps> = ({
   ];
 
   return (
-    <section id="villas" className="py-24 px-6 md:px-12 max-w-7xl mx-auto scroll-mt-20">
+    <section id="villas" className="py-24 px-4 sm:px-6 md:px-10 lg:px-12 max-w-[1400px] mx-auto scroll-mt-20">
       {/* Section Header with Smooth Entrance */}
       <motion.div
         initial={{ opacity: 0, y: 25 }}

@@ -186,7 +186,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
     <div
       className={`relative w-full overflow-hidden bg-[#181B1E] cursor-pointer select-none ${
         isEditorial
-          ? "lg:col-span-7 aspect-[4/3] sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[480px]"
+          ? "lg:col-span-6 xl:col-span-6 aspect-[4/3] sm:aspect-[16/10] lg:aspect-auto lg:h-full lg:min-h-[480px]"
           : "aspect-[4/3] sm:aspect-[16/10]"
       }`}
       onClick={handleOpenPhotoViewer}
@@ -325,9 +325,9 @@ export const VillaCard: React.FC<VillaCardProps> = ({
   // Reusable Body Specs & Description Component
   const renderCardBody = (isEditorial: boolean) => (
     <div
-      className={`p-6 sm:p-7 flex flex-col justify-between bg-white ${
+      className={`p-5 sm:p-6 lg:p-6 xl:p-7 flex flex-col justify-between bg-white ${
         isEditorial
-          ? "lg:col-span-5 lg:p-7 border-t lg:border-t-0 lg:border-l border-[#EAE5DC]"
+          ? "lg:col-span-6 xl:col-span-6 border-t lg:border-t-0 lg:border-l border-[#EAE5DC]"
           : "flex-1"
       }`}
     >
@@ -525,20 +525,20 @@ export const VillaCard: React.FC<VillaCardProps> = ({
 
       {/* Action Buttons Section */}
       <div className="pt-2">
-        <div className="flex items-center gap-2 sm:gap-2.5">
+        <div className="flex items-center gap-1.5 sm:gap-2 xl:gap-2.5 w-full">
           {/* Secondary Button: "Xem chi tiết / Khám phá không gian" */}
           <button
             type="button"
             onClick={handleOpenDetailsModal}
-            className="inline-flex items-center justify-center gap-1.5 px-3.5 sm:px-4 py-3 rounded-full bg-white hover:bg-neutral-50 text-neutral-800 hover:text-neutral-950 border border-neutral-300 hover:border-neutral-900 text-xs font-semibold tracking-wide transition-all duration-300 shadow-2xs hover:shadow-sm active:scale-95 cursor-pointer shrink-0"
+            className="inline-flex items-center justify-center gap-1.5 px-3 sm:px-3.5 xl:px-4 py-2.5 sm:py-3 rounded-full bg-white hover:bg-neutral-50 text-neutral-800 hover:text-neutral-950 border border-neutral-300 hover:border-neutral-900 text-xs font-semibold tracking-wide transition-all duration-300 shadow-2xs hover:shadow-sm active:scale-95 cursor-pointer shrink-0"
             title={language === "vi" ? "Khám phá không gian & toàn bộ ảnh thực tế" : "Explore space & full gallery"}
           >
-            <Eye className="w-3.5 h-3.5 text-[#C2A476]" />
-            <span className="hidden min-[400px]:inline">
+            <Eye className="w-3.5 h-3.5 text-[#C2A476] shrink-0" />
+            <span className="hidden xl:inline">
               {language === "vi" ? "Khám Phá Không Gian" : "Explore Space"}
             </span>
-            <span className="min-[400px]:hidden">
-              {language === "vi" ? "Chi Tiết" : "Details"}
+            <span className="xl:hidden">
+              {language === "vi" ? "Khám Phá" : "Explore"}
             </span>
           </button>
 
@@ -547,19 +547,21 @@ export const VillaCard: React.FC<VillaCardProps> = ({
             <button
               type="button"
               disabled
-              className="flex-1 bg-neutral-200 text-neutral-500 py-3 px-4 rounded-full text-xs font-semibold uppercase tracking-widest cursor-not-allowed flex items-center justify-center gap-2 border border-neutral-300 shadow-none"
+              className="flex-1 min-w-0 bg-neutral-200 text-neutral-500 py-2.5 sm:py-3 px-3 sm:px-4 rounded-full text-xs font-semibold uppercase tracking-wider cursor-not-allowed flex items-center justify-center gap-1.5 border border-neutral-300 shadow-none shrink"
             >
-              <Wrench className="w-3.5 h-3.5 text-neutral-400" />
-              <span>{t("villas.maintenance_badge", "Under Maintenance")}</span>
+              <Wrench className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              <span className="truncate">{t("villas.maintenance_badge", "Under Maintenance")}</span>
             </button>
           ) : (
             <button
               type="button"
               onClick={() => onInquire(effectiveVilla)}
-              className="flex-1 flex items-center justify-center gap-2 bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs font-bold uppercase tracking-widest px-4 sm:px-5 py-3 rounded-full shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-95 cursor-pointer"
+              className="flex-1 min-w-0 flex items-center justify-center gap-1.5 sm:gap-2 bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs font-bold uppercase tracking-wider xl:tracking-widest px-3 sm:px-4 xl:px-5 py-2.5 sm:py-3 rounded-full shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-95 cursor-pointer shrink"
             >
-              <Calendar className="w-3.5 h-3.5 text-white" />
-              <span className="truncate">{t("nav.inquire", language === "vi" ? "ĐẶT PHÒNG NGAY" : "BOOK NOW")}</span>
+              <Calendar className="w-3.5 h-3.5 text-white shrink-0" />
+              <span className="truncate">
+                {t("nav.inquire", language === "vi" ? "ĐẶT PHÒNG NGAY" : "BOOK NOW")}
+              </span>
             </button>
           )}
 
@@ -568,21 +570,21 @@ export const VillaCard: React.FC<VillaCardProps> = ({
             href={siteConfig.social.zalo}
             target="_blank"
             rel="noopener noreferrer"
-            className="w-10 h-10 rounded-full bg-[#0068FF]/10 hover:bg-[#0068FF] text-[#0068FF] hover:text-white border border-[#0068FF]/25 hover:border-[#0068FF] transition-all flex items-center justify-center text-xs font-bold shadow-2xs hover:shadow-md cursor-pointer shrink-0 active:scale-95"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0068FF]/10 hover:bg-[#0068FF] text-[#0068FF] hover:text-white border border-[#0068FF]/25 hover:border-[#0068FF] transition-all flex items-center justify-center text-xs font-bold shadow-2xs hover:shadow-md cursor-pointer shrink-0 active:scale-95"
             title={language === "vi" ? "Chat Zalo tư vấn trực tiếp" : "Chat on Zalo"}
           >
-            <MessageCircle className="w-4 h-4" />
+            <MessageCircle className="w-4 h-4 shrink-0" />
           </a>
 
           {/* Inline Space Drawer Toggle */}
           <button
             type="button"
             onClick={() => setShowDetails(!showDetails)}
-            className="w-10 h-10 rounded-full border border-neutral-200 hover:border-neutral-800 text-neutral-600 hover:text-neutral-900 transition-all flex items-center justify-center cursor-pointer shrink-0 active:scale-95"
+            className="w-9 h-9 sm:w-10 sm:h-10 rounded-full border border-neutral-200 hover:border-neutral-800 text-neutral-600 hover:text-neutral-900 transition-all flex items-center justify-center cursor-pointer shrink-0 active:scale-95"
             title={language === "vi" ? "Mở rộng tiện nghi ngay trên thẻ" : "Expand amenities inline"}
           >
             <ChevronRight
-              className={`w-4 h-4 transition-transform duration-300 ${
+              className={`w-4 h-4 shrink-0 transition-transform duration-300 ${
                 showDetails ? "rotate-90" : ""
               }`}
             />
