@@ -12,6 +12,15 @@ const nextConfig = {
   async headers() {
     return [
       {
+        source: '/',
+        headers: [
+          {
+            key: 'Vary',
+            value: 'Accept',
+          },
+        ],
+      },
+      {
         source: '/:path*',
         headers: [
           {
@@ -65,6 +74,51 @@ const nextConfig = {
       {
         source: '/calendar',
         destination: '/admin/bookings/calendar',
+        permanent: false,
+      },
+      {
+        source: '/api-docs',
+        destination: '/docs',
+        permanent: false,
+      },
+      {
+        source: '/api/docs',
+        destination: '/docs',
+        permanent: false,
+      },
+      {
+        source: '/developers',
+        destination: '/docs',
+        permanent: false,
+      },
+      {
+        source: '/developer',
+        destination: '/docs',
+        permanent: false,
+      },
+      {
+        source: '/dev',
+        destination: '/docs',
+        permanent: false,
+      },
+      {
+        source: '/swagger.json',
+        destination: '/openapi.json',
+        permanent: false,
+      },
+      {
+        source: '/.well-known/mcp.json',
+        destination: '/.well-known/mcp',
+        permanent: false,
+      },
+      {
+        source: '/docs/auth',
+        destination: '/docs',
+        permanent: false,
+      },
+      {
+        source: '/docs/sdk',
+        destination: '/docs',
         permanent: false,
       },
     ];

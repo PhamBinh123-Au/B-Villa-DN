@@ -1,4 +1,4 @@
-const BASE_URL = 'http://127.0.0.1:3009';
+const BASE_URL = process.env.BASE_URL || 'http://127.0.0.1:3000';
 
 async function testMcp() {
   console.log('--- Testing MCP Endpoint over HTTP ---\n');

@@ -36,6 +36,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: 'weekly',
       priority: 0.8,
     },
+    {
+      url: `${baseUrl}/openapi.json`,
+      lastModified,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/llms.txt`,
+      lastModified,
+      changeFrequency: 'daily',
+      priority: 0.8,
+    },
+    {
+      url: `${baseUrl}/.well-known/mcp`,
+      lastModified,
+      changeFrequency: 'weekly',
+      priority: 0.8,
+    },
     ...siteConfig.villas.map((villa) => ({
       url: `${baseUrl}/#villas`,
       lastModified,

@@ -33,33 +33,51 @@ function wantsMarkdown(request: NextRequest): boolean {
   return accept.toLowerCase().includes('text/markdown');
 }
 
+const KNOWN_EXACT_ROUTES = new Set([
+  '/',
+  '/about',
+  '/contact',
+  '/privacy',
+  '/docs',
+  '/docs/api',
+  '/docs/auth',
+  '/docs/sdk',
+  '/api-docs',
+  '/developers',
+  '/developer',
+  '/dev',
+  '/swagger.json',
+  '/openapi.json',
+  '/llms.txt',
+  '/llms-full.txt',
+  '/agent-instructions.txt',
+  '/robots.txt',
+  '/sitemap.xml',
+  '/favicon.ico',
+  '/.well-known/mcp',
+  '/.well-known/mcp.json',
+  '/.well-known/mcp/manifest.json',
+]);
+
+const KNOWN_API_ROUTES = new Set([
+  '/api/bookings',
+  '/api/bookings/reset',
+  '/api/bookings/sync',
+  '/api/prices',
+  '/api/maintenance',
+  '/api/app-data',
+  '/api/admin/login',
+  '/api/admin/logout',
+  '/api/admin/change-pin',
+  '/api/openapi.json',
+  '/api/mcp',
+]);
+
 function isKnownRoute(pathname: string): boolean {
-  if (
-    pathname === '/' ||
-    pathname === '/about' ||
-    pathname === '/contact' ||
-    pathname === '/privacy' ||
-    pathname === '/docs' ||
-    pathname === '/docs/api' ||
-    pathname === '/openapi.json' ||
-    pathname === '/llms.txt' ||
-    pathname === '/llms-full.txt' ||
-    pathname === '/agent-instructions.txt' ||
-    pathname === '/robots.txt' ||
-    pathname === '/sitemap.xml' ||
-    pathname === '/favicon.ico'
-  ) {
-    return true;
-  }
-  if (
-    pathname.startsWith('/admin') ||
-    pathname.startsWith('/api') ||
-    pathname.startsWith('/.well-known') ||
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/images')
-  ) {
-    return true;
-  }
+  if (KNOWN_EXACT_ROUTES.has(pathname)) return true;
+  if (KNOWN_API_ROUTES.has(pathname)) return true;
+  if (pathname.startsWith('/admin')) return true;
+  if (pathname.startsWith('/_next') || pathname.startsWith('/images')) return true;
   return false;
 }
 
@@ -115,7 +133,16 @@ export function middleware(request: NextRequest) {
         },
       });
     }
-    if (pathname === '/docs' || pathname === '/docs/api') {
+    if (
+      pathname === '/docs' ||
+      pathname === '/docs/api' ||
+      pathname === '/docs/auth' ||
+      pathname === '/docs/sdk' ||
+      pathname === '/api-docs' ||
+      pathname === '/developers' ||
+      pathname === '/developer' ||
+      pathname === '/dev'
+    ) {
       return new NextResponse(DOCS_MARKDOWN, {
         status: 200,
         headers: {
