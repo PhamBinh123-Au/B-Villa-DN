@@ -236,6 +236,47 @@ export default function RootLayout({
       className={plusJakartaSans.variable}
     >
       <head>
+        {/* Suppress third-party browser extension errors (e.g. Urban VPN, ad-blockers) from popping Next.js dev overlay */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                if (typeof window === 'undefined') return;
+                function isExtensionError(e) {
+                  try {
+                    var filename = (e && e.filename) || '';
+                    var message = (e && e.message) || (e && e.reason && e.reason.message) || '';
+                    var stack = (e && e.error && e.error.stack) || (e && e.reason && e.reason.stack) || '';
+                    var full = (filename + ' ' + message + ' ' + stack).toLowerCase();
+                    return full.indexOf('extension://') !== -1 ||
+                           full.indexOf('chrome-extension') !== -1 ||
+                           full.indexOf('moz-extension') !== -1 ||
+                           full.indexOf('safari-extension') !== -1 ||
+                           full.indexOf('eppiocemhmnlbhjplcgkofciiegomcon') !== -1 ||
+                           message.indexOf('M_ID') !== -1 ||
+                           message.indexOf("reading 'M_ID'") !== -1;
+                  } catch(err) {
+                    return false;
+                  }
+                }
+                window.addEventListener('error', function(e) {
+                  if (isExtensionError(e)) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    return true;
+                  }
+                }, true);
+                window.addEventListener('unhandledrejection', function(e) {
+                  if (isExtensionError(e)) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                    return true;
+                  }
+                }, true);
+              })();
+            `,
+          }}
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
