@@ -64,6 +64,66 @@ export const VillaCard: React.FC<VillaCardProps> = ({
   const [villaOverrides, setVillaOverrides] = useState<Record<string, any>>({});
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
 
+  const photos = villa.gallery && villa.gallery.length > 0 ? villa.gallery : [villa.image];
+
+  // Persistent set of rendered slide indices so once loaded, slides NEVER unmount or turn black
+  const [renderedIndices, setRenderedIndices] = useState<Set<number>>(() => {
+    const init = new Set<number>([0, 1]);
+    if (photos.length > 1) init.add(photos.length - 1);
+    return init;
+  });
+
+  // Whenever currentPhotoIdx changes, expand rendered indices and prefetch upcoming images into browser cache
+  useEffect(() => {
+    setRenderedIndices((prev) => {
+      const next = new Set(prev);
+      const toAdd = [
+        currentPhotoIdx,
+        (currentPhotoIdx + 1) % photos.length,
+        (currentPhotoIdx + 2) % photos.length,
+        (currentPhotoIdx + 3) % photos.length,
+        (currentPhotoIdx - 1 + photos.length) % photos.length,
+      ];
+      let changed = false;
+      toAdd.forEach((i) => {
+        if (!next.has(i)) {
+          next.add(i);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+
+    // Proactive background browser prefetching
+    if (typeof window !== "undefined") {
+      const prefetchList = [
+        (currentPhotoIdx + 1) % photos.length,
+        (currentPhotoIdx + 2) % photos.length,
+        (currentPhotoIdx + 3) % photos.length,
+        (currentPhotoIdx - 1 + photos.length) % photos.length,
+      ];
+      prefetchList.forEach((idx) => {
+        const src = photos[idx];
+        if (src) {
+          const img = new window.Image();
+          img.src = src;
+        }
+      });
+    }
+  }, [currentPhotoIdx, photos]);
+
+  // Idle background prefetch for first 6 photos of this villa
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = setTimeout(() => {
+      photos.slice(0, 6).forEach((p) => {
+        const img = new window.Image();
+        img.src = p;
+      });
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [photos]);
+
   useEffect(() => {
     setMounted(true);
     setCurrentPrice(bookingStore.getVillaPrice(villa.id));
@@ -81,8 +141,6 @@ export const VillaCard: React.FC<VillaCardProps> = ({
     });
     return () => unsub();
   }, [villa.id]);
-
-  const photos = villa.gallery && villa.gallery.length > 0 ? villa.gallery : [villa.image];
 
   // Keyboard navigation for full-screen lightbox
   useEffect(() => {
@@ -201,33 +259,37 @@ export const VillaCard: React.FC<VillaCardProps> = ({
         }}
       >
         {photos.map((src, idx) => {
-          // Render only active slide and its immediate neighbors (±1) to avoid loading 15+ images per villa card at once
-          const isNearActive =
-            Math.abs(idx - currentPhotoIdx) <= 1 ||
-            (currentPhotoIdx === 0 && idx === photos.length - 1) ||
-            (currentPhotoIdx === photos.length - 1 && idx === 0);
+          const isRendered = renderedIndices.has(idx);
+          const isCurrent = idx === currentPhotoIdx;
 
           return (
             <div
               key={idx}
-              className="relative min-w-full h-full flex-shrink-0 overflow-hidden bg-neutral-950 flex items-center justify-center"
+              className="relative min-w-full h-full flex-shrink-0 overflow-hidden bg-[#14171A] flex items-center justify-center"
             >
-              {/* Ambient blurred backdrop: only rendered for the active slide to avoid 60+ unoptimized requests */}
-              {idx === currentPhotoIdx && (
+              {/* Subtle loading shimmer placeholder while downloading */}
+              {isRendered && (
+                <div className="absolute inset-0 bg-[#181B1E] flex items-center justify-center pointer-events-none z-0">
+                  <div className="w-6 h-6 rounded-full border-2 border-[#C2A476]/20 border-t-[#C2A476] animate-spin" />
+                </div>
+              )}
+
+              {/* Ambient blurred backdrop: only rendered for the active slide */}
+              {isCurrent && (
                 <div
                   className="absolute inset-0 bg-cover bg-center filter blur-xl opacity-30 scale-110 pointer-events-none"
                   style={{ backgroundImage: `url(${src})` }}
                 />
               )}
-              {isNearActive && (
+
+              {isRendered && (
                 <Image
                   src={src}
                   alt={`${displayName} - Photo ${idx + 1}`}
                   fill
-                  priority={false}
-                  loading="lazy"
-                  unoptimized
-                  sizes="100vw"
+                  priority={idx === 0}
+                  quality={90}
+                  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 750px"
                   style={{
                     objectFit: "cover",
                     objectPosition: "center",
@@ -755,8 +817,8 @@ export const VillaCard: React.FC<VillaCardProps> = ({
                   alt={`${displayName} - Photo ${currentPhotoIdx + 1}`}
                   fill
                   priority
-                  unoptimized
-                  sizes="100vw"
+                  quality={92}
+                  sizes="(max-width: 1280px) 100vw, 1280px"
                   className="object-contain"
                 />
               </div>
@@ -868,7 +930,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
                       src={pic}
                       alt={`thumbnail ${pIdx + 1}`}
                       fill
-                      unoptimized
+                      quality={60}
                       sizes="64px"
                       className="object-cover"
                     />

@@ -106,8 +106,8 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
               src={item.src}
               alt={item.title}
               fill
-              unoptimized
-              sizes="100vw"
+              quality={85}
+              sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 350px"
               className="object-cover object-center group-hover:scale-[1.04] transition-transform duration-700 ease-out"
             />
             {/* Elegant bottom scrim - keeps upper half of photo crystal clear & vibrant */}
@@ -179,8 +179,8 @@ export const GallerySection: React.FC<GallerySectionProps> = ({ onInquire }) => 
                 alt={filteredItems[lightboxIndex].title}
                 fill
                 priority
-                unoptimized
-                sizes="100vw"
+                quality={92}
+                sizes="(max-width: 1280px) 100vw, 1280px"
                 className="object-contain object-center"
               />
             </div>
