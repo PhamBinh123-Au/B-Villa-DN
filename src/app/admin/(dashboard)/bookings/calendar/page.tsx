@@ -351,24 +351,32 @@ export default function BookingsCalendarPage() {
               const monthStartStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-01`;
               const monthEndStr = `${currentYear}-${String(currentMonth + 1).padStart(2, '0')}-${String(daysInMonth).padStart(2, '0')}`;
 
-              // Filter bookings for this villa in this month
-              const villaBookings = bookingsList.filter((b) => {
-                if (b.villaId !== villa.id) return false;
-                if (b.status === 'cancelled') return false;
-                return b.checkIn <= monthEndStr && b.checkOut >= monthStartStr;
-              });
+              // Filter bookings for this villa in this month and sort chronologically
+              const villaBookings = bookingsList
+                .filter((b) => {
+                  if (b.villaId !== villa.id) return false;
+                  if (b.status === 'cancelled') return false;
+                  return b.checkIn <= monthEndStr && b.checkOut >= monthStartStr;
+                })
+                .sort((a, b) => a.checkIn.localeCompare(b.checkIn));
 
               return (
                 <div
                   key={villa.id}
-                  style={{ gridTemplateColumns: `160px repeat(${daysInMonth}, minmax(32px, 1fr))` }}
-                  className="grid border-b border-black/5 dark:border-white/5 relative min-h-[90px] group"
+                  style={{
+                    gridTemplateColumns: `160px repeat(${daysInMonth}, minmax(32px, 1fr))`,
+                    gridTemplateRows: '76px',
+                  }}
+                  className="grid border-b border-black/5 dark:border-white/5 relative h-[76px] group"
                 >
                   {/* Villa Card Info on Left */}
-                  <div className="p-3 border-r border-black/5 dark:border-white/10 bg-[#FAF8F5]/50 dark:bg-[#14171A]/50 flex flex-col justify-center">
+                  <div
+                    style={{ gridColumn: 1, gridRow: 1 }}
+                    className="p-3 border-r border-black/5 dark:border-white/10 bg-[#FAF8F5]/50 dark:bg-[#14171A]/50 flex flex-col justify-center h-full z-10"
+                  >
                     <div className="flex items-center gap-2 mb-1">
                       <span
-                        className="w-2.5 h-2.5 rounded-full"
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
                         style={{ backgroundColor: villaColor }}
                       />
                       <span className="font-extrabold text-sm text-[#14171A] dark:text-[#FAF8F5]">
@@ -389,8 +397,9 @@ export default function BookingsCalendarPage() {
                     return (
                       <div
                         key={day}
+                        style={{ gridColumn: day + 1, gridRow: 1 }}
                         onClick={() => handleCellClick(villa.id, day)}
-                        className={`border-r border-black/[0.03] dark:border-white/[0.03] transition-colors cursor-pointer hover:bg-[#C2A476]/10 relative ${
+                        className={`h-full border-r border-black/[0.03] dark:border-white/[0.03] transition-colors cursor-pointer hover:bg-[#C2A476]/10 relative ${
                           isToday ? 'bg-[#C2A476]/5' : ''
                         }`}
                         title={`Click để đặt Villa ${villa.id} ngày ${day}/${currentMonth + 1}`}
@@ -398,7 +407,7 @@ export default function BookingsCalendarPage() {
                     );
                   })}
 
-                  {/* Render Bookings as Spanning Bars */}
+                  {/* Render Bookings as Spanning Bars - Strictly on the same Row 1 */}
                   {villaBookings.map((b) => {
                     // Clamp to current month days
                     let startDay = 1;
@@ -406,7 +415,7 @@ export default function BookingsCalendarPage() {
                       startDay = parseInt(b.checkIn.slice(8, 10), 10);
                     }
 
-                    let endDay = daysInMonth;
+                    let endDay = daysInMonth + 1;
                     if (b.checkOut <= monthEndStr) {
                       endDay = parseInt(b.checkOut.slice(8, 10), 10);
                     }
@@ -415,7 +424,7 @@ export default function BookingsCalendarPage() {
 
                     // Grid column calculation: index 1 is villa column, days start at col 2
                     const gridColStart = startDay + 1;
-                    const gridColEnd = gridColStart + spanDays;
+                    const gridColEnd = Math.min(gridColStart + spanDays, daysInMonth + 2);
 
                     const statusBg = getStatusColor(b.status);
 
@@ -425,13 +434,15 @@ export default function BookingsCalendarPage() {
                         style={{
                           gridColumnStart: gridColStart,
                           gridColumnEnd: gridColEnd,
+                          gridRow: 1,
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
                           setSelectedBooking(b);
                           setSlideOverOpen(true);
                         }}
-                        className="my-auto mx-1 h-14 rounded-xl shadow-md p-2 text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] hover:z-20 relative flex flex-col justify-between overflow-hidden"
+                        title={`${b.customerName} (${b.id}) • ${b.nights} đêm (${b.checkIn} → ${b.checkOut})`}
+                        className="my-auto mx-1 h-14 rounded-xl shadow-md p-2 text-white cursor-pointer transition-all duration-200 hover:scale-[1.02] z-20 hover:z-30 relative flex flex-col justify-between overflow-hidden"
                       >
                         {/* Background with custom status color */}
                         <div
