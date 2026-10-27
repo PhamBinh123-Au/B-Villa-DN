@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next';
 import { siteConfig } from '@/config/siteConfig';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://b-villa-dn.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://www.bvilladanang.com';
   const lastModified = new Date();
 
   return [

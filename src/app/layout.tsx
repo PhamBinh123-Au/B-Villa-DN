@@ -10,12 +10,20 @@ const plusJakartaSans = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://www.bvilladanang.com";
+
 export const metadata: Metadata = {
-  metadataBase: new URL("https://b-villa-dn.vercel.app"),
+  metadataBase: new URL(SITE_URL),
+  verification: {
+    google: "euF2zApHyXjMFTNqdoJ8iu9ZsUkLHjvZ7IaQ0yFJrek",
+  },
   title: `${siteConfig.name} | ${siteConfig.tagline}`,
   description: siteConfig.description,
   keywords: [
     "Da Nang luxury villas",
+    "B Villa Da Nang",
+    "B Villa",
+    "Villa Da Nang",
     "Da Nang villa rental",
     "Son Tra villa",
     "Ngu Hanh Son villa",
@@ -23,16 +31,16 @@ export const metadata: Metadata = {
     "Vietnam luxury hospitality",
   ],
   alternates: {
-    canonical: "https://b-villa-dn.vercel.app",
+    canonical: SITE_URL,
   },
   openGraph: {
     title: siteConfig.name,
     description: siteConfig.tagline,
-    url: "https://b-villa-dn.vercel.app",
+    url: SITE_URL,
     siteName: siteConfig.name,
     images: [
       {
-        url: "https://b-villa-dn.vercel.app/images/gallery/pool-oasis.jpg",
+        url: `${SITE_URL}/images/gallery/pool-oasis.jpg`,
         width: 1200,
         height: 630,
         alt: "B Villa Da Nang Luxury Pool Sanctuary",
@@ -45,7 +53,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteConfig.name,
     description: siteConfig.tagline,
-    images: ["https://b-villa-dn.vercel.app/images/gallery/pool-oasis.jpg"],
+    images: [`${SITE_URL}/images/gallery/pool-oasis.jpg`],
   },
   icons: {
     icon: [{ url: "/images/logo.png" }],
@@ -236,6 +244,7 @@ export default function RootLayout({
       className={plusJakartaSans.variable}
     >
       <head>
+        <meta name="google-site-verification" content="euF2zApHyXjMFTNqdoJ8iu9ZsUkLHjvZ7IaQ0yFJrek" />
         {/* Suppress third-party browser extension errors (e.g. Urban VPN, ad-blockers) from popping Next.js dev overlay */}
         <script
           dangerouslySetInnerHTML={{
