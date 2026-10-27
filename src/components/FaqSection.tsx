@@ -152,16 +152,34 @@ export const FaqSection: React.FC = () => {
         </p>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-neutral-100 text-xs text-neutral-600">
           <div>
-            <h4 className="font-bold text-neutral-900 mb-1">Bán Đảo Sơn Trà</h4>
-            <p>Khí hậu mát mẻ quanh năm, rừng nguyên sinh đa dạng sinh học và các bãi biển yên bình ít sóng.</p>
+            <h4 className="font-bold text-neutral-900 mb-1">
+              {language === "vi" ? "Bán Đảo Sơn Trà" : "Son Tra Peninsula"}
+            </h4>
+            <p>
+              {language === "vi"
+                ? "Khí hậu mát mẻ quanh năm, rừng nguyên sinh đa dạng sinh học và các bãi biển yên bình ít sóng."
+                : "Year-round temperate climate, biodiversity rainforest, and tranquil secluded sandy beaches."}
+            </p>
           </div>
           <div>
-            <h4 className="font-bold text-neutral-900 mb-1">Ngũ Hành Sơn Ven Sông</h4>
-            <p>Vùng đất của 5 ngọn núi đá cẩm thạch tâm linh, gần biển Mỹ Khê và trục đường di sản tới Hội An.</p>
+            <h4 className="font-bold text-neutral-900 mb-1">
+              {language === "vi" ? "Ngũ Hành Sơn Ven Sông" : "Riverside Ngu Hanh Son"}
+            </h4>
+            <p>
+              {language === "vi"
+                ? "Vùng đất của 5 ngọn núi đá cẩm thạch tâm linh, gần biển Mỹ Khê và trục đường di sản tới Hội An."
+                : "Land of the sacred Marble Mountains, minutes from My Khe Beach and heritage route to Hoi An."}
+            </p>
           </div>
           <div>
-            <h4 className="font-bold text-neutral-900 mb-1">Dịch Vụ Đặc Quyền</h4>
-            <p>Quản gia 24/7, nướng BBQ sân vườn riêng và hồ bơi tuần hoàn nước sạch.</p>
+            <h4 className="font-bold text-neutral-900 mb-1">
+              {language === "vi" ? "Dịch Vụ Đặc Quyền" : "Bespoke Villa Privileges"}
+            </h4>
+            <p>
+              {language === "vi"
+                ? "Quản gia 24/7, nướng BBQ sân vườn riêng và hồ bơi tuần hoàn nước sạch."
+                : "24/7 dedicated concierge, private garden BBQ dining, and crystal-clear private pool."}
+            </p>
           </div>
         </div>
       </div>

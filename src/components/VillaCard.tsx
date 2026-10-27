@@ -285,7 +285,7 @@ export const VillaCard: React.FC<VillaCardProps> = ({
                   alt={`${displayName} - Photo ${idx + 1}`}
                   fill
                   priority={idx === 0}
-                  quality={90}
+                  quality={82}
                   sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 750px"
                   style={{
                     objectFit: "cover",

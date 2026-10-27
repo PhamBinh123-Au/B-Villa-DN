@@ -47,14 +47,49 @@ const iconMap: Record<string, React.ReactNode> = {
   ShieldCheck: <ShieldCheck className="w-6 h-6 text-[#C2A476]" />,
 };
 
+const AMENITY_EN_MAP: Record<string, { title: string; desc: string }> = {
+  "Hồ bơi riêng (Private Pool)": {
+    title: "Exclusive Private Pool",
+    desc: "Outdoor swimming pool with modern electrolyte salt water filtration system.",
+  },
+  "Hồ bơi riêng": {
+    title: "Exclusive Private Pool",
+    desc: "Outdoor swimming pool with modern electrolyte salt water filtration system.",
+  },
+  "WiFi Tốc Độ Cao": {
+    title: "High-Speed Seamless Wi-Fi",
+    desc: "Enterprise wireless network coverage across living room, bedrooms, and private garden.",
+  },
+  "Bếp Đầy Đủ Tiện Nghi": {
+    title: "Fully Equipped Gourmet Kitchen",
+    desc: "Side-by-side refrigerator, oven, microwave, induction hob, and premium dinnerware set.",
+  },
+  "Bếp Nướng BBQ Sân Vườn": {
+    title: "Outdoor Garden BBQ Grill",
+    desc: "Dedicated alfresco barbecue dining area for family gatherings and feasts.",
+  },
+};
+
+function getAmenityEn(name: string, fallbackDesc: string): { title: string; desc: string } {
+  const trimmed = name.trim();
+  if (AMENITY_EN_MAP[trimmed]) return AMENITY_EN_MAP[trimmed];
+  for (const [key, val] of Object.entries(AMENITY_EN_MAP)) {
+    if (trimmed.toLowerCase().includes(key.toLowerCase()) || key.toLowerCase().includes(trimmed.toLowerCase())) {
+      return val;
+    }
+  }
+  return { title: trimmed, desc: fallbackDesc };
+}
+
 const INITIAL_AMENITIES: AmenityItem[] = DEFAULT_AMENITIES.map((item) => {
-  const cleanName = item.name.replace(/\s*\(300Mbps\)/gi, "");
+  const cleanName = item.name.replace(/\s*\(300Mbps\)/gi, "").trim();
+  const enData = getAmenityEn(cleanName, item.description);
   return {
     icon: item.iconName || "Sparkles",
     titleVi: cleanName,
-    titleEn: cleanName,
+    titleEn: enData.title,
     descVi: item.description,
-    descEn: item.description,
+    descEn: enData.desc,
   };
 });
 
@@ -68,13 +103,14 @@ export const AmenitiesSection: React.FC = () => {
       if (live && live.length > 0) {
         setAmenities(
           live.map((item) => {
-            const cleanName = item.name.replace(/\s*\(300Mbps\)/gi, "");
+            const cleanName = item.name.replace(/\s*\(300Mbps\)/gi, "").trim();
+            const enData = getAmenityEn(cleanName, item.description);
             return {
               icon: item.iconName || "Sparkles",
               titleVi: cleanName,
-              titleEn: cleanName,
+              titleEn: enData.title,
               descVi: item.description,
-              descEn: item.description,
+              descEn: enData.desc,
             };
           })
         );

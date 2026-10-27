@@ -91,7 +91,7 @@ export const Hero: React.FC<HeroProps> = () => {
                 alt={slide.title}
                 fill
                 priority={idx === 0}
-                unoptimized
+                quality={82}
                 sizes="100vw"
                 className="object-cover object-center"
               />
@@ -165,7 +165,7 @@ export const Hero: React.FC<HeroProps> = () => {
             href="#villas"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 bg-[#C2A476] hover:bg-[#a88a59] text-white text-xs md:text-sm uppercase tracking-widest font-bold px-8 py-3.5 sm:py-4 rounded-full shadow-2xl transition-all duration-300 hover:scale-105 active:scale-95 cursor-pointer"
           >
-            <span>{language === "vi" ? "Khám Phá 4 Biệt Thự" : "Explore The 4 Villas"}</span>
+            <span>{language === "vi" ? "Khám Phá Biệt Thự" : "Explore The Villas"}</span>
             <ArrowRight className="w-4 h-4" />
           </a>
           <a

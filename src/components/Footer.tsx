@@ -260,9 +260,15 @@ export const Footer: React.FC = () => {
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between text-xs text-neutral-500">
           <p>© {new Date().getFullYear()} {siteConfig.name}. {t("footer.rights", "All rights reserved.")}</p>
           <div className="flex flex-wrap items-center gap-5 mt-4 sm:mt-0">
-            <Link href="/about" className="hover:text-white transition-colors">Về Chúng Tôi</Link>
-            <Link href="/contact" className="hover:text-white transition-colors">Liên Hệ</Link>
-            <Link href="/privacy" className="hover:text-white transition-colors">Bảo Mật</Link>
+            <Link href="/about" className="hover:text-white transition-colors">
+              {language === "vi" ? "Về Chúng Tôi" : "About Us"}
+            </Link>
+            <Link href="/contact" className="hover:text-white transition-colors">
+              {language === "vi" ? "Liên Hệ" : "Contact"}
+            </Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">
+              {language === "vi" ? "Bảo Mật" : "Privacy Policy"}
+            </Link>
             <button
               onClick={scrollToTop}
               className="flex items-center gap-1.5 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-2"

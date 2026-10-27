@@ -40,3 +40,5 @@ next-env.d.ts
 
 # antigravity rollback logs
 ANTIGRAVITY_ROLLBACK_LOG.md
+*images_backup*
+public/images_original_backup

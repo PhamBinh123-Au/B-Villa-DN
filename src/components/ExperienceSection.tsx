@@ -49,8 +49,14 @@ export const ExperienceSection: React.FC = () => {
   const { language } = useLanguage();
   const [activePhotoIndex, setActivePhotoIndex] = useState(0);
 
-  // Auto-rotate experience photos gently
+  // Auto-rotate experience photos gently & preload all 4 slides for instant transition
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      EXPERIENCE_PHOTOS.forEach((item) => {
+        const img = new window.Image();
+        img.src = item.src;
+      });
+    }
     const timer = setInterval(() => {
       setActivePhotoIndex((prev) => (prev + 1) % EXPERIENCE_PHOTOS.length);
     }, 5500);
@@ -171,7 +177,7 @@ export const ExperienceSection: React.FC = () => {
                     alt={language === "vi" ? photo.titleVi : photo.titleEn}
                     fill
                     priority={idx === 0}
-                    quality={90}
+                    quality={82}
                     sizes="(max-width: 1024px) 100vw, 750px"
                     className="object-cover object-center scale-100 group-hover:scale-105 transition-transform duration-700 ease-out"
                   />
